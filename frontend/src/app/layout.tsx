@@ -5,7 +5,7 @@ import { Providers } from "@/components/Providers";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "YUNITE Banking System - Admin Portal",
@@ -18,14 +18,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning className="scroll-smooth">
+      <body className={`${inter.className} bg-slate-50 dark:bg-slate-950 antialiased`}>
         <Providers>
-          <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+          <div className="min-h-screen">
             <Sidebar />
-            <div className="lg:pl-[280px] transition-all duration-300">
+            <div className="lg:pl-[260px] transition-all duration-300">
               <TopBar />
-              <main className="p-4 lg:p-6">
+              <main className="p-4 lg:p-6 xl:p-8">
                 {children}
               </main>
             </div>

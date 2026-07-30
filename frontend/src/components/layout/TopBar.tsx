@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -14,12 +14,11 @@ import {
   Settings,
   User,
   HelpCircle,
-  Keyboard,
   Building2,
   GitBranch,
   Plus,
-  List,
-  LayoutGrid,
+  Command,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
@@ -28,7 +27,6 @@ import { getInitials } from "@/lib/utils";
 export function TopBar() {
   const router = useRouter();
   const {
-    sidebarCollapsed,
     toggleSidebar,
     setSidebarOpen,
     theme,
@@ -40,11 +38,12 @@ export function TopBar() {
     setCommandPaletteOpen,
   } = useAppStore();
 
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const orgRef = useRef<HTMLDivElement>(null);
 
   const notifications = [
     { id: "1", title: "Loan Approval Required", message: "John Doe's loan of KES 50,000 needs approval", type: "warning", time: "5m ago" },
@@ -53,15 +52,32 @@ export function TopBar() {
     { id: "4", title: "System Alert", message: "Database backup completed successfully", type: "info", time: "1h ago" },
   ];
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+      if (orgRef.current && !orgRef.current.contains(event.target as Node)) {
+        setShowOrgSwitcher(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-700">
+    <header className="sticky top-0 z-30 h-[68px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800/50">
       <div className="flex items-center justify-between h-full px-4 lg:px-6">
         {/* Left Section */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {/* Mobile menu toggle */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+            className="lg:hidden flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -69,39 +85,49 @@ export function TopBar() {
           {/* Desktop sidebar toggle */}
           <button
             onClick={toggleSidebar}
-            className="hidden lg:flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+            className="hidden lg:flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
           >
             <Menu className="w-5 h-5" />
           </button>
 
           {/* Organization Switcher */}
-          <div className="relative hidden md:block">
+          <div className="relative hidden md:block" ref={orgRef}>
             <button
               onClick={() => setShowOrgSwitcher(!showOrgSwitcher)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
             >
-              <Building2 className="w-4 h-4 text-emerald-600" />
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+                <Building2 className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 {currentOrganization?.name || "Select Organization"}
               </span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
+              <ChevronDown className={cn(
+                "w-4 h-4 text-slate-400 transition-transform duration-200",
+                showOrgSwitcher && "rotate-180"
+              )} />
             </button>
             <AnimatePresence>
               {showOrgSwitcher && (
                 <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden"
+                  initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden"
                 >
+                  <div className="p-3 border-b border-slate-100 dark:border-slate-800">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Organizations</p>
+                  </div>
                   <div className="p-2">
-                    <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase">Organizations</div>
-                    {["YUNITE SACCO", "Chama A", "Cooperative B"].map((org) => (
+                    {["YUNITE SACCO", "Chama A", "Cooperative B"].map((org, i) => (
                       <button
                         key={org}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-200 transition-colors"
                       >
-                        <Building2 className="w-4 h-4 text-slate-400" />
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                          <Building2 className="w-4 h-4 text-slate-500" />
+                        </div>
                         {org}
                       </button>
                     ))}
@@ -113,8 +139,8 @@ export function TopBar() {
 
           {/* Branch indicator */}
           {currentBranch && (
-            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs text-slate-500">
-              <GitBranch className="w-3 h-3" />
+            <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-xs font-medium text-slate-500">
+              <GitBranch className="w-3.5 h-3.5" />
               {currentBranch.name}
             </div>
           )}
@@ -125,59 +151,64 @@ export function TopBar() {
           {/* Global Search */}
           <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-400 text-sm"
+            className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm transition-all group"
           >
             <Search className="w-4 h-4" />
             <span>Search...</span>
-            <kbd className="hidden lg:inline-flex px-1.5 py-0.5 text-xs rounded bg-slate-100 dark:bg-slate-700 text-slate-400">⌘K</kbd>
-          </button>
-
-          {/* Quick Actions */}
-          <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Quick Action</span>
+            <kbd className="hidden lg:flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-700">
+              <Command className="w-3 h-3" /> K
+            </kbd>
           </button>
 
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+            className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+            aria-label="Toggle theme"
           >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            <motion.div
+              initial={false}
+              animate={{ rotate: theme === "dark" ? 180 : 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </motion.div>
           </button>
 
           {/* Notifications */}
-          <div className="relative">
+          <div className="relative" ref={notificationRef}>
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+              className="relative flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 transition-colors"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                  {unreadCount}
+                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </button>
             <AnimatePresence>
               {showNotifications && (
                 <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden"
+                  initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden"
                 >
-                  <div className="p-3 border-b border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Notifications</h3>
-                      <button className="text-xs text-emerald-600 hover:text-emerald-700">Mark all read</button>
-                    </div>
+                  <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Notifications</h3>
+                    <button className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">Mark all read</button>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.map((n) => (
-                      <button
+                    {notifications.map((n, i) => (
+                      <motion.button
                         key={n.id}
-                        className="w-full flex items-start gap-3 px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-left"
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left border-b border-slate-50 dark:border-slate-800/50 last:border-0 transition-colors"
                       >
                         <div className={cn(
                           "w-2 h-2 rounded-full mt-1.5 flex-shrink-0",
@@ -186,14 +217,14 @@ export function TopBar() {
                           n.type === "info" && "bg-blue-500",
                         )} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{n.title}</p>
-                          <p className="text-xs text-slate-500 mt-0.5 truncate">{n.message}</p>
-                          <p className="text-xs text-slate-400 mt-1">{n.time}</p>
+                          <p className="text-sm font-medium text-slate-900 dark:text-white">{n.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{n.message}</p>
+                          <p className="text-[10px] text-slate-400 mt-1 font-medium">{n.time}</p>
                         </div>
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
-                  <div className="p-2 border-t border-slate-200 dark:border-slate-700">
+                  <div className="p-3 border-t border-slate-100 dark:border-slate-800">
                     <button className="w-full py-2 text-sm text-center text-emerald-600 hover:text-emerald-700 font-medium">
                       View All Notifications
                     </button>
@@ -203,53 +234,65 @@ export function TopBar() {
             </AnimatePresence>
           </div>
 
+          {/* Divider */}
+          <div className="hidden sm:block w-px h-8 bg-slate-200 dark:bg-slate-700" />
+
+          {/* Quick Action Button */}
+          <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white text-sm font-medium shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30 transition-all">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Quick Action</span>
+          </button>
+
           {/* Profile Menu */}
-          <div className="relative">
+          <div className="relative" ref={profileRef}>
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white text-sm font-medium">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 flex items-center justify-center text-white text-sm font-semibold shadow-lg shadow-emerald-500/20">
                 {user ? getInitials(`${user.firstName} ${user.lastName}`) : "AD"}
               </div>
               <div className="hidden lg:block text-left">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-tight">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 leading-tight">
                   {user ? `${user.firstName} ${user.lastName}` : "Admin User"}
                 </p>
-                <p className="text-xs text-slate-400 leading-tight">Super Administrator</p>
+                <p className="text-[11px] text-slate-400 leading-tight">Super Administrator</p>
               </div>
-              <ChevronDown className="hidden lg:block w-3 h-3 text-slate-400" />
+              <ChevronDown className={cn(
+                "hidden lg:block w-4 h-4 text-slate-400 transition-transform duration-200",
+                showProfileMenu && "rotate-180"
+              )} />
             </button>
             <AnimatePresence>
               {showProfileMenu && (
                 <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  className="absolute top-full right-0 mt-1 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden"
+                  initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden"
                 >
+                  <div className="p-3 border-b border-slate-100 dark:border-slate-800">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Admin User</p>
+                    <p className="text-xs text-slate-500 mt-0.5">admin@yunite.org</p>
+                  </div>
                   <div className="p-2">
-                    <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 mb-1">
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">Admin User</p>
-                      <p className="text-xs text-slate-500">admin@yunite.org</p>
-                    </div>
                     {[
                       { label: "My Profile", icon: User, href: "/profile" },
                       { label: "Settings", icon: Settings, href: "/settings" },
                       { label: "Help Center", icon: HelpCircle, href: "/help" },
-                      { label: "Keyboard Shortcuts", icon: Keyboard, href: "#" },
                     ].map((item) => (
                       <button
                         key={item.label}
                         onClick={() => { router.push(item.href); setShowProfileMenu(false); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-200 transition-colors"
                       >
                         <item.icon className="w-4 h-4 text-slate-400" />
                         {item.label}
                       </button>
                     ))}
-                    <div className="border-t border-slate-200 dark:border-slate-700 mt-1 pt-1">
-                      <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600">
+                    <div className="border-t border-slate-100 dark:border-slate-800 mt-2 pt-2">
+                      <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 transition-colors">
                         <LogOut className="w-4 h-4" />
                         Sign Out
                       </button>
