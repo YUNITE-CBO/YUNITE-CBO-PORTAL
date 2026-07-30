@@ -142,7 +142,7 @@ export class AuditEngine {
 
     return {
       totalLogs,
-      actionCounts: actionCounts.map(a => ({ action: a.action, count: a._count })),
+      actionCounts: actionCounts.map((a: { action: string; _count: number }) => ({ action: a.action, count: a._count })),
       recentActions,
     };
   }

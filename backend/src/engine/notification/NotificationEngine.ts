@@ -71,7 +71,7 @@ export class NotificationEngine {
     });
 
     await this.sendBulk(
-      users.map(user => ({
+      users.map((user: { id: string }) => ({
         userId: user.id,
         title,
         message,
@@ -100,7 +100,7 @@ export class NotificationEngine {
     });
 
     await this.sendBulk(
-      members.map(member => ({
+      members.map((member: { id: string }) => ({
         userId: member.id,
         title,
         message,

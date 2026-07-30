@@ -103,18 +103,18 @@ export class ReportingEngine {
         status: member?.status,
         registrationDate: member?.registrationDate,
       },
-      savings: member?.savingsAccounts.map(a => ({
+      savings: member?.savingsAccounts.map((a: any) => ({
         accountNumber: a.accountNumber,
         balance: Number(a.balance),
         transactions: a.transactions,
       })),
-      shares: member?.shareAccounts.map(a => ({
+      shares: member?.shareAccounts.map((a: any) => ({
         accountNumber: a.accountNumber,
         shares: a.shares,
         totalValue: Number(a.totalValue),
         transactions: a.transactions,
       })),
-      loans: member?.loans.map(l => ({
+      loans: member?.loans.map((l: any) => ({
         loanNumber: l.loanNumber,
         principal: Number(l.principal),
         balance: Number(l.balance),
@@ -144,13 +144,13 @@ export class ReportingEngine {
 
     return {
       memberId,
-      accounts: accounts.map(a => ({
+      accounts: accounts.map((a: any) => ({
         accountNumber: a.accountNumber,
         product: a.product.name,
         balance: Number(a.balance),
         availableBalance: Number(a.availableBalance),
         status: a.status,
-        transactions: a.transactions.map(t => ({
+        transactions: a.transactions.map((t: any) => ({
           date: t.createdAt,
           type: t.type,
           amount: Number(t.amount),
@@ -178,7 +178,7 @@ export class ReportingEngine {
 
     return {
       memberId,
-      loans: loans.map(l => ({
+      loans: loans.map((l: any) => ({
         loanNumber: l.loanNumber,
         product: l.product.name,
         principal: Number(l.principal),
@@ -190,7 +190,7 @@ export class ReportingEngine {
         status: l.status,
         applicationDate: l.applicationDate,
         maturityDate: l.maturityDate,
-        repayments: l.repayments.map(r => ({
+        repayments: l.repayments.map((r: any) => ({
           dueDate: r.dueDate,
           amount: Number(r.amount),
           principal: Number(r.principal),
@@ -198,7 +198,7 @@ export class ReportingEngine {
           paidDate: r.paidDate,
           status: r.status,
         })),
-        guarantors: l.guarantors.map(g => ({
+        guarantors: l.guarantors.map((g: any) => ({
           name: `${g.member.firstName} ${g.member.lastName}`,
           memberNumber: g.member.memberNumber,
           amount: Number(g.amount),
@@ -265,7 +265,7 @@ export class ReportingEngine {
         totalShares: Number(shareSummary._sum.shares || 0),
         shareAccounts: shareSummary._count,
       },
-      recentTransactions: recentTransactions.map(t => ({
+      recentTransactions: recentTransactions.map((t: any) => ({
         transactionNumber: t.transactionNumber,
         type: t.type,
         amount: Number(t.amount),
@@ -330,11 +330,11 @@ export class ReportingEngine {
       orderBy: { createdAt: 'asc' },
     });
 
-    const inflows = transactions.filter(t => ['SAVINGS_DEPOSIT', 'LOAN_REPAYMENT', 'SHARE_PURCHASE', 'INCOME', 'DONATION', 'GRANT'].includes(t.type));
-    const outflows = transactions.filter(t => ['SAVINGS_WITHDRAWAL', 'LOAN_DISBURSEMENT', 'EXPENSE', 'PAYROLL'].includes(t.type));
+    const inflows = transactions.filter((t: any) => ['SAVINGS_DEPOSIT', 'LOAN_REPAYMENT', 'SHARE_PURCHASE', 'INCOME', 'DONATION', 'GRANT'].includes(t.type));
+    const outflows = transactions.filter((t: any) => ['SAVINGS_WITHDRAWAL', 'LOAN_DISBURSEMENT', 'EXPENSE', 'PAYROLL'].includes(t.type));
 
-    const totalInflow = inflows.reduce((s, t) => s + Number(t.amount), 0);
-    const totalOutflow = outflows.reduce((s, t) => s + Number(t.amount), 0);
+    const totalInflow = inflows.reduce((s: number, t: any) => s + Number(t.amount), 0);
+    const totalOutflow = outflows.reduce((s: number, t: any) => s + Number(t.amount), 0);
 
     return {
       period: { startDate, endDate },
@@ -367,14 +367,14 @@ export class ReportingEngine {
 
     return {
       period: { startDate, endDate },
-      entries: entries.map(e => ({
+      entries: entries.map((e: any) => ({
         entryNumber: e.entryNumber,
         date: e.date,
         description: e.description,
         reference: e.reference,
         totalDebit: Number(e.totalDebit),
         totalCredit: Number(e.totalCredit),
-        lines: e.journalLines.map(l => ({
+        lines: e.journalLines.map((l: any) => ({
           accountCode: l.account.code,
           accountName: l.account.name,
           debit: Number(l.debit),
@@ -405,7 +405,7 @@ export class ReportingEngine {
     return {
       period: { startDate, endDate },
       totalLogs: logs.length,
-      logs: logs.map(l => ({
+      logs: logs.map((l: any) => ({
         date: l.createdAt,
         user: l.user ? `${l.user.firstName} ${l.user.lastName}` : 'System',
         action: l.action,

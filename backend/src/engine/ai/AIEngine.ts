@@ -285,16 +285,16 @@ export class AIEngine {
     const factors: string[] = [];
 
     // Savings history
-    const totalSavings = member.savingsAccounts.reduce((s, a) => s + Number(a.balance), 0);
+    const totalSavings = member.savingsAccounts.reduce((s: number, a: { balance: any }) => s + Number(a.balance), 0);
     if (totalSavings > 0) {
       score += Math.min(totalSavings / 1000, 100);
       factors.push(`Savings balance: +${Math.min(totalSavings / 1000, 100)}`);
     }
 
     // Loan repayment history
-    const completedLoans = member.loans.filter(l => l.status === 'COMPLETED').length;
-    const activeLoans = member.loans.filter(l => l.status === 'ACTIVE' || l.status === 'DISBURSED').length;
-    const defaultedLoans = member.loans.filter(l => l.status === 'DEFAULTED').length;
+    const completedLoans = member.loans.filter((l: { status: string }) => l.status === 'COMPLETED').length;
+    const activeLoans = member.loans.filter((l: { status: string }) => l.status === 'ACTIVE' || l.status === 'DISBURSED').length;
+    const defaultedLoans = member.loans.filter((l: { status: string }) => l.status === 'DEFAULTED').length;
 
     score += completedLoans * 20;
     score -= defaultedLoans * 50;
@@ -302,14 +302,14 @@ export class AIEngine {
     if (defaultedLoans > 0) factors.push(`Defaulted loans: ${defaultedLoans} (-${defaultedLoans * 50})`);
 
     // Share capital
-    const totalShares = member.shareAccounts.reduce((s, a) => s + Number(a.totalValue), 0);
+    const totalShares = member.shareAccounts.reduce((s: number, a: { totalValue: any }) => s + Number(a.totalValue), 0);
     if (totalShares > 0) {
       score += Math.min(totalShares / 5000, 50);
       factors.push(`Share value: +${Math.min(totalShares / 5000, 50)}`);
     }
 
     // Fines
-    const unpaidFines = member.fines.filter(f => f.status === 'PENDING').length;
+    const unpaidFines = member.fines.filter((f: { status: string }) => f.status === 'PENDING').length;
     score -= unpaidFines * 10;
     if (unpaidFines > 0) factors.push(`Unpaid fines: ${unpaidFines} (-${unpaidFines * 10})`);
 
@@ -366,7 +366,7 @@ export class AIEngine {
         where: { member: { organizationId: orgId }, status: 'ACTIVE' },
         select: { balance: true },
       });
-      const totalOutstanding = activeLoans.reduce((s, l) => s + Number(l.balance), 0);
+      const totalOutstanding = activeLoans.reduce((s: number, l: { balance: any }) => s + Number(l.balance), 0);
 
       findings.push({ metric: 'PORTFOLIO_SIZE', value: totalOutstanding });
 
@@ -471,10 +471,10 @@ export class AIEngine {
         },
       });
 
-      const highRiskLoans = loans.filter(l => {
+      const highRiskLoans = loans.filter((l: any) => {
         if (l.status === 'ACTIVE' || l.status === 'DISBURSED') {
           const creditScore = Number(l.member.creditScore);
-          const savingsBalance = l.member.savingsAccounts.reduce((s, a) => s + Number(a.balance), 0);
+          const savingsBalance = l.member.savingsAccounts.reduce((s: number, a: { balance: any }) => s + Number(a.balance), 0);
           return creditScore < 300 || (savingsBalance < Number(l.monthlyPayment) * 3);
         }
         return false;
@@ -484,8 +484,8 @@ export class AIEngine {
         findings.push({
           type: 'PREDICTED_DEFAULTS',
           count: highRiskLoans.length,
-          totalAtRisk: highRiskLoans.reduce((s, l) => s + Number(l.balance), 0),
-          loans: highRiskLoans.map(l => ({ loanNumber: l.loanNumber, balance: Number(l.balance) })),
+          totalAtRisk: highRiskLoans.reduce((s: number, l: { balance: any }) => s + Number(l.balance), 0),
+          loans: highRiskLoans.map((l: any) => ({ loanNumber: l.loanNumber, balance: Number(l.balance) })),
         });
         recommendations.push(`${highRiskLoans.length} loans at risk of default - consider early intervention`);
       }
@@ -529,7 +529,7 @@ export class AIEngine {
         where: { member: { organizationId: orgId } },
         select: { balance: true },
       });
-      const totalSavings = savingsAccounts.reduce((s, a) => s + Number(a.balance), 0);
+      const totalSavings = savingsAccounts.reduce((s: number, a: { balance: any }) => s + Number(a.balance), 0);
       const avgSavings = savingsAccounts.length > 0 ? totalSavings / savingsAccounts.length : 0;
 
       if (avgSavings < 1000) {

@@ -204,8 +204,8 @@ export class AccountingEngine {
       where: { accountId },
     });
 
-    const totalDebit = lines.reduce((sum, line) => sum + Number(line.debit), 0);
-    const totalCredit = lines.reduce((sum, line) => sum + Number(line.credit), 0);
+    const totalDebit = lines.reduce((sum: number, line: { debit: any }) => sum + Number(line.debit), 0);
+    const totalCredit = lines.reduce((sum: number, line: { credit: any }) => sum + Number(line.credit), 0);
 
     // For asset and expense accounts: balance = debit - credit
     // For liability, equity, and revenue accounts: balance = credit - debit
@@ -271,8 +271,8 @@ export class AccountingEngine {
         },
       });
 
-      const totalDebit = lines.reduce((sum, l) => sum + Number(l.debit), 0);
-      const totalCredit = lines.reduce((sum, l) => sum + Number(l.credit), 0);
+      const totalDebit = lines.reduce((sum: number, l: { debit: any }) => sum + Number(l.debit), 0);
+      const totalCredit = lines.reduce((sum: number, l: { credit: any }) => sum + Number(l.credit), 0);
 
       let balance = 0;
       if (account.type === 'ASSET' || account.type === 'EXPENSE') {
@@ -363,8 +363,8 @@ export class AccountingEngine {
           },
         },
       });
-      const credit = lines.reduce((s, l) => s + Number(l.credit), 0);
-      const debit = lines.reduce((s, l) => s + Number(l.debit), 0);
+      const credit = lines.reduce((s: number, l: { credit: any }) => s + Number(l.credit), 0);
+      const debit = lines.reduce((s: number, l: { debit: any }) => s + Number(l.debit), 0);
       return { totalCredit: credit, totalDebit: debit, balance: credit - debit };
     };
 
