@@ -19,11 +19,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning className="scroll-smooth">
-      <body className={`${inter.className} bg-slate-50 dark:bg-slate-950 antialiased`}>
+      <body className={`${inter.className} bg-neutral-50 dark:bg-neutral-950 antialiased`}>
         <Providers>
           <div className="min-h-screen">
             <Sidebar />
-            <div className="lg:pl-[260px] transition-all duration-300">
+            <div className="lg:pl-[260px] transition-all duration-200">
               <TopBar />
               <main className="p-4 lg:p-6 xl:p-8">
                 {children}

@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, Filter, Download, MoreHorizontal, PiggyBank } from "lucide-react";
-import { cn, formatCurrency, getStatusColor } from "@/lib/utils";
+import { Plus, Download, MoreHorizontal, PiggyBank, Search } from "lucide-react";
+import { cn, formatCurrency } from "@/lib/utils";
+import { Button, IconButton } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { StatusBadge } from "@/components/ui/Badge";
+import { StatCard } from "@/components/ui/Card";
 
 const accounts = [
   { id: "1", accountNumber: "SAV-001", member: "John Kamau", type: "regular", balance: 450000, interestRate: 4.5, status: "active", openedDate: "2023-01-15" },
@@ -16,67 +19,83 @@ const accounts = [
 
 export default function SavingsPage() {
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Savings Accounts</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage member savings accounts</p>
+          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-0">Savings Accounts</h1>
+          <p className="text-sm text-neutral-500 mt-1">Manage member savings accounts</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <Button variant="outline" size="sm">
             <Download className="w-4 h-4" />
             Export
-          </button>
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium">
+          </Button>
+          <Button size="sm">
             <Plus className="w-4 h-4" />
             New Account
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Total Accounts", value: "156", color: "bg-blue-500" },
-          { label: "Total Balance", value: formatCurrency(45200000), color: "bg-emerald-500" },
-          { label: "Active Accounts", value: "134", color: "bg-violet-500" },
-          { label: "Avg Balance", value: formatCurrency(289744), color: "bg-amber-500" },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-            <p className="text-xs text-slate-500 mb-1">{stat.label}</p>
-            <p className="text-xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
-          </div>
-        ))}
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard 
+          title="Total Accounts" 
+          value="156"
+          icon={<PiggyBank className="w-5 h-5 text-white" />}
+          iconColor="bg-blue-500"
+        />
+        <StatCard 
+          title="Total Balance" 
+          value={formatCurrency(45200000)}
+          icon={<PiggyBank className="w-5 h-5 text-white" />}
+          iconColor="bg-primary-500"
+        />
+        <StatCard 
+          title="Active Accounts" 
+          value="134"
+          icon={<PiggyBank className="w-5 h-5 text-white" />}
+          iconColor="bg-violet-500"
+        />
+        <StatCard 
+          title="Avg Balance" 
+          value={formatCurrency(289744)}
+          icon={<PiggyBank className="w-5 h-5 text-white" />}
+          iconColor="bg-amber-500"
+        />
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      {/* Table */}
+      <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Account</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Member</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Balance</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Rate</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
-                <th className="w-12 px-4 py-3"></th>
+              <tr className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Account</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Member</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Type</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Balance</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Rate</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Status</th>
+                <th className="w-10 px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {accounts.map((acc) => (
-                <tr key={acc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">{acc.accountNumber}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{acc.member}</td>
-                  <td className="px-4 py-3 text-sm capitalize text-slate-700 dark:text-slate-300">{acc.type}</td>
-                  <td className="px-4 py-3 text-right text-sm font-medium text-slate-900 dark:text-white">{formatCurrency(acc.balance)}</td>
-                  <td className="px-4 py-3 text-right text-sm text-slate-600 dark:text-slate-400">{acc.interestRate}%</td>
+                <tr key={acc.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/30 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-neutral-900 dark:text-neutral-0">{acc.accountNumber}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400">{acc.member}</td>
+                  <td className="px-4 py-3 text-sm capitalize text-neutral-700 dark:text-neutral-300">{acc.type}</td>
+                  <td className="px-4 py-3 text-right text-sm font-semibold text-neutral-900 dark:text-neutral-0">{formatCurrency(acc.balance)}</td>
+                  <td className="px-4 py-3 text-right text-sm text-neutral-600 dark:text-neutral-400">{acc.interestRate}%</td>
                   <td className="px-4 py-3">
-                    <span className={cn("inline-flex px-2 py-0.5 text-xs font-medium rounded-full border", getStatusColor(acc.status))}>{acc.status}</span>
+                    <StatusBadge status={acc.status as any} size="sm" />
                   </td>
                   <td className="px-4 py-3">
-                    <button className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400">
+                    <IconButton variant="ghost" size="sm" aria-label="More options">
                       <MoreHorizontal className="w-4 h-4" />
-                    </button>
+                    </IconButton>
                   </td>
                 </tr>
               ))}

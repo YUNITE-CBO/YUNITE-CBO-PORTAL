@@ -5,11 +5,12 @@ import { ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "ghost" | "danger" | "outline";
-  size?: "sm" | "md" | "lg";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "outline" | "link";
+  size?: "xs" | "sm" | "md" | "lg";
   loading?: boolean;
   icon?: ReactNode;
   iconPosition?: "left" | "right";
+  fullWidth?: boolean;
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -22,29 +23,38 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     disabled,
     icon,
     iconPosition = "left",
+    fullWidth = false,
     ...props 
   }, ref) => {
-    const baseStyles = "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+    const baseStyles = "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap";
     
     const variants = {
-      primary: "bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 focus-visible:ring-emerald-500 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0",
-      secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 focus-visible:ring-slate-400",
-      ghost: "bg-transparent text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800 focus-visible:ring-slate-400",
-      danger: "bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500 shadow-sm",
-      outline: "bg-transparent border border-slate-200 text-slate-700 hover:bg-slate-50 active:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 focus-visible:ring-slate-400",
+      primary: "bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800 focus-visible:ring-primary-500 shadow-sm hover:shadow-md active:shadow-sm",
+      secondary: "bg-neutral-100 text-neutral-700 hover:bg-neutral-200 active:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 dark:active:bg-neutral-600 focus-visible:ring-neutral-400",
+      ghost: "bg-transparent text-neutral-600 hover:bg-neutral-100 active:bg-neutral-200 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:active:bg-neutral-700 focus-visible:ring-neutral-400",
+      danger: "bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500 shadow-sm hover:shadow-md active:shadow-sm",
+      outline: "bg-transparent border border-neutral-300 text-neutral-700 hover:bg-neutral-50 active:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:active:bg-neutral-700 focus-visible:ring-neutral-400",
+      link: "bg-transparent text-primary-600 hover:text-primary-700 hover:underline active:text-primary-800 focus-visible:ring-primary-500 p-0 h-auto",
     };
     
     const sizes = {
+      xs: "h-7 px-2.5 text-xs rounded-md",
       sm: "h-8 px-3 text-sm",
-      md: "h-10 px-4 text-sm",
-      lg: "h-12 px-6 text-base",
+      md: "h-9 px-4 text-sm",
+      lg: "h-11 px-5 text-base",
     };
 
     return (
       <button
         ref={ref}
         disabled={disabled || loading}
-        className={cn(baseStyles, variants[variant], sizes[size], className)}
+        className={cn(
+          baseStyles, 
+          variants[variant], 
+          variant !== "link" && sizes[size],
+          fullWidth && "w-full",
+          className
+        )}
         {...props}
       >
         {loading ? (
@@ -60,3 +70,53 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = "Button";
+
+// Icon Button Component
+interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  size?: "sm" | "md" | "lg";
+  loading?: boolean;
+  "aria-label": string;
+}
+
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
+  ({ 
+    className, 
+    variant = "ghost", 
+    size = "md",
+    loading = false,
+    disabled,
+    children,
+    ...props 
+  }, ref) => {
+    const baseStyles = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+    
+    const variants = {
+      primary: "bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800 focus-visible:ring-primary-500 shadow-sm",
+      secondary: "bg-neutral-100 text-neutral-700 hover:bg-neutral-200 active:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 focus-visible:ring-neutral-400",
+      ghost: "bg-transparent text-neutral-500 hover:bg-neutral-100 active:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:active:bg-neutral-700 focus-visible:ring-neutral-400",
+      danger: "bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500 shadow-sm",
+    };
+    
+    const sizes = {
+      sm: "w-7 h-7",
+      md: "w-9 h-9",
+      lg: "w-11 h-11",
+    };
+
+    return (
+      <button
+        ref={ref}
+        disabled={disabled || loading}
+        className={cn(baseStyles, variants[variant], sizes[size], className)}
+        {...props}
+      >
+        {loading ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : children}
+      </button>
+    );
+  }
+);
+
+IconButton.displayName = "IconButton";

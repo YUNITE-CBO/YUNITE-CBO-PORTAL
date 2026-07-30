@@ -18,11 +18,11 @@ import {
   GitBranch,
   Plus,
   Command,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import { getInitials } from "@/lib/utils";
+import { NotificationBadge } from "@/components/ui/Badge";
 
 export function TopBar() {
   const router = useRouter();
@@ -70,14 +70,14 @@ export function TopBar() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 h-[68px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800/50">
+    <header className="sticky top-0 z-30 h-16 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl border-b border-neutral-200 dark:border-neutral-800">
       <div className="flex items-center justify-between h-full px-4 lg:px-6">
         {/* Left Section */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {/* Mobile menu toggle */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
+            className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 transition-colors"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -85,7 +85,7 @@ export function TopBar() {
           {/* Desktop sidebar toggle */}
           <button
             onClick={toggleSidebar}
-            className="hidden lg:flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
+            className="hidden lg:flex items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 transition-colors"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -94,16 +94,16 @@ export function TopBar() {
           <div className="relative hidden md:block" ref={orgRef}>
             <button
               onClick={() => setShowOrgSwitcher(!showOrgSwitcher)}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
                 <Building2 className="w-4 h-4 text-white" />
               </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
                 {currentOrganization?.name || "Select Organization"}
               </span>
               <ChevronDown className={cn(
-                "w-4 h-4 text-slate-400 transition-transform duration-200",
+                "w-4 h-4 text-neutral-400 transition-transform duration-150",
                 showOrgSwitcher && "rotate-180"
               )} />
             </button>
@@ -113,20 +113,20 @@ export function TopBar() {
                   initial={{ opacity: 0, y: 4, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden"
+                  transition={{ duration: 0.1 }}
+                  className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-neutral-900 rounded-xl shadow-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden"
                 >
-                  <div className="p-3 border-b border-slate-100 dark:border-slate-800">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Organizations</p>
+                  <div className="p-3 border-b border-neutral-200 dark:border-neutral-800">
+                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Organizations</p>
                   </div>
-                  <div className="p-2">
-                    {["YUNITE SACCO", "Chama A", "Cooperative B"].map((org, i) => (
+                  <div className="p-1.5">
+                    {["YUNITE SACCO", "Chama A", "Cooperative B"].map((org) => (
                       <button
                         key={org}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-200 transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-200 transition-colors"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                          <Building2 className="w-4 h-4 text-slate-500" />
+                        <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
+                          <Building2 className="w-4 h-4 text-neutral-500" />
                         </div>
                         {org}
                       </button>
@@ -139,7 +139,7 @@ export function TopBar() {
 
           {/* Branch indicator */}
           {currentBranch && (
-            <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-xs font-medium text-slate-500">
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/50 text-xs font-medium text-neutral-500">
               <GitBranch className="w-3.5 h-3.5" />
               {currentBranch.name}
             </div>
@@ -147,29 +147,29 @@ export function TopBar() {
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {/* Global Search */}
           <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm transition-all group"
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 text-sm transition-all group"
           >
             <Search className="w-4 h-4" />
             <span>Search...</span>
-            <kbd className="hidden lg:flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-700">
-              <Command className="w-3 h-3" /> K
+            <kbd className="hidden lg:flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-[10px] font-medium text-neutral-400 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-700">
+              <Command className="w-3 h-3" />K
             </kbd>
           </button>
 
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+            className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
             aria-label="Toggle theme"
           >
             <motion.div
               initial={false}
               animate={{ rotate: theme === "dark" ? 180 : 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.2 }}
             >
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </motion.div>
@@ -179,13 +179,11 @@ export function TopBar() {
           <div className="relative" ref={notificationRef}>
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 transition-colors"
+              className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-700 transition-colors"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
+                <NotificationBadge count={unreadCount} className="absolute -top-0.5 -right-0.5" />
               )}
             </button>
             <AnimatePresence>
@@ -194,38 +192,38 @@ export function TopBar() {
                   initial={{ opacity: 0, y: 4, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden"
+                  transition={{ duration: 0.1 }}
+                  className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-neutral-900 rounded-xl shadow-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden"
                 >
-                  <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Notifications</h3>
-                    <button className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">Mark all read</button>
+                  <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-800">
+                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-0">Notifications</h3>
+                    <button className="text-xs text-primary-600 hover:text-primary-700 font-medium">Mark all read</button>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.map((n, i) => (
                       <motion.button
                         key={n.id}
-                        initial={{ opacity: 0, x: 10 }}
+                        initial={{ opacity: 0, x: 8 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left border-b border-slate-50 dark:border-slate-800/50 last:border-0 transition-colors"
+                        transition={{ delay: i * 0.03 }}
+                        className="w-full flex items-start gap-3 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-left border-b border-neutral-100 dark:border-neutral-800 last:border-0 transition-colors"
                       >
                         <div className={cn(
                           "w-2 h-2 rounded-full mt-1.5 flex-shrink-0",
                           n.type === "warning" && "bg-amber-500",
-                          n.type === "success" && "bg-emerald-500",
+                          n.type === "success" && "bg-primary-500",
                           n.type === "info" && "bg-blue-500",
                         )} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 dark:text-white">{n.title}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">{n.message}</p>
-                          <p className="text-[10px] text-slate-400 mt-1 font-medium">{n.time}</p>
+                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-0">{n.title}</p>
+                          <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{n.message}</p>
+                          <p className="text-[10px] text-neutral-400 mt-1 font-medium">{n.time}</p>
                         </div>
                       </motion.button>
                     ))}
                   </div>
-                  <div className="p-3 border-t border-slate-100 dark:border-slate-800">
-                    <button className="w-full py-2 text-sm text-center text-emerald-600 hover:text-emerald-700 font-medium">
+                  <div className="p-3 border-t border-neutral-200 dark:border-neutral-800">
+                    <button className="w-full py-2 text-sm text-center text-primary-600 hover:text-primary-700 font-medium">
                       View All Notifications
                     </button>
                   </div>
@@ -235,10 +233,10 @@ export function TopBar() {
           </div>
 
           {/* Divider */}
-          <div className="hidden sm:block w-px h-8 bg-slate-200 dark:bg-slate-700" />
+          <div className="hidden sm:block w-px h-6 bg-neutral-200 dark:bg-neutral-700 mx-1" />
 
           {/* Quick Action Button */}
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white text-sm font-medium shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30 transition-all">
+          <button className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium shadow-sm hover:shadow transition-all">
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Quick Action</span>
           </button>
@@ -247,19 +245,19 @@ export function TopBar() {
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
+              className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
             >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 flex items-center justify-center text-white text-sm font-semibold shadow-lg shadow-emerald-500/20">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white text-sm font-semibold">
                 {user ? getInitials(`${user.firstName} ${user.lastName}`) : "AD"}
               </div>
               <div className="hidden lg:block text-left">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 leading-tight">
+                <p className="text-sm font-medium text-neutral-700 dark:text-neutral-200 leading-tight">
                   {user ? `${user.firstName} ${user.lastName}` : "Admin User"}
                 </p>
-                <p className="text-[11px] text-slate-400 leading-tight">Super Administrator</p>
+                <p className="text-[11px] text-neutral-400 leading-tight">Super Administrator</p>
               </div>
               <ChevronDown className={cn(
-                "hidden lg:block w-4 h-4 text-slate-400 transition-transform duration-200",
+                "hidden lg:block w-4 h-4 text-neutral-400 transition-transform duration-150",
                 showProfileMenu && "rotate-180"
               )} />
             </button>
@@ -269,14 +267,14 @@ export function TopBar() {
                   initial={{ opacity: 0, y: 4, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden"
+                  transition={{ duration: 0.1 }}
+                  className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-neutral-900 rounded-xl shadow-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden"
                 >
-                  <div className="p-3 border-b border-slate-100 dark:border-slate-800">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Admin User</p>
-                    <p className="text-xs text-slate-500 mt-0.5">admin@yunite.org</p>
+                  <div className="p-3 border-b border-neutral-200 dark:border-neutral-800">
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-0">Admin User</p>
+                    <p className="text-xs text-neutral-500 mt-0.5">admin@yunite.org</p>
                   </div>
-                  <div className="p-2">
+                  <div className="p-1.5">
                     {[
                       { label: "My Profile", icon: User, href: "/profile" },
                       { label: "Settings", icon: Settings, href: "/settings" },
@@ -285,14 +283,14 @@ export function TopBar() {
                       <button
                         key={item.label}
                         onClick={() => { router.push(item.href); setShowProfileMenu(false); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-200 transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-200 transition-colors"
                       >
-                        <item.icon className="w-4 h-4 text-slate-400" />
+                        <item.icon className="w-4 h-4 text-neutral-400" />
                         {item.label}
                       </button>
                     ))}
-                    <div className="border-t border-slate-100 dark:border-slate-800 mt-2 pt-2">
-                      <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 transition-colors">
+                    <div className="border-t border-neutral-200 dark:border-neutral-800 mt-1.5 pt-1.5">
+                      <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 transition-colors">
                         <LogOut className="w-4 h-4" />
                         Sign Out
                       </button>
