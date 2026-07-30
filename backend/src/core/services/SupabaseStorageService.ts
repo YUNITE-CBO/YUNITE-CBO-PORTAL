@@ -1,4 +1,4 @@
-import { SupabaseClient, TransformOptions } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from './SupabaseService';
 import { Logger } from './Logger';
 import { config } from '../../config';
@@ -15,7 +15,11 @@ export interface StorageUploadOptions {
 export interface StorageDownloadOptions {
   bucket: string;
   path: string;
-  transform?: TransformOptions;
+  transform?: {
+    width?: number;
+    height?: number;
+    resize?: 'cover' | 'contain' | 'fill';
+  };
 }
 
 export interface StorageFileInfo {

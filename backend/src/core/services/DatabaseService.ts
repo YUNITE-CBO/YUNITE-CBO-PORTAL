@@ -9,25 +9,11 @@ export class DatabaseService {
     if (!DatabaseService.instance) {
       DatabaseService.instance = new PrismaClient({
         log: [
-          { emit: 'event', level: 'query' },
-          { emit: 'event', level: 'error' },
-          { emit: 'event', level: 'info' },
-          { emit: 'event', level: 'warn' },
+          { emit: 'stdout', level: 'query' },
+          { emit: 'stdout', level: 'error' },
+          { emit: 'stdout', level: 'info' },
+          { emit: 'stdout', level: 'warn' },
         ],
-      });
-
-      // Log queries in development
-      if (process.env.NODE_ENV === 'development') {
-        DatabaseService.instance.$on('query' as any, (e: any) => {
-          Logger.debug(`Query: ${e.query}`, {
-            params: e.params,
-            duration: `${e.duration}ms`,
-          });
-        });
-      }
-
-      DatabaseService.instance.$on('error' as any, (e: any) => {
-        Logger.error(`Database error: ${e.message}`, e);
       });
     }
     return DatabaseService.instance;

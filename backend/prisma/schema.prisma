@@ -180,50 +180,50 @@ model Organization {
   logoUrl            String?          @map("logo_url")
   website            String?
   description        String?
-  settings           Json?            @default("{}")
+  config             Json?            @default("{}") @map("settings")
   isActive           Boolean          @default(true) @map("is_active")
   deletedAt          DateTime?        @map("deleted_at")
 
   // Relations
-  users              User[]
-  branches           Branch[]
-  members            Member[]
-  memberGroups       MemberGroup[]
-  accounts           Account[]
-  loanProducts       LoanProduct[]
-  savingsProducts    SavingsProduct[]
-  shareProducts      ShareProduct[]
+  users                 User[]
+  branches              Branch[]
+  members               Member[]
+  memberGroups          MemberGroup[]
+  accounts              Account[]
+  loanProducts          LoanProduct[]
+  savingsProducts       SavingsProduct[]
+  shareProducts         ShareProduct[]
   contributionCampaigns ContributionCampaign[]
-  welfareSchemes     WelfareScheme[]
-  meetings           Meeting[]
-  polls              Poll[]
-  projects           Project[]
-  unityFund          UnityFund?
-  unityFundAllocations UnityFundAllocation[]
-  settings           Setting[]
-  fineRules          FineRule[]
-  events             Event[]
-  tasks              Task[]
-  contracts          Contract[]
-  suppliers          Supplier[]
-  vendors            Vendor[]
-  customers          Customer[]
-  budgetPeriods      BudgetPeriod[]
-  procurementRequests ProcurementRequest[]
-  assets             Asset[]
-  inventoryItems     InventoryItem[]
-  payrollRuns        PayrollRun[]
-  departments        Department[]
-  beneficiaries      Beneficiary[]
-  insuranceSchemes   InsuranceScheme[]
-  helpDeskTickets    HelpDeskTicket[]
-  integrations       Integration[]
-  apiKeys            ApiKey[]
-  backupConfigs      BackupConfig[]
-  complianceRecords  ComplianceRecord[]
-  riskAssessments    RiskAssessment[]
-  fraudAlerts        FraudAlert[]
-  systemHealthLogs   SystemHealthLog[]
+  welfareSchemes        WelfareScheme[]
+  meetings              Meeting[]
+  polls                 Poll[]
+  projects              Project[]
+  unityFund             UnityFund?
+  unityFundAllocations  UnityFundAllocation[]
+  settings              Setting[]
+  fineRules             FineRule[]
+  events                Event[]
+  tasks                 Task[]
+  contracts             Contract[]
+  suppliers             Supplier[]
+  vendors               Vendor[]
+  customers             Customer[]
+  budgetPeriods         BudgetPeriod[]
+  procurementRequests   ProcurementRequest[]
+  assets                Asset[]
+  inventoryItems        InventoryItem[]
+  payrollRuns           PayrollRun[]
+  departments           Department[]
+  beneficiaries         Beneficiary[]
+  insuranceSchemes      InsuranceScheme[]
+  helpDeskTickets       HelpDeskTicket[]
+  integrations          Integration[]
+  apiKeys               ApiKey[]
+  backupConfigs         BackupConfig[]
+  complianceRecords     ComplianceRecord[]
+  riskAssessments       RiskAssessment[]
+  fraudAlerts           FraudAlert[]
+  systemHealthLogs      SystemHealthLog[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -243,9 +243,9 @@ model Branch {
   isActive       Boolean      @default(true) @map("is_active")
   deletedAt      DateTime?    @map("deleted_at")
 
-  members        Member[]
-  accounts       Account[]
-  departments    Department[]
+  members     Member[]
+  accounts    Account[]
+  departments Department[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -265,7 +265,7 @@ model Department {
   branch         Branch?      @relation(fields: [branchId], references: [id])
   isActive       Boolean      @default(true) @map("is_active")
 
-  employees      Employee[]
+  employees Employee[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -280,47 +280,48 @@ model Department {
 // ============================================
 
 model User {
-  id              String       @id @default(uuid())
-  email           String       @unique
+  id              String        @id @default(uuid())
+  email           String        @unique
   password        String
-  firstName       String       @map("first_name")
-  lastName        String       @map("last_name")
+  firstName       String        @map("first_name")
+  lastName        String        @map("last_name")
   phone           String?
-  status          MemberStatus @default(ACTIVE)
-  roleId          String       @map("role_id")
-  role            Role         @relation(fields: [roleId], references: [id])
-  organizationId  String?      @map("organization_id")
+  status          MemberStatus  @default(ACTIVE)
+  roleId          String        @map("role_id")
+  role            Role          @relation(fields: [roleId], references: [id])
+  organizationId  String?       @map("organization_id")
   organization    Organization? @relation(fields: [organizationId], references: [id])
-  lastLoginAt     DateTime?    @map("last_login_at")
-  refreshToken    String?      @map("refresh_token")
-  emailVerifiedAt DateTime?    @map("email_verified_at")
-  mfaEnabled      Boolean      @default(false) @map("mfa_enabled")
-  mfaSecret       String?      @map("mfa_secret")
-  deletedAt       DateTime?    @map("deleted_at")
+  lastLoginAt     DateTime?     @map("last_login_at")
+  refreshToken    String?       @map("refresh_token")
+  emailVerifiedAt DateTime?     @map("email_verified_at")
+  mfaEnabled      Boolean       @default(false) @map("mfa_enabled")
+  mfaSecret       String?       @map("mfa_secret")
+  deletedAt       DateTime?     @map("deleted_at")
 
-  sessions        UserSession[]
-  auditLogs       AuditLog[]
-  notifications   Notification[]
-  createdMembers  Member[]     @relation("CreatedBy")
-  updatedMembers  Member[]     @relation("UpdatedBy")
-  createdSettings Setting[]    @relation("SettingCreatedBy")
-  updatedSettings Setting[]    @relation("SettingUpdatedBy")
-  approvals       Approval[]
-  workflowActions WorkflowAction[]
-  documents       Document[]   @relation("DocumentUploadedBy")
-  messages        Message[]    @relation("MessageSender")
-  receivedMessages Message[]   @relation("MessageRecipient")
-  helpDeskTickets HelpDeskTicket[] @relation("TicketCreatedBy")
-  helpDeskAssignments HelpDeskTicket[] @relation("TicketAssignedTo")
-  tasks           Task[]       @relation("TaskAssignedTo")
-  createdTasks    Task[]       @relation("TaskCreatedBy")
-  events          Event[]      @relation("EventCreatedBy")
-  contracts       Contract[]   @relation("ContractCreatedBy")
-  payrollRuns     PayrollRun[] @relation("PayrollProcessedBy")
-  backupLogs      BackupLog[]  @relation("BackupInitiatedBy")
-  complianceRecords ComplianceRecord[] @relation("ComplianceCreatedBy")
-  riskAssessments RiskAssessment[] @relation("RiskAssessedBy")
-  fraudAlerts     FraudAlert[] @relation("FraudAlertCreatedBy")
+  sessions            UserSession[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  createdMembers      Member[]           @relation("CreatedBy")
+  updatedMembers      Member[]           @relation("UpdatedBy")
+  createdSettings     Setting[]          @relation("SettingCreatedBy")
+  updatedSettings     Setting[]          @relation("SettingUpdatedBy")
+  requestedApprovals  Approval[]         @relation("ApprovalRequestedBy")
+  approvedApprovals   Approval[]         @relation("ApprovalApprovedBy")
+  workflowActions     WorkflowAction[]
+  documents           Document[]         @relation("DocumentUploadedBy")
+  messages            Message[]          @relation("MessageSender")
+  receivedMessages    Message[]          @relation("MessageRecipient")
+  helpDeskTickets     HelpDeskTicket[]   @relation("TicketCreatedBy")
+  helpDeskAssignments HelpDeskTicket[]   @relation("TicketAssignedTo")
+  tasks               Task[]             @relation("TaskAssignedTo")
+  createdTasks        Task[]             @relation("TaskCreatedBy")
+  events              Event[]            @relation("EventCreatedBy")
+  contracts           Contract[]         @relation("ContractCreatedBy")
+  payrollRuns         PayrollRun[]       @relation("PayrollProcessedBy")
+  backupLogs          BackupLog[]        @relation("BackupInitiatedBy")
+  complianceRecords   ComplianceRecord[] @relation("ComplianceCreatedBy")
+  riskAssessments     RiskAssessment[]   @relation("RiskAssessedBy")
+  fraudAlerts         FraudAlert[]       @relation("FraudAlertCreatedBy")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -358,16 +359,16 @@ model Permission {
 }
 
 model UserSession {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshToken String   @map("refresh_token")
-  userAgent    String?  @map("user_agent")
-  ipAddress    String?  @map("ip_address")
-  deviceInfo   Json?    @map("device_info")
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String    @map("refresh_token")
+  userAgent    String?   @map("user_agent")
+  ipAddress    String?   @map("ip_address")
+  deviceInfo   Json?     @map("device_info")
   location     String?
-  expiresAt    DateTime @map("expires_at")
-  isActive     Boolean  @default(true) @map("is_active")
+  expiresAt    DateTime  @map("expires_at")
+  isActive     Boolean   @default(true) @map("is_active")
   lastActivity DateTime? @map("last_activity")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -391,79 +392,82 @@ model Member {
   branch         Branch?      @relation(fields: [branchId], references: [id])
 
   // Personal Information
-  firstName      String       @map("first_name")
-  lastName       String       @map("last_name")
-  email          String?
-  phone          String?
-  dateOfBirth    DateTime?    @map("date_of_birth")
-  gender         Gender?
-  idNumber       String?      @map("id_number")
-  nationality    String?      @default("Kenyan")
-  occupation     String?
-  employer       String?
+  firstName   String    @map("first_name")
+  lastName    String    @map("last_name")
+  email       String?
+  phone       String?
+  dateOfBirth DateTime? @map("date_of_birth")
+  gender      Gender?
+  idNumber    String?   @map("id_number")
+  nationality String?   @default("Kenyan")
+  occupation  String?
+  employer    String?
 
   // Address
-  address        String?
-  city           String?
-  county         String?
-  postalCode     String?      @map("postal_code")
-  country        String?      @default("Kenya")
+  address    String?
+  city       String?
+  county     String?
+  postalCode String? @map("postal_code")
+  country    String? @default("Kenya")
 
   // Photo & Documents
-  photoUrl       String?      @map("photo_url")
-  signature      String?
+  photoUrl  String? @map("photo_url")
+  signature String?
 
   // Status
-  status         MemberStatus @default(PENDING)
-  statusReason   String?      @map("status_reason")
-  registrationDate DateTime  @default(now()) @map("registration_date")
-  deletedAt      DateTime?    @map("deleted_at")
+  status           MemberStatus @default(PENDING)
+  statusReason     String?      @map("status_reason")
+  registrationDate DateTime     @default(now()) @map("registration_date")
+  deletedAt        DateTime?    @map("deleted_at")
 
   // Financial Scores
-  creditScore    Decimal      @default(0) @db.Decimal(5, 2) @map("credit_score")
-  riskScore      Decimal      @default(0) @db.Decimal(5, 2) @map("risk_score")
-  aiScore        Decimal      @default(0) @db.Decimal(5, 2) @map("ai_score")
+  creditScore Decimal @default(0) @map("credit_score") @db.Decimal(5, 2)
+  riskScore   Decimal @default(0) @map("risk_score") @db.Decimal(5, 2)
+  aiScore     Decimal @default(0) @map("ai_score") @db.Decimal(5, 2)
 
   // Relations
-  createdById    String?      @map("created_by_id")
-  createdBy      User?        @relation("CreatedBy", fields: [createdById], references: [id])
-  updatedById    String?      @map("updated_by_id")
-  updatedBy      User?        @relation("UpdatedBy", fields: [updatedById], references: [id])
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("CreatedBy", fields: [createdById], references: [id])
+  updatedById String? @map("updated_by_id")
+  updatedBy   User?   @relation("UpdatedBy", fields: [updatedById], references: [id])
 
-  memberGroupMemberships MemberGroupMembership[]
-  savingsAccounts    SavingsAccount[]
-  shareAccounts      ShareAccount[]
-  loans              Loan[]
-  guarantors         LoanGuarantor[] @relation("Guarantor")
-  contributions      MemberContribution[]
-  welfareContributions WelfareContribution[]
-  welfarePayouts     WelfarePayout[]
-  fines              MemberFine[]
-  penalties          MemberPenalty[]
-  attendanceRecords  MeetingAttendee[]
-  votes              PollVote[]
-  documents          Document[]
-  projectInvestments ProjectInvestment[]
-  projectIncome      ProjectIncome[]
-  projectExpenses    ProjectExpense[]
-  profitDistributions ProfitDistribution[]
-  tableBankingCycles TableBankingCycle[]
+  memberGroupMemberships     MemberGroupMembership[]
+  savingsAccounts            SavingsAccount[]
+  shareAccounts              ShareAccount[]
+  loans                      Loan[]
+  guarantors                 LoanGuarantor[]             @relation("Guarantor")
+  contributions              MemberContribution[]
+  welfareContributions       WelfareContribution[]
+  welfarePayouts             WelfarePayout[]
+  fines                      MemberFine[]
+  penalties                  MemberPenalty[]
+  attendanceRecords          MeetingAttendee[]
+  votes                      PollVote[]
+  documents                  Document[]
+  projectInvestments         ProjectInvestment[]
+  projectIncome              ProjectIncome[]
+  projectExpenses            ProjectExpense[]
+  profitDistributions        ProfitDistribution[]
+  tableBankingCycles         TableBankingCycle[]
   emergencyFundContributions EmergencyFundContribution[]
-  emergencyFundWithdrawals EmergencyFundWithdrawal[]
-  insurancePolicies  InsurancePolicy[]
-  insuranceClaims    InsuranceClaim[]
-  insurancePremiums  InsurancePremium[]
-  beneficiaryRecords Beneficiary[] @relation("BeneficiaryMember")
-  payrollItems       PayrollItem[]
-  employeeRecord     Employee?
-  messages           Message[] @relation("MessageMember")
-  helpDeskTickets    HelpDeskTicket[] @relation("TicketMember")
-  complianceRecords  ComplianceRecord[] @relation("ComplianceMember")
-  riskAssessments    RiskAssessment[] @relation("RiskAssessmentMember")
-  fraudAlerts        FraudAlert[] @relation("FraudAlertMember")
+  emergencyFundWithdrawals   EmergencyFundWithdrawal[]
+  insurancePolicies          InsurancePolicy[]
+  insuranceClaims            InsuranceClaim[]
+  insurancePremiums          InsurancePremium[]
+  beneficiaryRecords         Beneficiary[]               @relation("BeneficiaryMember")
+  payrollItems               PayrollItem[]
+  employeeRecord             Employee?
+  messages                   Message[]                   @relation("MessageMember")
+  helpDeskTickets            HelpDeskTicket[]            @relation("TicketMember")
+  complianceRecords          ComplianceRecord[]          @relation("ComplianceMember")
+  riskAssessments            RiskAssessment[]            @relation("RiskAssessmentMember")
+  fraudAlerts                FraudAlert[]                @relation("FraudAlertMember")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt                DateTime                   @default(now()) @map("created_at")
+  updatedAt                DateTime                   @updatedAt @map("updated_at")
+  Transaction              Transaction[]
+  TableBankingContribution TableBankingContribution[]
+  TableBankingLoan         TableBankingLoan[]
 
   @@index([organizationId])
   @@index([branchId])
@@ -481,7 +485,7 @@ model MemberGroup {
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  members        MemberGroupMembership[]
+  members MemberGroupMembership[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -491,13 +495,13 @@ model MemberGroup {
 }
 
 model MemberGroupMembership {
-  id         String      @id @default(uuid())
-  memberId   String      @map("member_id")
-  member     Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  groupId    String      @map("group_id")
-  group      MemberGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  joinedAt   DateTime    @default(now()) @map("joined_at")
-  isActive   Boolean     @default(true) @map("is_active")
+  id       String      @id @default(uuid())
+  memberId String      @map("member_id")
+  member   Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  groupId  String      @map("group_id")
+  group    MemberGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  joinedAt DateTime    @default(now()) @map("joined_at")
+  isActive Boolean     @default(true) @map("is_active")
 
   @@unique([memberId, groupId])
   @@map("member_group_memberships")
@@ -527,8 +531,8 @@ model Account {
   isControl      Boolean      @default(false) @map("is_control")
   deletedAt      DateTime?    @map("deleted_at")
 
-  journalLines   JournalEntryLine[]
-  budgetLines    BudgetLine[]
+  journalLines JournalEntryLine[]
+  budgetLines  BudgetLine[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -549,10 +553,10 @@ model JournalEntry {
   entryNumber    String            @unique @map("entry_number")
   date           DateTime          @default(now())
   description    String
-  reference      String?           // External reference
+  reference      String? // External reference
   referenceType  String?           @map("reference_type") // invoice, receipt, etc.
-  totalDebit     Decimal           @default(0) @db.Decimal(19, 4) @map("total_debit")
-  totalCredit    Decimal           @default(0) @db.Decimal(19, 4) @map("total_credit")
+  totalDebit     Decimal           @default(0) @map("total_debit") @db.Decimal(19, 4)
+  totalCredit    Decimal           @default(0) @map("total_credit") @db.Decimal(19, 4)
   isBalanced     Boolean           @default(false) @map("is_balanced")
   isReversal     Boolean           @default(false) @map("is_reversal")
   reversedById   String?           @map("reversed_by_id")
@@ -561,12 +565,12 @@ model JournalEntry {
   organizationId String            @map("organization_id")
   branchId       String?           @map("branch_id")
 
-  journalLines   JournalEntryLine[]
-  transactions   Transaction[]
+  journalLines JournalEntryLine[]
+  transactions Transaction[]
 
-  createdById    String            @map("created_by_id")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@index([entryNumber])
   @@index([date])
@@ -577,15 +581,15 @@ model JournalEntry {
 }
 
 model JournalEntryLine {
-  id              String       @id @default(uuid())
-  journalEntryId  String       @map("journal_entry_id")
-  journalEntry    JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-  accountId       String       @map("account_id")
-  account         Account      @relation(fields: [accountId], references: [id])
-  debit           Decimal      @default(0) @db.Decimal(19, 4)
-  credit          Decimal      @default(0) @db.Decimal(19, 4)
-  description     String?
-  reference       String?
+  id             String       @id @default(uuid())
+  journalEntryId String       @map("journal_entry_id")
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String       @map("account_id")
+  account        Account      @relation(fields: [accountId], references: [id])
+  debit          Decimal      @default(0) @db.Decimal(19, 4)
+  credit         Decimal      @default(0) @db.Decimal(19, 4)
+  description    String?
+  reference      String?
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -601,10 +605,10 @@ model JournalEntryLine {
 model Transaction {
   id                String            @id @default(uuid())
   transactionNumber String            @unique @map("transaction_number")
-  type              String            // SAVINGS_DEPOSIT, LOAN_DISBURSEMENT, etc.
+  type              String // SAVINGS_DEPOSIT, LOAN_DISBURSEMENT, etc.
   amount            Decimal           @db.Decimal(19, 4)
-  balanceBefore     Decimal?          @db.Decimal(19, 4) @map("balance_before")
-  balanceAfter      Decimal?          @db.Decimal(19, 4) @map("balance_after")
+  balanceBefore     Decimal?          @map("balance_before") @db.Decimal(19, 4)
+  balanceAfter      Decimal?          @map("balance_after") @db.Decimal(19, 4)
   description       String?
   reference         String?
   referenceNumber   String?           @map("reference_number")
@@ -619,48 +623,48 @@ model Transaction {
   member            Member?           @relation(fields: [memberId], references: [id])
 
   // Polymorphic reference
-  entityType        String?           @map("entity_type")
-  entityId          String?           @map("entity_id")
+  entityType String? @map("entity_type")
+  entityId   String? @map("entity_id")
 
   // Approval
-  approvalStatus    ApprovalStatus    @default(APPROVED) @map("approval_status")
-  approvedById      String?           @map("approved_by_id")
-  approvedAt        DateTime?         @map("approved_at")
+  approvalStatus ApprovalStatus @default(APPROVED) @map("approval_status")
+  approvedById   String?        @map("approved_by_id")
+  approvedAt     DateTime?      @map("approved_at")
 
   // Reversal
-  reversedById      String?           @map("reversed_by_id")
-  reversedAt        DateTime?         @map("reversed_at")
-  reversalReason    String?           @map("reversal_reason")
+  reversedById   String?   @map("reversed_by_id")
+  reversedAt     DateTime? @map("reversed_at")
+  reversalReason String?   @map("reversal_reason")
 
   // Soft delete
-  deletedAt         DateTime?         @map("deleted_at")
+  deletedAt DateTime? @map("deleted_at")
 
   // Relations
-  createdById       String            @map("created_by_id")
-  savingsTransactions   SavingsTransaction[]
-  shareTransactions     ShareTransaction[]
-  loanRepayments        LoanRepayment[]
-  memberContributions   MemberContribution[]
-  welfareContributions  WelfareContribution[]
-  memberFines           MemberFine[]
-  memberPenalties       MemberPenalty[]
-  projectInvestments    ProjectInvestment[]
-  projectIncome         ProjectIncome[]
-  projectExpenses       ProjectExpense[]
-  profitDistributions   ProfitDistribution[]
-  unityFundTransactions UnityFundTransaction[]
-  unityFundWithdrawals  UnityFundWithdrawal[]
-  tableBankingContributions TableBankingContribution[]
+  createdById                String                      @map("created_by_id")
+  savingsTransactions        SavingsTransaction[]
+  shareTransactions          ShareTransaction[]
+  loanRepayments             LoanRepayment[]
+  memberContributions        MemberContribution[]
+  welfareContributions       WelfareContribution[]
+  memberFines                MemberFine[]
+  memberPenalties            MemberPenalty[]
+  projectInvestments         ProjectInvestment[]
+  projectIncome              ProjectIncome[]
+  projectExpenses            ProjectExpense[]
+  profitDistributions        ProfitDistribution[]
+  unityFundTransactions      UnityFundTransaction[]
+  unityFundWithdrawals       UnityFundWithdrawal[]
+  tableBankingContributions  TableBankingContribution[]
   emergencyFundContributions EmergencyFundContribution[]
-  emergencyFundWithdrawals EmergencyFundWithdrawal[]
-  insurancePremiums    InsurancePremium[]
-  insuranceClaims      InsuranceClaim[]
-  payrollItems         PayrollItem[]
-  budgetTransactions   BudgetTransaction[]
-  procurementPayments  ProcurementPayment[]
-  assetTransactions    AssetTransaction[]
-  inventoryTransactions InventoryTransaction[]
-  contractPayments     ContractPayment[]
+  emergencyFundWithdrawals   EmergencyFundWithdrawal[]
+  insurancePremiums          InsurancePremium[]
+  insuranceClaims            InsuranceClaim[]
+  payrollItems               PayrollItem[]
+  budgetTransactions         BudgetTransaction[]
+  procurementPayments        ProcurementPayment[]
+  assetTransactions          AssetTransaction[]
+  inventoryTransactions      InventoryTransaction[]
+  contractPayments           ContractPayment[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -681,20 +685,20 @@ model Transaction {
 // ============================================
 
 model SavingsProduct {
-  id             String       @id @default(uuid())
-  name           String
-  code           String       @unique
-  description    String?
-  interestRate   Decimal      @db.Decimal(5, 2) @map("interest_rate")
-  interestType   String       @default("MONTHLY") @map("interest_type")
-  minBalance     Decimal      @default(0) @db.Decimal(19, 4) @map("min_balance")
-  maxBalance     Decimal?     @db.Decimal(19, 4) @map("max_balance")
-  withdrawalLimit Decimal?    @db.Decimal(19, 4) @map("withdrawal_limit")
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  isActive       Boolean      @default(true) @map("is_active")
+  id              String       @id @default(uuid())
+  name            String
+  code            String       @unique
+  description     String?
+  interestRate    Decimal      @map("interest_rate") @db.Decimal(5, 2)
+  interestType    String       @default("MONTHLY") @map("interest_type")
+  minBalance      Decimal      @default(0) @map("min_balance") @db.Decimal(19, 4)
+  maxBalance      Decimal?     @map("max_balance") @db.Decimal(19, 4)
+  withdrawalLimit Decimal?     @map("withdrawal_limit") @db.Decimal(19, 4)
+  organizationId  String       @map("organization_id")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  isActive        Boolean      @default(true) @map("is_active")
 
-  accounts       SavingsAccount[]
+  accounts SavingsAccount[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -703,22 +707,22 @@ model SavingsProduct {
 }
 
 model SavingsAccount {
-  id             String         @id @default(uuid())
-  accountNumber  String         @unique @map("account_number")
-  memberId       String         @map("member_id")
-  member         Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  productId      String         @map("product_id")
-  product        SavingsProduct @relation(fields: [productId], references: [id])
-  balance        Decimal        @default(0) @db.Decimal(19, 4)
-  availableBalance Decimal      @default(0) @db.Decimal(19, 4) @map("available_balance")
-  lienAmount     Decimal        @default(0) @db.Decimal(19, 4) @map("lien_amount")
-  status         MemberStatus   @default(ACTIVE)
-  interestAccrued Decimal       @default(0) @db.Decimal(19, 4) @map("interest_accrued")
-  lastInterestCalc DateTime?    @map("last_interest_calc")
-  openedDate     DateTime       @default(now()) @map("opened_date")
-  closedDate     DateTime?      @map("closed_date")
+  id               String         @id @default(uuid())
+  accountNumber    String         @unique @map("account_number")
+  memberId         String         @map("member_id")
+  member           Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  productId        String         @map("product_id")
+  product          SavingsProduct @relation(fields: [productId], references: [id])
+  balance          Decimal        @default(0) @db.Decimal(19, 4)
+  availableBalance Decimal        @default(0) @map("available_balance") @db.Decimal(19, 4)
+  lienAmount       Decimal        @default(0) @map("lien_amount") @db.Decimal(19, 4)
+  status           MemberStatus   @default(ACTIVE)
+  interestAccrued  Decimal        @default(0) @map("interest_accrued") @db.Decimal(19, 4)
+  lastInterestCalc DateTime?      @map("last_interest_calc")
+  openedDate       DateTime       @default(now()) @map("opened_date")
+  closedDate       DateTime?      @map("closed_date")
 
-  transactions   SavingsTransaction[]
+  transactions SavingsTransaction[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -730,17 +734,17 @@ model SavingsAccount {
 }
 
 model SavingsTransaction {
-  id             String         @id @default(uuid())
-  reference      String         @unique
-  accountId      String         @map("account_id")
-  account        SavingsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  type           String         // DEPOSIT, WITHDRAWAL, INTEREST, FEE, TRANSFER
-  amount         Decimal        @db.Decimal(19, 4)
-  balanceBefore  Decimal        @db.Decimal(19, 4) @map("balance_before")
-  balanceAfter   Decimal        @db.Decimal(19, 4) @map("balance_after")
-  description    String?
-  transactionId  String?        @map("transaction_id")
-  transaction    Transaction?   @relation(fields: [transactionId], references: [id])
+  id            String         @id @default(uuid())
+  reference     String         @unique
+  accountId     String         @map("account_id")
+  account       SavingsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  type          String // DEPOSIT, WITHDRAWAL, INTEREST, FEE, TRANSFER
+  amount        Decimal        @db.Decimal(19, 4)
+  balanceBefore Decimal        @map("balance_before") @db.Decimal(19, 4)
+  balanceAfter  Decimal        @map("balance_after") @db.Decimal(19, 4)
+  description   String?
+  transactionId String?        @map("transaction_id")
+  transaction   Transaction?   @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -759,14 +763,14 @@ model ShareProduct {
   name           String
   code           String       @unique
   description    String?
-  nominalValue   Decimal      @db.Decimal(19, 4) @map("nominal_value")
+  nominalValue   Decimal      @map("nominal_value") @db.Decimal(19, 4)
   minShares      Int?         @default(1) @map("min_shares")
   maxShares      Int?         @map("max_shares")
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   isActive       Boolean      @default(true) @map("is_active")
 
-  accounts       ShareAccount[]
+  accounts ShareAccount[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -775,18 +779,18 @@ model ShareProduct {
 }
 
 model ShareAccount {
-  id             String         @id @default(uuid())
-  accountNumber  String         @unique @map("account_number")
-  memberId       String         @map("member_id")
-  member         Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  productId      String         @map("product_id")
-  product        ShareProduct   @relation(fields: [productId], references: [id])
-  shares         Int            @default(0)
-  totalValue     Decimal        @default(0) @db.Decimal(19, 4) @map("total_value")
-  status         MemberStatus   @default(ACTIVE)
-  openedDate     DateTime       @default(now()) @map("opened_date")
+  id            String       @id @default(uuid())
+  accountNumber String       @unique @map("account_number")
+  memberId      String       @map("member_id")
+  member        Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  productId     String       @map("product_id")
+  product       ShareProduct @relation(fields: [productId], references: [id])
+  shares        Int          @default(0)
+  totalValue    Decimal      @default(0) @map("total_value") @db.Decimal(19, 4)
+  status        MemberStatus @default(ACTIVE)
+  openedDate    DateTime     @default(now()) @map("opened_date")
 
-  transactions   ShareTransaction[]
+  transactions ShareTransaction[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -797,17 +801,17 @@ model ShareAccount {
 }
 
 model ShareTransaction {
-  id             String         @id @default(uuid())
-  reference      String         @unique
-  accountId      String         @map("account_id")
-  account        ShareAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  type           String         // PURCHASE, REDEMPTION, TRANSFER, DIVIDEND
-  shares         Int
-  pricePerShare  Decimal        @db.Decimal(19, 4) @map("price_per_share")
-  totalAmount    Decimal        @db.Decimal(19, 4) @map("total_amount")
-  description    String?
-  transactionId  String?        @map("transaction_id")
-  transaction    Transaction?   @relation(fields: [transactionId], references: [id])
+  id            String       @id @default(uuid())
+  reference     String       @unique
+  accountId     String       @map("account_id")
+  account       ShareAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  type          String // PURCHASE, REDEMPTION, TRANSFER, DIVIDEND
+  shares        Int
+  pricePerShare Decimal      @map("price_per_share") @db.Decimal(19, 4)
+  totalAmount   Decimal      @map("total_amount") @db.Decimal(19, 4)
+  description   String?
+  transactionId String?      @map("transaction_id")
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -820,25 +824,25 @@ model ShareTransaction {
 // ============================================
 
 model LoanProduct {
-  id             String       @id @default(uuid())
-  name           String
-  code           String       @unique
-  description    String?
-  minAmount      Decimal      @db.Decimal(19, 4) @map("min_amount")
-  maxAmount      Decimal      @db.Decimal(19, 4) @map("max_amount")
-  minTenure      Int          @map("min_tenure")
-  maxTenure      Int          @map("max_tenure")
-  interestRate   Decimal      @db.Decimal(5, 2) @map("interest_rate")
-  interestType   String       @default("FLAT") @map("interest_type")
-  processingFee  Decimal      @default(0) @db.Decimal(5, 2) @map("processing_fee")
-  latePaymentFee Decimal      @default(0) @db.Decimal(5, 2) @map("late_payment_fee")
-  requiresGuarantor Boolean  @default(false) @map("requires_guarantor")
-  maxGuarantors  Int          @default(2) @map("max_guarantors")
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  isActive       Boolean      @default(true) @map("is_active")
+  id                String       @id @default(uuid())
+  name              String
+  code              String       @unique
+  description       String?
+  minAmount         Decimal      @map("min_amount") @db.Decimal(19, 4)
+  maxAmount         Decimal      @map("max_amount") @db.Decimal(19, 4)
+  minTenure         Int          @map("min_tenure")
+  maxTenure         Int          @map("max_tenure")
+  interestRate      Decimal      @map("interest_rate") @db.Decimal(5, 2)
+  interestType      String       @default("FLAT") @map("interest_type")
+  processingFee     Decimal      @default(0) @map("processing_fee") @db.Decimal(5, 2)
+  latePaymentFee    Decimal      @default(0) @map("late_payment_fee") @db.Decimal(5, 2)
+  requiresGuarantor Boolean      @default(false) @map("requires_guarantor")
+  maxGuarantors     Int          @default(2) @map("max_guarantors")
+  organizationId    String       @map("organization_id")
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  isActive          Boolean      @default(true) @map("is_active")
 
-  loans          Loan[]
+  loans Loan[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -847,33 +851,33 @@ model LoanProduct {
 }
 
 model Loan {
-  id              String       @id @default(uuid())
-  loanNumber      String       @unique @map("loan_number")
-  memberId        String       @map("member_id")
-  member          Member       @relation(fields: [memberId], references: [id])
-  productId       String       @map("product_id")
-  product         LoanProduct  @relation(fields: [productId], references: [id])
-  principal       Decimal      @db.Decimal(19, 4)
-  interestRate    Decimal      @db.Decimal(5, 2) @map("interest_rate")
-  interestType    String       @map("interest_type")
-  tenure          Int
-  totalInterest   Decimal      @db.Decimal(19, 4) @map("total_interest")
-  totalAmount     Decimal      @db.Decimal(19, 4) @map("total_amount")
-  monthlyPayment  Decimal      @db.Decimal(19, 4) @map("monthly_payment")
-  amountDisbursed Decimal      @default(0) @db.Decimal(19, 4) @map("amount_disbursed")
-  amountPaid      Decimal      @default(0) @db.Decimal(19, 4) @map("amount_paid")
-  balance         Decimal      @db.Decimal(19, 4)
-  status          LoanStatus   @default(PENDING)
-  applicationDate DateTime     @default(now()) @map("application_date")
-  approvalDate    DateTime?    @map("approval_date")
+  id               String      @id @default(uuid())
+  loanNumber       String      @unique @map("loan_number")
+  memberId         String      @map("member_id")
+  member           Member      @relation(fields: [memberId], references: [id])
+  productId        String      @map("product_id")
+  product          LoanProduct @relation(fields: [productId], references: [id])
+  principal        Decimal     @db.Decimal(19, 4)
+  interestRate     Decimal     @map("interest_rate") @db.Decimal(5, 2)
+  interestType     String      @map("interest_type")
+  tenure           Int
+  totalInterest    Decimal     @map("total_interest") @db.Decimal(19, 4)
+  totalAmount      Decimal     @map("total_amount") @db.Decimal(19, 4)
+  monthlyPayment   Decimal     @map("monthly_payment") @db.Decimal(19, 4)
+  amountDisbursed  Decimal     @default(0) @map("amount_disbursed") @db.Decimal(19, 4)
+  amountPaid       Decimal     @default(0) @map("amount_paid") @db.Decimal(19, 4)
+  balance          Decimal     @db.Decimal(19, 4)
+  status           LoanStatus  @default(PENDING)
+  applicationDate  DateTime    @default(now()) @map("application_date")
+  approvalDate     DateTime?   @map("approval_date")
   disbursementDate DateTime?   @map("disbursement_date")
-  maturityDate    DateTime?    @map("maturity_date")
-  purpose         String?
-  notes           String?
-  deletedAt       DateTime?    @map("deleted_at")
+  maturityDate     DateTime?   @map("maturity_date")
+  purpose          String?
+  notes            String?
+  deletedAt        DateTime?   @map("deleted_at")
 
-  repayments      LoanRepayment[]
-  guarantors      LoanGuarantor[]
+  repayments LoanRepayment[]
+  guarantors LoanGuarantor[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -888,20 +892,20 @@ model Loan {
 }
 
 model LoanRepayment {
-  id            String     @id @default(uuid())
-  loanId        String     @map("loan_id")
-  loan          Loan       @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  amount        Decimal    @db.Decimal(19, 4)
-  principal     Decimal    @db.Decimal(19, 4)
-  interest      Decimal    @db.Decimal(19, 4)
-  penalty       Decimal    @default(0) @db.Decimal(19, 4)
-  balance       Decimal    @db.Decimal(19, 4)
-  dueDate       DateTime   @map("due_date")
-  paidDate      DateTime?  @map("paid_date")
-  status        String     @default("PENDING")
+  id            String       @id @default(uuid())
+  loanId        String       @map("loan_id")
+  loan          Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount        Decimal      @db.Decimal(19, 4)
+  principal     Decimal      @db.Decimal(19, 4)
+  interest      Decimal      @db.Decimal(19, 4)
+  penalty       Decimal      @default(0) @db.Decimal(19, 4)
+  balance       Decimal      @db.Decimal(19, 4)
+  dueDate       DateTime     @map("due_date")
+  paidDate      DateTime?    @map("paid_date")
+  status        String       @default("PENDING")
   reference     String?
   notes         String?
-  transactionId String?    @map("transaction_id")
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -914,15 +918,15 @@ model LoanRepayment {
 }
 
 model LoanGuarantor {
-  id       String    @id @default(uuid())
-  loanId   String    @map("loan_id")
-  loan     Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  memberId String    @map("member_id")
-  member   Member    @relation("Guarantor", fields: [memberId], references: [id])
-  amount   Decimal   @db.Decimal(19, 4)
-  status   String    @default("PENDING")
+  id         String    @id @default(uuid())
+  loanId     String    @map("loan_id")
+  loan       Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  memberId   String    @map("member_id")
+  member     Member    @relation("Guarantor", fields: [memberId], references: [id])
+  amount     Decimal   @db.Decimal(19, 4)
+  status     String    @default("PENDING")
   approvedAt DateTime? @map("approved_at")
-  notes    String?
+  notes      String?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -937,19 +941,19 @@ model LoanGuarantor {
 // ============================================
 
 model FineRule {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   name           String
-  code           String   @unique
+  code           String       @unique
   description    String?
-  amount         Decimal  @db.Decimal(19, 4)
-  isPercentage   Boolean  @default(false) @map("is_percentage")
-  appliesTo      String   // meeting, loan, savings, general
-  frequency      String?  // PER_INCIDENCE, DAILY, WEEKLY, MONTHLY
-  organizationId String   @map("organization_id")
+  amount         Decimal      @db.Decimal(19, 4)
+  isPercentage   Boolean      @default(false) @map("is_percentage")
+  appliesTo      String // meeting, loan, savings, general
+  frequency      String? // PER_INCIDENCE, DAILY, WEEKLY, MONTHLY
+  organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  isActive       Boolean  @default(true) @map("is_active")
+  isActive       Boolean      @default(true) @map("is_active")
 
-  fines          MemberFine[]
+  fines MemberFine[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -959,22 +963,22 @@ model FineRule {
 }
 
 model MemberFine {
-  id            String     @id @default(uuid())
-  memberId      String     @map("member_id")
-  member        Member     @relation(fields: [memberId], references: [id])
-  ruleId        String     @map("rule_id")
-  rule          FineRule   @relation(fields: [ruleId], references: [id])
-  amount        Decimal    @db.Decimal(19, 4)
+  id            String       @id @default(uuid())
+  memberId      String       @map("member_id")
+  member        Member       @relation(fields: [memberId], references: [id])
+  ruleId        String       @map("rule_id")
+  rule          FineRule     @relation(fields: [ruleId], references: [id])
+  amount        Decimal      @db.Decimal(19, 4)
   reason        String?
-  status        String     @default("PENDING")
-  dueDate       DateTime?  @map("due_date")
-  paidDate      DateTime?  @map("paid_date")
-  paidAmount    Decimal    @default(0) @db.Decimal(19, 4) @map("paid_amount")
-  waivedBy      String?    @map("waived_by")
-  waivedAt      DateTime?  @map("waived_at")
-  waiverReason  String?    @map("waiver_reason")
+  status        String       @default("PENDING")
+  dueDate       DateTime?    @map("due_date")
+  paidDate      DateTime?    @map("paid_date")
+  paidAmount    Decimal      @default(0) @map("paid_amount") @db.Decimal(19, 4)
+  waivedBy      String?      @map("waived_by")
+  waivedAt      DateTime?    @map("waived_at")
+  waiverReason  String?      @map("waiver_reason")
   reference     String?
-  transactionId String?    @map("transaction_id")
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -987,16 +991,16 @@ model MemberFine {
 }
 
 model MemberPenalty {
-  id            String     @id @default(uuid())
-  memberId      String     @map("member_id")
-  member        Member     @relation(fields: [memberId], references: [id])
-  amount        Decimal    @db.Decimal(19, 4)
+  id            String       @id @default(uuid())
+  memberId      String       @map("member_id")
+  member        Member       @relation(fields: [memberId], references: [id])
+  amount        Decimal      @db.Decimal(19, 4)
   reason        String
-  status        String     @default("PENDING")
-  dueDate       DateTime?  @map("due_date")
-  paidDate      DateTime?  @map("paid_date")
-  paidAmount    Decimal    @default(0) @db.Decimal(19, 4) @map("paid_amount")
-  transactionId String?    @map("transaction_id")
+  status        String       @default("PENDING")
+  dueDate       DateTime?    @map("due_date")
+  paidDate      DateTime?    @map("paid_date")
+  paidAmount    Decimal      @default(0) @map("paid_amount") @db.Decimal(19, 4)
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1011,19 +1015,19 @@ model MemberPenalty {
 // ============================================
 
 model ContributionCampaign {
-  id             String       @id @default(uuid())
-  name           String
-  code           String       @unique
-  description    String?
-  targetAmount   Decimal      @db.Decimal(19, 4) @map("target_amount")
-  collectedAmount Decimal     @default(0) @db.Decimal(19, 4) @map("collected_amount")
-  startDate      DateTime     @map("start_date")
-  endDate        DateTime     @map("end_date")
-  isActive       Boolean      @default(true) @map("is_active")
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id              String       @id @default(uuid())
+  name            String
+  code            String       @unique
+  description     String?
+  targetAmount    Decimal      @map("target_amount") @db.Decimal(19, 4)
+  collectedAmount Decimal      @default(0) @map("collected_amount") @db.Decimal(19, 4)
+  startDate       DateTime     @map("start_date")
+  endDate         DateTime     @map("end_date")
+  isActive        Boolean      @default(true) @map("is_active")
+  organizationId  String       @map("organization_id")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  contributions  MemberContribution[]
+  contributions MemberContribution[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1033,16 +1037,16 @@ model ContributionCampaign {
 }
 
 model MemberContribution {
-  id            String             @id @default(uuid())
-  campaignId    String             @map("campaign_id")
+  id            String               @id @default(uuid())
+  campaignId    String               @map("campaign_id")
   campaign      ContributionCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  memberId      String             @map("member_id")
-  member        Member             @relation(fields: [memberId], references: [id])
-  amount        Decimal            @db.Decimal(19, 4)
+  memberId      String               @map("member_id")
+  member        Member               @relation(fields: [memberId], references: [id])
+  amount        Decimal              @db.Decimal(19, 4)
   reference     String?
-  paymentDate   DateTime           @map("payment_date")
-  transactionId String?            @map("transaction_id")
-  transaction   Transaction?       @relation(fields: [transactionId], references: [id])
+  paymentDate   DateTime             @map("payment_date")
+  transactionId String?              @map("transaction_id")
+  transaction   Transaction?         @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1060,14 +1064,14 @@ model WelfareScheme {
   name               String
   code               String       @unique
   description        String?
-  contributionAmount Decimal      @db.Decimal(19, 4) @map("contribution_amount")
+  contributionAmount Decimal      @map("contribution_amount") @db.Decimal(19, 4)
   frequency          String       @default("MONTHLY")
   organizationId     String       @map("organization_id")
   organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   isActive           Boolean      @default(true) @map("is_active")
 
-  contributions      WelfareContribution[]
-  payouts            WelfarePayout[]
+  contributions WelfareContribution[]
+  payouts       WelfarePayout[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1077,17 +1081,17 @@ model WelfareScheme {
 }
 
 model WelfareContribution {
-  id            String         @id @default(uuid())
-  schemeId      String         @map("scheme_id")
-  scheme        WelfareScheme  @relation(fields: [schemeId], references: [id], onDelete: Cascade)
-  memberId      String         @map("member_id")
-  member        Member         @relation(fields: [memberId], references: [id])
-  amount        Decimal        @db.Decimal(19, 4)
+  id            String        @id @default(uuid())
+  schemeId      String        @map("scheme_id")
+  scheme        WelfareScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  memberId      String        @map("member_id")
+  member        Member        @relation(fields: [memberId], references: [id])
+  amount        Decimal       @db.Decimal(19, 4)
   period        String
-  paidDate      DateTime       @map("paid_date")
+  paidDate      DateTime      @map("paid_date")
   reference     String?
-  transactionId String?        @map("transaction_id")
-  transaction   Transaction?   @relation(fields: [transactionId], references: [id])
+  transactionId String?       @map("transaction_id")
+  transaction   Transaction?  @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1098,15 +1102,15 @@ model WelfareContribution {
 }
 
 model WelfarePayout {
-  id         String         @id @default(uuid())
-  schemeId   String         @map("scheme_id")
-  scheme     WelfareScheme  @relation(fields: [schemeId], references: [id], onDelete: Cascade)
-  memberId   String         @map("member_id")
-  member     Member         @relation(fields: [memberId], references: [id])
-  amount     Decimal        @db.Decimal(19, 4)
+  id         String        @id @default(uuid())
+  schemeId   String        @map("scheme_id")
+  scheme     WelfareScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  memberId   String        @map("member_id")
+  member     Member        @relation(fields: [memberId], references: [id])
+  amount     Decimal       @db.Decimal(19, 4)
   reason     String?
-  approvedBy String?        @map("approved_by")
-  payoutDate DateTime       @map("payout_date")
+  approvedBy String?       @map("approved_by")
+  payoutDate DateTime      @map("payout_date")
   reference  String?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1121,24 +1125,24 @@ model WelfarePayout {
 // ============================================
 
 model UnityFund {
-  id                    String   @id @default(uuid())
-  organizationId        String   @unique @map("organization_id")
-  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  availableCash         Decimal  @default(0) @db.Decimal(19, 4) @map("available_cash")
-  totalIncome           Decimal  @default(0) @db.Decimal(19, 4) @map("total_income")
-  totalExpenses         Decimal  @default(0) @db.Decimal(19, 4) @map("total_expenses")
-  outstandingFines      Decimal  @default(0) @db.Decimal(19, 4) @map("outstanding_fines")
-  outstandingWelfare    Decimal  @default(0) @db.Decimal(19, 4) @map("outstanding_welfare")
-  expectedReceivables   Decimal  @default(0) @db.Decimal(19, 4) @map("expected_receivables")
-  totalDonations        Decimal  @default(0) @db.Decimal(19, 4) @map("total_donations")
-  totalFundraisers      Decimal  @default(0) @db.Decimal(19, 4) @map("total_fundraisers")
-  totalGrants           Decimal  @default(0) @db.Decimal(19, 4) @map("total_grants")
-  totalSponsorships     Decimal  @default(0) @db.Decimal(19, 4) @map("total_sponsorships")
-  lastTransactionAt     DateTime? @map("last_transaction_at")
-  lastAuditAt           DateTime? @map("last_audit_at")
+  id                  String       @id @default(uuid())
+  organizationId      String       @unique @map("organization_id")
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  availableCash       Decimal      @default(0) @map("available_cash") @db.Decimal(19, 4)
+  totalIncome         Decimal      @default(0) @map("total_income") @db.Decimal(19, 4)
+  totalExpenses       Decimal      @default(0) @map("total_expenses") @db.Decimal(19, 4)
+  outstandingFines    Decimal      @default(0) @map("outstanding_fines") @db.Decimal(19, 4)
+  outstandingWelfare  Decimal      @default(0) @map("outstanding_welfare") @db.Decimal(19, 4)
+  expectedReceivables Decimal      @default(0) @map("expected_receivables") @db.Decimal(19, 4)
+  totalDonations      Decimal      @default(0) @map("total_donations") @db.Decimal(19, 4)
+  totalFundraisers    Decimal      @default(0) @map("total_fundraisers") @db.Decimal(19, 4)
+  totalGrants         Decimal      @default(0) @map("total_grants") @db.Decimal(19, 4)
+  totalSponsorships   Decimal      @default(0) @map("total_sponsorships") @db.Decimal(19, 4)
+  lastTransactionAt   DateTime?    @map("last_transaction_at")
+  lastAuditAt         DateTime?    @map("last_audit_at")
 
-  transactions          UnityFundTransaction[]
-  withdrawals           UnityFundWithdrawal[]
+  transactions UnityFundTransaction[]
+  withdrawals  UnityFundWithdrawal[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1147,22 +1151,23 @@ model UnityFund {
 }
 
 model UnityFundTransaction {
-  id            String   @id @default(uuid())
-  unityFundId   String   @map("unity_fund_id")
-  unityFund     UnityFund @relation(fields: [unityFundId], references: [id], onDelete: Cascade)
-  type          String   // INCOME, EXPENSE, TRANSFER
-  category      String
-  amount        Decimal  @db.Decimal(19, 4)
-  description   String?
-  reference     String?
-  sourceType    String?
-  sourceId      String?  @map("source_id")
-  journalEntryId String? @map("journal_entry_id")
-  transactionId String?  @map("transaction_id")
-  status        String   @default("COMPLETED")
-  createdById   String?  @map("created_by_id")
+  id             String    @id @default(uuid())
+  unityFundId    String    @map("unity_fund_id")
+  unityFund      UnityFund @relation(fields: [unityFundId], references: [id], onDelete: Cascade)
+  type           String // INCOME, EXPENSE, TRANSFER
+  category       String
+  amount         Decimal   @db.Decimal(19, 4)
+  description    String?
+  reference      String?
+  sourceType     String?
+  sourceId       String?   @map("source_id")
+  journalEntryId String?   @map("journal_entry_id")
+  transactionId  String?   @map("transaction_id")
+  status         String    @default("COMPLETED")
+  createdById    String?   @map("created_by_id")
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  Transaction Transaction? @relation(fields: [transactionId], references: [id])
 
   @@index([unityFundId])
   @@index([type])
@@ -1171,28 +1176,29 @@ model UnityFundTransaction {
 }
 
 model UnityFundWithdrawal {
-  id              String   @id @default(uuid())
-  unityFundId     String   @map("unity_fund_id")
-  unityFund       UnityFund @relation(fields: [unityFundId], references: [id], onDelete: Cascade)
-  amount          Decimal  @db.Decimal(19, 4)
-  purpose         String
-  allocationId    String   @map("allocation_id")
-  allocation      UnityFundAllocation @relation(fields: [allocationId], references: [id])
-  beneficiary     String?
-  beneficiaryDetails Json? @map("beneficiary_details")
-  referenceNumber String   @unique @map("reference_number")
-  notes           String?
-  documents       String[]
-  status          String   @default("PENDING")
-  approvedById    String?  @map("approved_by_id")
-  approvedAt      DateTime? @map("approved_at")
-  rejectionReason String?  @map("rejection_reason")
-  journalEntryId  String?  @map("journal_entry_id")
-  transactionId   String?  @map("transaction_id")
-  createdById     String   @map("created_by_id")
+  id                 String              @id @default(uuid())
+  unityFundId        String              @map("unity_fund_id")
+  unityFund          UnityFund           @relation(fields: [unityFundId], references: [id], onDelete: Cascade)
+  amount             Decimal             @db.Decimal(19, 4)
+  purpose            String
+  allocationId       String              @map("allocation_id")
+  allocation         UnityFundAllocation @relation(fields: [allocationId], references: [id])
+  beneficiary        String?
+  beneficiaryDetails Json?               @map("beneficiary_details")
+  referenceNumber    String              @unique @map("reference_number")
+  notes              String?
+  documents          String[]
+  status             String              @default("PENDING")
+  approvedById       String?             @map("approved_by_id")
+  approvedAt         DateTime?           @map("approved_at")
+  rejectionReason    String?             @map("rejection_reason")
+  journalEntryId     String?             @map("journal_entry_id")
+  transactionId      String?             @map("transaction_id")
+  createdById        String              @map("created_by_id")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  Transaction Transaction? @relation(fields: [transactionId], references: [id])
 
   @@index([unityFundId])
   @@index([status])
@@ -1201,20 +1207,20 @@ model UnityFundWithdrawal {
 }
 
 model UnityFundAllocation {
-  id              String   @id @default(uuid())
+  id              String       @id @default(uuid())
   name            String
-  code            String   @unique
+  code            String       @unique
   description     String?
   category        String
-  budgetedAmount  Decimal  @default(0) @db.Decimal(19, 4) @map("budgeted_amount")
-  spentAmount     Decimal  @default(0) @db.Decimal(19, 4) @map("spent_amount")
-  remainingBudget Decimal  @default(0) @db.Decimal(19, 4) @map("remaining_budget")
-  organizationId  String   @map("organization_id")
+  budgetedAmount  Decimal      @default(0) @map("budgeted_amount") @db.Decimal(19, 4)
+  spentAmount     Decimal      @default(0) @map("spent_amount") @db.Decimal(19, 4)
+  remainingBudget Decimal      @default(0) @map("remaining_budget") @db.Decimal(19, 4)
+  organizationId  String       @map("organization_id")
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  isActive        Boolean  @default(true) @map("is_active")
-  isSystem        Boolean  @default(false) @map("is_system")
+  isActive        Boolean      @default(true) @map("is_active")
+  isSystem        Boolean      @default(false) @map("is_system")
 
-  withdrawals     UnityFundWithdrawal[]
+  withdrawals UnityFundWithdrawal[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1228,19 +1234,19 @@ model UnityFundAllocation {
 // ============================================
 
 model TableBankingCycle {
-  id            String   @id @default(uuid())
-  cycleNumber   String   @unique @map("cycle_number")
-  name          String
-  organizationId String  @map("organization_id")
-  startDate     DateTime @map("start_date")
-  endDate       DateTime? @map("end_date")
-  contributionAmount Decimal @db.Decimal(19, 4) @map("contribution_amount")
-  totalCollected Decimal @default(0) @db.Decimal(19, 4) @map("total_collected")
-  totalLoaned   Decimal  @default(0) @db.Decimal(19, 4) @map("total_loaned")
-  totalRepaid   Decimal  @default(0) @db.Decimal(19, 4) @map("total_repaid")
-  status        String   @default("ACTIVE")
-  memberId      String   @map("member_id")
-  member        Member   @relation(fields: [memberId], references: [id])
+  id                 String    @id @default(uuid())
+  cycleNumber        String    @unique @map("cycle_number")
+  name               String
+  organizationId     String    @map("organization_id")
+  startDate          DateTime  @map("start_date")
+  endDate            DateTime? @map("end_date")
+  contributionAmount Decimal   @map("contribution_amount") @db.Decimal(19, 4)
+  totalCollected     Decimal   @default(0) @map("total_collected") @db.Decimal(19, 4)
+  totalLoaned        Decimal   @default(0) @map("total_loaned") @db.Decimal(19, 4)
+  totalRepaid        Decimal   @default(0) @map("total_repaid") @db.Decimal(19, 4)
+  status             String    @default("ACTIVE")
+  memberId           String    @map("member_id")
+  member             Member    @relation(fields: [memberId], references: [id])
 
   contributions TableBankingContribution[]
   loans         TableBankingLoan[]
@@ -1253,15 +1259,15 @@ model TableBankingCycle {
 }
 
 model TableBankingContribution {
-  id            String   @id @default(uuid())
-  cycleId       String   @map("cycle_id")
+  id            String            @id @default(uuid())
+  cycleId       String            @map("cycle_id")
   cycle         TableBankingCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  memberId      String   @map("member_id")
-  member        Member   @relation(fields: [memberId], references: [id])
-  amount        Decimal  @db.Decimal(19, 4)
-  date          DateTime @default(now())
-  transactionId String?  @map("transaction_id")
-  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  memberId      String            @map("member_id")
+  member        Member            @relation(fields: [memberId], references: [id])
+  amount        Decimal           @db.Decimal(19, 4)
+  date          DateTime          @default(now())
+  transactionId String?           @map("transaction_id")
+  transaction   Transaction?      @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1271,16 +1277,16 @@ model TableBankingContribution {
 }
 
 model TableBankingLoan {
-  id            String   @id @default(uuid())
-  cycleId       String   @map("cycle_id")
-  cycle         TableBankingCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  memberId      String   @map("member_id")
-  member        Member   @relation(fields: [memberId], references: [id])
-  amount        Decimal  @db.Decimal(19, 4)
-  interestRate  Decimal  @db.Decimal(5, 2) @map("interest_rate")
-  status        String   @default("ACTIVE")
-  amountPaid    Decimal  @default(0) @db.Decimal(19, 4) @map("amount_paid")
-  balance       Decimal  @db.Decimal(19, 4)
+  id           String            @id @default(uuid())
+  cycleId      String            @map("cycle_id")
+  cycle        TableBankingCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  memberId     String            @map("member_id")
+  member       Member            @relation(fields: [memberId], references: [id])
+  amount       Decimal           @db.Decimal(19, 4)
+  interestRate Decimal           @map("interest_rate") @db.Decimal(5, 2)
+  status       String            @default("ACTIVE")
+  amountPaid   Decimal           @default(0) @map("amount_paid") @db.Decimal(19, 4)
+  balance      Decimal           @db.Decimal(19, 4)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1295,13 +1301,13 @@ model TableBankingLoan {
 // ============================================
 
 model EmergencyFundContribution {
-  id            String   @id @default(uuid())
-  memberId      String   @map("member_id")
-  member        Member   @relation(fields: [memberId], references: [id])
-  amount        Decimal  @db.Decimal(19, 4)
+  id            String       @id @default(uuid())
+  memberId      String       @map("member_id")
+  member        Member       @relation(fields: [memberId], references: [id])
+  amount        Decimal      @db.Decimal(19, 4)
   period        String
-  paidDate      DateTime @map("paid_date")
-  transactionId String?  @map("transaction_id")
+  paidDate      DateTime     @map("paid_date")
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1311,15 +1317,15 @@ model EmergencyFundContribution {
 }
 
 model EmergencyFundWithdrawal {
-  id            String   @id @default(uuid())
-  memberId      String   @map("member_id")
-  member        Member   @relation(fields: [memberId], references: [id])
-  amount        Decimal  @db.Decimal(19, 4)
+  id            String       @id @default(uuid())
+  memberId      String       @map("member_id")
+  member        Member       @relation(fields: [memberId], references: [id])
+  amount        Decimal      @db.Decimal(19, 4)
   reason        String
-  status        String   @default("PENDING")
-  approvedBy    String?  @map("approved_by")
-  approvedAt    DateTime? @map("approved_at")
-  transactionId String?  @map("transaction_id")
+  status        String       @default("PENDING")
+  approvedBy    String?      @map("approved_by")
+  approvedAt    DateTime?    @map("approved_at")
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1334,28 +1340,28 @@ model EmergencyFundWithdrawal {
 // ============================================
 
 model Project {
-  id              String        @id @default(uuid())
-  name            String
-  code            String        @unique
-  description     String?
-  organizationId  String        @map("organization_id")
-  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  status          ProjectStatus @default(PLANNING)
-  startDate       DateTime      @map("start_date")
-  endDate         DateTime?     @map("end_date")
-  budget          Decimal       @default(0) @db.Decimal(19, 4)
-  totalIncome     Decimal       @default(0) @db.Decimal(19, 4) @map("total_income")
-  totalExpenses   Decimal       @default(0) @db.Decimal(19, 4) @map("total_expenses")
-  totalInvestments Decimal      @default(0) @db.Decimal(19, 4) @map("total_investments")
-  profitLoss      Decimal       @default(0) @db.Decimal(19, 4) @map("profit_loss")
-  profitDistributionRule String? @map("profit_distribution_rule")
-  managerId       String?       @map("manager_id")
-  notes           String?
-  deletedAt       DateTime?     @map("deleted_at")
+  id                     String        @id @default(uuid())
+  name                   String
+  code                   String        @unique
+  description            String?
+  organizationId         String        @map("organization_id")
+  organization           Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status                 ProjectStatus @default(PLANNING)
+  startDate              DateTime      @map("start_date")
+  endDate                DateTime?     @map("end_date")
+  budget                 Decimal       @default(0) @db.Decimal(19, 4)
+  totalIncome            Decimal       @default(0) @map("total_income") @db.Decimal(19, 4)
+  totalExpenses          Decimal       @default(0) @map("total_expenses") @db.Decimal(19, 4)
+  totalInvestments       Decimal       @default(0) @map("total_investments") @db.Decimal(19, 4)
+  profitLoss             Decimal       @default(0) @map("profit_loss") @db.Decimal(19, 4)
+  profitDistributionRule String?       @map("profit_distribution_rule")
+  managerId              String?       @map("manager_id")
+  notes                  String?
+  deletedAt              DateTime?     @map("deleted_at")
 
-  investments     ProjectInvestment[]
-  income          ProjectIncome[]
-  expenses        ProjectExpense[]
+  investments         ProjectInvestment[]
+  income              ProjectIncome[]
+  expenses            ProjectExpense[]
   profitDistributions ProfitDistribution[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1367,17 +1373,17 @@ model Project {
 }
 
 model ProjectInvestment {
-  id            String     @id @default(uuid())
-  projectId     String     @map("project_id")
-  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  memberId      String     @map("member_id")
-  member        Member     @relation(fields: [memberId], references: [id])
-  amount        Decimal    @db.Decimal(19, 4)
-  investmentDate DateTime  @default(now()) @map("investment_date")
-  returnAmount  Decimal?   @db.Decimal(19, 4) @map("return_amount")
-  status        String     @default("ACTIVE")
-  transactionId String?    @map("transaction_id")
-  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  id             String       @id @default(uuid())
+  projectId      String       @map("project_id")
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  memberId       String       @map("member_id")
+  member         Member       @relation(fields: [memberId], references: [id])
+  amount         Decimal      @db.Decimal(19, 4)
+  investmentDate DateTime     @default(now()) @map("investment_date")
+  returnAmount   Decimal?     @map("return_amount") @db.Decimal(19, 4)
+  status         String       @default("ACTIVE")
+  transactionId  String?      @map("transaction_id")
+  transaction    Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1388,16 +1394,16 @@ model ProjectInvestment {
 }
 
 model ProjectIncome {
-  id            String     @id @default(uuid())
-  projectId     String     @map("project_id")
-  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  memberId      String?    @map("member_id")
-  member        Member?    @relation(fields: [memberId], references: [id])
-  amount        Decimal    @db.Decimal(19, 4)
+  id            String       @id @default(uuid())
+  projectId     String       @map("project_id")
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  memberId      String?      @map("member_id")
+  member        Member?      @relation(fields: [memberId], references: [id])
+  amount        Decimal      @db.Decimal(19, 4)
   description   String?
-  incomeDate    DateTime   @default(now()) @map("income_date")
+  incomeDate    DateTime     @default(now()) @map("income_date")
   category      String?
-  transactionId String?    @map("transaction_id")
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1408,16 +1414,16 @@ model ProjectIncome {
 }
 
 model ProjectExpense {
-  id            String     @id @default(uuid())
-  projectId     String     @map("project_id")
-  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  memberId      String?    @map("member_id")
-  member        Member?    @relation(fields: [memberId], references: [id])
-  amount        Decimal    @db.Decimal(19, 4)
+  id            String       @id @default(uuid())
+  projectId     String       @map("project_id")
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  memberId      String?      @map("member_id")
+  member        Member?      @relation(fields: [memberId], references: [id])
+  amount        Decimal      @db.Decimal(19, 4)
   description   String?
-  expenseDate   DateTime   @default(now()) @map("expense_date")
+  expenseDate   DateTime     @default(now()) @map("expense_date")
   category      String?
-  transactionId String?    @map("transaction_id")
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1428,17 +1434,17 @@ model ProjectExpense {
 }
 
 model ProfitDistribution {
-  id            String     @id @default(uuid())
-  projectId     String     @map("project_id")
-  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  memberId      String?    @map("member_id")
-  member        Member?    @relation(fields: [memberId], references: [id])
-  amount        Decimal    @db.Decimal(19, 4)
-  percentage    Decimal    @db.Decimal(5, 2)
-  distributionDate DateTime @default(now()) @map("distribution_date")
-  type          String     // ORGANIZATION, MEMBER, INVESTMENT_WEIGHTED, etc.
-  transactionId String?    @map("transaction_id")
-  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  id               String       @id @default(uuid())
+  projectId        String       @map("project_id")
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  memberId         String?      @map("member_id")
+  member           Member?      @relation(fields: [memberId], references: [id])
+  amount           Decimal      @db.Decimal(19, 4)
+  percentage       Decimal      @db.Decimal(5, 2)
+  distributionDate DateTime     @default(now()) @map("distribution_date")
+  type             String // ORGANIZATION, MEMBER, INVESTMENT_WEIGHTED, etc.
+  transactionId    String?      @map("transaction_id")
+  transaction      Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1465,7 +1471,7 @@ model Meeting {
   status         String       @default("SCHEDULED")
   meetingLink    String?      @map("meeting_link")
 
-  attendees      MeetingAttendee[]
+  attendees MeetingAttendee[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1476,13 +1482,13 @@ model Meeting {
 }
 
 model MeetingAttendee {
-  id          String     @id @default(uuid())
-  meetingId   String     @map("meeting_id")
-  meeting     Meeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  memberId    String     @map("member_id")
-  member      Member     @relation(fields: [memberId], references: [id])
-  status      String     @default("PENDING")
-  checkInTime DateTime?  @map("check_in_time")
+  id          String    @id @default(uuid())
+  meetingId   String    @map("meeting_id")
+  meeting     Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  memberId    String    @map("member_id")
+  member      Member    @relation(fields: [memberId], references: [id])
+  status      String    @default("PENDING")
+  checkInTime DateTime? @map("check_in_time")
   notes       String?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1497,33 +1503,34 @@ model MeetingAttendee {
 // ============================================
 
 model Poll {
-  id             String      @id @default(uuid())
+  id             String     @id @default(uuid())
   title          String
   description    String?
-  organizationId String      @map("organization_id")
-  startDate      DateTime    @map("start_date")
-  endDate        DateTime    @map("end_date")
-  status         PollStatus  @default(DRAFT)
-  allowMultiple  Boolean     @default(false) @map("allow_multiple")
-  showResults    Boolean     @default(false) @map("show_results")
-  isAnonymous    Boolean     @default(false) @map("is_anonymous")
+  organizationId String     @map("organization_id")
+  startDate      DateTime   @map("start_date")
+  endDate        DateTime   @map("end_date")
+  status         PollStatus @default(DRAFT)
+  allowMultiple  Boolean    @default(false) @map("allow_multiple")
+  showResults    Boolean    @default(false) @map("show_results")
+  isAnonymous    Boolean    @default(false) @map("is_anonymous")
 
-  options        PollOption[]
-  votes          PollVote[]
+  options PollOption[]
+  votes   PollVote[]
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  Organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
   @@map("polls")
 }
 
 model PollOption {
-  id       String     @id @default(uuid())
-  pollId   String     @map("poll_id")
-  poll     Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  option   String
-  votes    PollVote[]
+  id     String     @id @default(uuid())
+  pollId String     @map("poll_id")
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option String
+  votes  PollVote[]
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1532,13 +1539,13 @@ model PollOption {
 }
 
 model PollVote {
-  id        String     @id @default(uuid())
-  pollId    String     @map("poll_id")
-  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  optionId  String     @map("option_id")
-  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
-  memberId  String     @map("member_id")
-  member    Member     @relation(fields: [memberId], references: [id])
+  id       String     @id @default(uuid())
+  pollId   String     @map("poll_id")
+  poll     Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId String     @map("option_id")
+  option   PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  memberId String     @map("member_id")
+  member   Member     @relation(fields: [memberId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1554,16 +1561,16 @@ model PollVote {
 // ============================================
 
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   message   String
   type      NotificationType @default(INFO)
-  isRead    Boolean  @default(false) @map("is_read")
+  isRead    Boolean          @default(false) @map("is_read")
   data      Json?
-  readAt    DateTime? @map("read_at")
-  actionUrl String?  @map("action_url")
+  readAt    DateTime?        @map("read_at")
+  actionUrl String?          @map("action_url")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1578,21 +1585,21 @@ model Notification {
 // ============================================
 
 model Document {
-  id         String   @id @default(uuid())
-  name       String
-  type       String
-  mimeType   String   @map("mime_type")
-  size       Int
-  url        String
-  memberId   String?  @map("member_id")
-  member     Member?  @relation(fields: [memberId], references: [id])
-  uploadedById String? @map("uploaded_by_id")
-  uploadedBy User?    @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
-  folder     String?
-  tags       String[]
-  description String?
-  isPublic   Boolean  @default(false) @map("is_public")
-  deletedAt  DateTime? @map("deleted_at")
+  id           String    @id @default(uuid())
+  name         String
+  type         String
+  mimeType     String    @map("mime_type")
+  size         Int
+  url          String
+  memberId     String?   @map("member_id")
+  member       Member?   @relation(fields: [memberId], references: [id])
+  uploadedById String?   @map("uploaded_by_id")
+  uploadedBy   User?     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  folder       String?
+  tags         String[]
+  description  String?
+  isPublic     Boolean   @default(false) @map("is_public")
+  deletedAt    DateTime? @map("deleted_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1610,21 +1617,21 @@ model Document {
 // ============================================
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  userId     String?  @map("user_id")
-  user       User?    @relation(fields: [userId], references: [id])
-  action     String
-  resource   String
-  resourceId String?  @map("resource_id")
-  changes    Json?
-  ipAddress  String?  @map("ip_address")
-  userAgent  String?  @map("user_agent")
-  deviceInfo Json?    @map("device_info")
-  location   String?
-  module     String?
+  id             String  @id @default(uuid())
+  userId         String? @map("user_id")
+  user           User?   @relation(fields: [userId], references: [id])
+  action         String
+  resource       String
+  resourceId     String? @map("resource_id")
+  changes        Json?
+  ipAddress      String? @map("ip_address")
+  userAgent      String? @map("user_agent")
+  deviceInfo     Json?   @map("device_info")
+  location       String?
+  module         String?
   organizationId String? @map("organization_id")
-  branchId   String?  @map("branch_id")
-  duration   Int?     // Execution time in ms
+  branchId       String? @map("branch_id")
+  duration       Int? // Execution time in ms
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1641,21 +1648,21 @@ model AuditLog {
 // ============================================
 
 model Approval {
-  id            String   @id @default(uuid())
-  entityType    String   @map("entity_type")
-  entityId      String   @map("entity_id")
-  action        String
-  status        ApprovalStatus @default(PENDING)
-  requestedById String   @map("requested_by_id")
-  requestedBy   User     @relation(fields: [requestedById], references: [id])
-  approvedById  String?  @map("approved_by_id")
-  approvedBy    User?    @relation("ApprovalApprovedBy", fields: [approvedById], references: [id])
-  approvedAt    DateTime? @map("approved_at")
-  rejectionReason String? @map("rejection_reason")
-  comments      String?
-  level         Int      @default(1)
-  maxLevel      Int      @default(1)
-  organizationId String  @map("organization_id")
+  id              String         @id @default(uuid())
+  entityType      String         @map("entity_type")
+  entityId        String         @map("entity_id")
+  action          String
+  status          ApprovalStatus @default(PENDING)
+  requestedById   String         @map("requested_by_id")
+  requestedBy     User           @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  approvedById    String?        @map("approved_by_id")
+  approvedBy      User?          @relation("ApprovalApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?      @map("approved_at")
+  rejectionReason String?        @map("rejection_reason")
+  comments        String?
+  level           Int            @default(1)
+  maxLevel        Int            @default(1)
+  organizationId  String         @map("organization_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1668,15 +1675,15 @@ model Approval {
 }
 
 model WorkflowAction {
-  id            String   @id @default(uuid())
-  workflowName  String   @map("workflow_name")
-  entityType    String   @map("entity_type")
-  entityId      String   @map("entity_id")
+  id            String  @id @default(uuid())
+  workflowName  String  @map("workflow_name")
+  entityType    String  @map("entity_type")
+  entityId      String  @map("entity_id")
   action        String
-  fromStatus    String   @map("from_status")
-  toStatus      String   @map("to_status")
-  performedById String   @map("performed_by_id")
-  performedBy   User     @relation(fields: [performedById], references: [id])
+  fromStatus    String  @map("from_status")
+  toStatus      String  @map("to_status")
+  performedById String  @map("performed_by_id")
+  performedBy   User    @relation(fields: [performedById], references: [id])
   comments      String?
   metadata      Json?
 
@@ -1692,18 +1699,18 @@ model WorkflowAction {
 // ============================================
 
 model Message {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   subject     String
   body        String
-  senderId    String   @map("sender_id")
-  sender      User     @relation("MessageSender", fields: [senderId], references: [id])
-  recipientId String   @map("recipient_id")
-  recipient   User     @relation("MessageRecipient", fields: [recipientId], references: [id])
-  memberId    String?  @map("member_id")
-  member      Member?  @relation("MessageMember", fields: [memberId], references: [id])
-  isRead      Boolean  @default(false) @map("is_read")
+  senderId    String    @map("sender_id")
+  sender      User      @relation("MessageSender", fields: [senderId], references: [id])
+  recipientId String    @map("recipient_id")
+  recipient   User      @relation("MessageRecipient", fields: [recipientId], references: [id])
+  memberId    String?   @map("member_id")
+  member      Member?   @relation("MessageMember", fields: [memberId], references: [id])
+  isRead      Boolean   @default(false) @map("is_read")
   readAt      DateTime? @map("read_at")
-  parentId    String?  @map("parent_id")
+  parentId    String?   @map("parent_id")
   attachments String[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1776,26 +1783,26 @@ model Task {
 // ============================================
 
 model Setting {
-  id             String @id @default(uuid())
-  key            String @unique
+  id             String        @id @default(uuid())
+  key            String        @unique
   value          Json
-  type           String @default("string") @map("value_type")
-  group          String @default("general")
-  category       String @default("general")
-  isPublic       Boolean @default(false) @map("is_public")
-  isSystem       Boolean @default(false) @map("is_system")
-  organizationId String? @map("organization_id")
+  type           String        @default("string") @map("value_type")
+  group          String        @default("general")
+  category       String        @default("general")
+  isPublic       Boolean       @default(false) @map("is_public")
+  isSystem       Boolean       @default(false) @map("is_system")
+  organizationId String?       @map("organization_id")
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   description    String?
-  allowedValues  Json?   @map("allowed_values")
-  defaultValue   Json?   @map("default_value")
-  minValue       Float?  @map("min_value")
-  maxValue       Float?  @map("max_value")
-  pattern        String? @map("pattern")
-  createdById    String? @map("created_by_id")
-  createdBy      User?   @relation("SettingCreatedBy", fields: [createdById], references: [id])
-  updatedById    String? @map("updated_by_id")
-  updatedBy      User?   @relation("SettingUpdatedBy", fields: [updatedById], references: [id])
+  allowedValues  Json?         @map("allowed_values")
+  defaultValue   Json?         @map("default_value")
+  minValue       Float?        @map("min_value")
+  maxValue       Float?        @map("max_value")
+  pattern        String?       @map("pattern")
+  createdById    String?       @map("created_by_id")
+  createdBy      User?         @relation("SettingCreatedBy", fields: [createdById], references: [id])
+  updatedById    String?       @map("updated_by_id")
+  updatedBy      User?         @relation("SettingUpdatedBy", fields: [updatedById], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1829,7 +1836,7 @@ model HelpDeskTicket {
   resolvedAt     DateTime?    @map("resolved_at")
   resolution     String?
 
-  responses      HelpDeskResponse[]
+  responses HelpDeskResponse[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1842,11 +1849,11 @@ model HelpDeskTicket {
 }
 
 model HelpDeskResponse {
-  id         String         @id @default(uuid())
-  ticketId   String         @map("ticket_id")
-  ticket     HelpDeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  userId     String         @map("user_id")
-  message    String
+  id          String         @id @default(uuid())
+  ticketId    String         @map("ticket_id")
+  ticket      HelpDeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId      String         @map("user_id")
+  message     String
   attachments String[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1864,7 +1871,7 @@ model Contract {
   contractNumber String       @unique @map("contract_number")
   title          String
   description    String?
-  type           String       // MEMBERSHIP, LOAN, SERVICE, SUPPLIER, EMPLOYMENT
+  type           String // MEMBERSHIP, LOAN, SERVICE, SUPPLIER, EMPLOYMENT
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   partyId        String?      @map("party_id")
@@ -1881,7 +1888,7 @@ model Contract {
   documentUrl    String?      @map("document_url")
   deletedAt      DateTime?    @map("deleted_at")
 
-  payments       ContractPayment[]
+  payments ContractPayment[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1892,14 +1899,14 @@ model Contract {
 }
 
 model ContractPayment {
-  id            String     @id @default(uuid())
-  contractId    String     @map("contract_id")
-  contract      Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  amount        Decimal    @db.Decimal(19, 4)
-  dueDate       DateTime   @map("due_date")
-  paidDate      DateTime?  @map("paid_date")
-  status        String     @default("PENDING")
-  transactionId String?    @map("transaction_id")
+  id            String       @id @default(uuid())
+  contractId    String       @map("contract_id")
+  contract      Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  amount        Decimal      @db.Decimal(19, 4)
+  dueDate       DateTime     @map("due_date")
+  paidDate      DateTime?    @map("paid_date")
+  status        String       @default("PENDING")
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1985,13 +1992,13 @@ model InventoryItem {
   unit           String?
   quantity       Int          @default(0)
   reorderLevel   Int          @default(0) @map("reorder_level")
-  unitCost       Decimal      @default(0) @db.Decimal(19, 4) @map("unit_cost")
-  totalValue     Decimal      @default(0) @db.Decimal(19, 4) @map("total_value")
+  unitCost       Decimal      @default(0) @map("unit_cost") @db.Decimal(19, 4)
+  totalValue     Decimal      @default(0) @map("total_value") @db.Decimal(19, 4)
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   isActive       Boolean      @default(true) @map("is_active")
 
-  transactions   InventoryTransaction[]
+  transactions InventoryTransaction[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2001,17 +2008,17 @@ model InventoryItem {
 }
 
 model InventoryTransaction {
-  id              String         @id @default(uuid())
-  itemId          String         @map("item_id")
-  item            InventoryItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  type            String         // RECEIPT, ISSUE, TRANSFER, ADJUSTMENT
-  quantity        Int
-  unitCost        Decimal        @db.Decimal(19, 4) @map("unit_cost")
-  totalAmount     Decimal        @db.Decimal(19, 4) @map("total_amount")
-  reference       String?
-  description     String?
-  transactionId   String?        @map("transaction_id")
-  transaction     Transaction?   @relation(fields: [transactionId], references: [id])
+  id            String        @id @default(uuid())
+  itemId        String        @map("item_id")
+  item          InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  type          String // RECEIPT, ISSUE, TRANSFER, ADJUSTMENT
+  quantity      Int
+  unitCost      Decimal       @map("unit_cost") @db.Decimal(19, 4)
+  totalAmount   Decimal       @map("total_amount") @db.Decimal(19, 4)
+  reference     String?
+  description   String?
+  transactionId String?       @map("transaction_id")
+  transaction   Transaction?  @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -2021,23 +2028,23 @@ model InventoryTransaction {
 }
 
 model Asset {
-  id             String       @id @default(uuid())
-  name           String
-  code           String       @unique
-  description    String?
-  category       String?
-  purchaseDate   DateTime     @map("purchase_date")
-  purchaseCost   Decimal      @db.Decimal(19, 4) @map("purchase_cost")
-  currentValue   Decimal      @db.Decimal(19, 4) @map("current_value")
-  depreciationRate Decimal?   @db.Decimal(5, 2) @map("depreciation_rate")
-  location       String?
-  status         String       @default("ACTIVE")
-  assignedTo     String?      @map("assigned_to")
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  deletedAt      DateTime?    @map("deleted_at")
+  id               String       @id @default(uuid())
+  name             String
+  code             String       @unique
+  description      String?
+  category         String?
+  purchaseDate     DateTime     @map("purchase_date")
+  purchaseCost     Decimal      @map("purchase_cost") @db.Decimal(19, 4)
+  currentValue     Decimal      @map("current_value") @db.Decimal(19, 4)
+  depreciationRate Decimal?     @map("depreciation_rate") @db.Decimal(5, 2)
+  location         String?
+  status           String       @default("ACTIVE")
+  assignedTo       String?      @map("assigned_to")
+  organizationId   String       @map("organization_id")
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt        DateTime?    @map("deleted_at")
 
-  transactions   AssetTransaction[]
+  transactions AssetTransaction[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2047,14 +2054,14 @@ model Asset {
 }
 
 model AssetTransaction {
-  id            String     @id @default(uuid())
-  assetId       String     @map("asset_id")
-  asset         Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  type          String     // ACQUISITION, DEPRECIATION, DISPOSAL, TRANSFER, MAINTENANCE
-  amount        Decimal    @db.Decimal(19, 4)
+  id            String       @id @default(uuid())
+  assetId       String       @map("asset_id")
+  asset         Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type          String // ACQUISITION, DEPRECIATION, DISPOSAL, TRANSFER, MAINTENANCE
+  amount        Decimal      @db.Decimal(19, 4)
   description   String?
-  date          DateTime   @default(now())
-  transactionId String?    @map("transaction_id")
+  date          DateTime     @default(now())
+  transactionId String?      @map("transaction_id")
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -2077,7 +2084,7 @@ model BudgetPeriod {
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  budgetLines    BudgetLine[]
+  budgetLines BudgetLine[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2087,16 +2094,16 @@ model BudgetPeriod {
 }
 
 model BudgetLine {
-  id            String       @id @default(uuid())
-  budgetPeriodId String      @map("budget_period_id")
-  budgetPeriod  BudgetPeriod @relation(fields: [budgetPeriodId], references: [id], onDelete: Cascade)
-  accountId     String       @map("account_id")
-  account       Account      @relation(fields: [accountId], references: [id])
-  budgetedAmount Decimal     @db.Decimal(19, 4) @map("budgeted_amount")
-  actualAmount  Decimal      @default(0) @db.Decimal(19, 4) @map("actual_amount")
-  variance      Decimal      @default(0) @db.Decimal(19, 4)
+  id             String       @id @default(uuid())
+  budgetPeriodId String       @map("budget_period_id")
+  budgetPeriod   BudgetPeriod @relation(fields: [budgetPeriodId], references: [id], onDelete: Cascade)
+  accountId      String       @map("account_id")
+  account        Account      @relation(fields: [accountId], references: [id])
+  budgetedAmount Decimal      @map("budgeted_amount") @db.Decimal(19, 4)
+  actualAmount   Decimal      @default(0) @map("actual_amount") @db.Decimal(19, 4)
+  variance       Decimal      @default(0) @db.Decimal(19, 4)
 
-  transactions  BudgetTransaction[]
+  transactions BudgetTransaction[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2108,14 +2115,14 @@ model BudgetLine {
 }
 
 model BudgetTransaction {
-  id            String        @id @default(uuid())
-  budgetLineId  String        @map("budget_line_id")
-  budgetLine    BudgetLine    @relation(fields: [budgetLineId], references: [id], onDelete: Cascade)
-  amount        Decimal       @db.Decimal(19, 4)
+  id            String       @id @default(uuid())
+  budgetLineId  String       @map("budget_line_id")
+  budgetLine    BudgetLine   @relation(fields: [budgetLineId], references: [id], onDelete: Cascade)
+  amount        Decimal      @db.Decimal(19, 4)
   description   String?
-  date          DateTime      @default(now())
-  transactionId String?       @map("transaction_id")
-  transaction   Transaction?  @relation(fields: [transactionId], references: [id])
+  date          DateTime     @default(now())
+  transactionId String?      @map("transaction_id")
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -2142,7 +2149,7 @@ model ProcurementRequest {
   approvedAt     DateTime?    @map("approved_at")
   supplierId     String?      @map("supplier_id")
 
-  payments       ProcurementPayment[]
+  payments ProcurementPayment[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2153,15 +2160,15 @@ model ProcurementRequest {
 }
 
 model ProcurementPayment {
-  id                 String              @id @default(uuid())
-  procurementRequestId String            @map("procurement_request_id")
-  procurementRequest ProcurementRequest  @relation(fields: [procurementRequestId], references: [id], onDelete: Cascade)
-  amount             Decimal             @db.Decimal(19, 4)
-  paymentDate        DateTime            @default(now()) @map("payment_date")
-  paymentMethod      PaymentMethod?
-  reference          String?
-  transactionId      String?             @map("transaction_id")
-  transaction        Transaction?        @relation(fields: [transactionId], references: [id])
+  id                   String             @id @default(uuid())
+  procurementRequestId String             @map("procurement_request_id")
+  procurementRequest   ProcurementRequest @relation(fields: [procurementRequestId], references: [id], onDelete: Cascade)
+  amount               Decimal            @db.Decimal(19, 4)
+  paymentDate          DateTime           @default(now()) @map("payment_date")
+  paymentMethod        PaymentMethod?
+  reference            String?
+  transactionId        String?            @map("transaction_id")
+  transaction          Transaction?       @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -2174,24 +2181,24 @@ model ProcurementPayment {
 // ============================================
 
 model Employee {
-  id            String       @id @default(uuid())
-  employeeNumber String      @unique @map("employee_number")
-  memberId      String?      @map("member_id")
-  member        Member?      @relation(fields: [memberId], references: [id])
-  departmentId  String?      @map("department_id")
-  department    Department?  @relation(fields: [departmentId], references: [id])
-  jobTitle      String?      @map("job_title")
-  employmentDate DateTime    @map("employment_date")
-  terminationDate DateTime?  @map("termination_date")
-  status        String       @default("ACTIVE")
-  salary        Decimal      @default(0) @db.Decimal(19, 4)
-  bankAccount   String?      @map("bank_account")
-  bankName      String?      @map("bank_name")
-  taxPin        String?      @map("tax_pin")
-  nssfNumber    String?      @map("nssf_number")
-  nhifNumber    String?      @map("nhif_number")
+  id              String      @id @default(uuid())
+  employeeNumber  String      @unique @map("employee_number")
+  memberId        String?     @unique @map("member_id")
+  member          Member?     @relation(fields: [memberId], references: [id])
+  departmentId    String?     @map("department_id")
+  department      Department? @relation(fields: [departmentId], references: [id])
+  jobTitle        String?     @map("job_title")
+  employmentDate  DateTime    @map("employment_date")
+  terminationDate DateTime?   @map("termination_date")
+  status          String      @default("ACTIVE")
+  salary          Decimal     @default(0) @db.Decimal(19, 4)
+  bankAccount     String?     @map("bank_account")
+  bankName        String?     @map("bank_name")
+  taxPin          String?     @map("tax_pin")
+  nssfNumber      String?     @map("nssf_number")
+  nhifNumber      String?     @map("nhif_number")
 
-  payrollItems  PayrollItem[]
+  payrollItems PayrollItem[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2202,24 +2209,24 @@ model Employee {
 }
 
 model PayrollRun {
-  id             String       @id @default(uuid())
-  runNumber      String       @unique @map("run_number")
-  period         String       // e.g., "2024-01"
-  startDate      DateTime     @map("start_date")
-  endDate        DateTime     @map("end_date")
-  paymentDate    DateTime     @map("payment_date")
-  totalGross     Decimal      @default(0) @db.Decimal(19, 4) @map("total_gross")
-  totalDeductions Decimal     @default(0) @db.Decimal(19, 4) @map("total_deductions")
-  totalNet       Decimal      @default(0) @db.Decimal(19, 4) @map("total_net")
-  status         String       @default("DRAFT")
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  processedById  String?      @map("processed_by_id")
-  processedBy    User?        @relation("PayrollProcessedBy", fields: [processedById], references: [id])
-  approvedById   String?      @map("approved_by_id")
-  approvedAt     DateTime?    @map("approved_at")
+  id              String       @id @default(uuid())
+  runNumber       String       @unique @map("run_number")
+  period          String // e.g., "2024-01"
+  startDate       DateTime     @map("start_date")
+  endDate         DateTime     @map("end_date")
+  paymentDate     DateTime     @map("payment_date")
+  totalGross      Decimal      @default(0) @map("total_gross") @db.Decimal(19, 4)
+  totalDeductions Decimal      @default(0) @map("total_deductions") @db.Decimal(19, 4)
+  totalNet        Decimal      @default(0) @map("total_net") @db.Decimal(19, 4)
+  status          String       @default("DRAFT")
+  organizationId  String       @map("organization_id")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  processedById   String?      @map("processed_by_id")
+  processedBy     User?        @relation("PayrollProcessedBy", fields: [processedById], references: [id])
+  approvedById    String?      @map("approved_by_id")
+  approvedAt      DateTime?    @map("approved_at")
 
-  items          PayrollItem[]
+  items PayrollItem[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2230,23 +2237,23 @@ model PayrollRun {
 }
 
 model PayrollItem {
-  id            String      @id @default(uuid())
-  payrollRunId  String      @map("payroll_run_id")
-  payrollRun    PayrollRun  @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employeeId    String      @map("employee_id")
-  employee      Employee    @relation(fields: [employeeId], references: [id])
-  memberId      String?     @map("member_id")
-  member        Member?     @relation(fields: [memberId], references: [id])
-  basicPay      Decimal     @db.Decimal(19, 4) @map("basic_pay")
-  allowances    Json?       @default("{}")
-  deductions    Json?       @default("{}")
-  grossPay      Decimal     @db.Decimal(19, 4) @map("gross_pay")
-  totalDeductions Decimal   @db.Decimal(19, 4) @map("total_deductions")
-  netPay        Decimal     @db.Decimal(19, 4) @map("net_pay")
-  bankAccount   String?     @map("bank_account")
-  status        String      @default("PENDING")
-  transactionId String?     @map("transaction_id")
-  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  id              String       @id @default(uuid())
+  payrollRunId    String       @map("payroll_run_id")
+  payrollRun      PayrollRun   @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employeeId      String       @map("employee_id")
+  employee        Employee     @relation(fields: [employeeId], references: [id])
+  memberId        String?      @map("member_id")
+  member          Member?      @relation(fields: [memberId], references: [id])
+  basicPay        Decimal      @map("basic_pay") @db.Decimal(19, 4)
+  allowances      Json?        @default("{}")
+  deductions      Json?        @default("{}")
+  grossPay        Decimal      @map("gross_pay") @db.Decimal(19, 4)
+  totalDeductions Decimal      @map("total_deductions") @db.Decimal(19, 4)
+  netPay          Decimal      @map("net_pay") @db.Decimal(19, 4)
+  bankAccount     String?      @map("bank_account")
+  status          String       @default("PENDING")
+  transactionId   String?      @map("transaction_id")
+  transaction     Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2293,15 +2300,15 @@ model InsuranceScheme {
   name           String
   code           String       @unique
   description    String?
-  premiumAmount  Decimal      @db.Decimal(19, 4) @map("premium_amount")
-  coverageAmount Decimal      @db.Decimal(19, 4) @map("coverage_amount")
+  premiumAmount  Decimal      @map("premium_amount") @db.Decimal(19, 4)
+  coverageAmount Decimal      @map("coverage_amount") @db.Decimal(19, 4)
   frequency      Frequency    @default(MONTHLY)
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   isActive       Boolean      @default(true) @map("is_active")
 
-  policies       InsurancePolicy[]
-  claims         InsuranceClaim[]
+  policies InsurancePolicy[]
+  claims   InsuranceClaim[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2319,12 +2326,12 @@ model InsurancePolicy {
   member         Member          @relation(fields: [memberId], references: [id])
   startDate      DateTime        @map("start_date")
   endDate        DateTime        @map("end_date")
-  premiumAmount  Decimal         @db.Decimal(19, 4) @map("premium_amount")
-  coverageAmount Decimal         @db.Decimal(19, 4) @map("coverage_amount")
+  premiumAmount  Decimal         @map("premium_amount") @db.Decimal(19, 4)
+  coverageAmount Decimal         @map("coverage_amount") @db.Decimal(19, 4)
   status         String          @default("ACTIVE")
 
-  premiums       InsurancePremium[]
-  claims         InsuranceClaim[]
+  premiums InsurancePremium[]
+  claims   InsuranceClaim[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2346,31 +2353,35 @@ model InsurancePremium {
   transaction   Transaction?    @relation(fields: [transactionId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
+  Member    Member?  @relation(fields: [memberId], references: [id])
+  memberId  String?
 
   @@index([policyId])
   @@map("insurance_premiums")
 }
 
 model InsuranceClaim {
-  id            String          @id @default(uuid())
-  claimNumber   String          @unique @map("claim_number")
-  policyId      String          @map("policy_id")
-  policy        InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  memberId      String          @map("member_id")
-  member        Member          @relation(fields: [memberId], references: [id])
-  amount        Decimal         @db.Decimal(19, 4)
-  description   String?
-  claimDate     DateTime        @map("claim_date")
-  status        String          @default("PENDING")
-  approvedAmount Decimal?       @db.Decimal(19, 4) @map("approved_amount")
-  approvedBy    String?         @map("approved_by")
-  approvedAt    DateTime?       @map("approved_at")
-  payoutDate    DateTime?       @map("payout_date")
-  transactionId String?         @map("transaction_id")
-  transaction   Transaction?    @relation(fields: [transactionId], references: [id])
+  id             String          @id @default(uuid())
+  claimNumber    String          @unique @map("claim_number")
+  policyId       String          @map("policy_id")
+  policy         InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  memberId       String          @map("member_id")
+  member         Member          @relation(fields: [memberId], references: [id])
+  amount         Decimal         @db.Decimal(19, 4)
+  description    String?
+  claimDate      DateTime        @map("claim_date")
+  status         String          @default("PENDING")
+  approvedAmount Decimal?        @map("approved_amount") @db.Decimal(19, 4)
+  approvedBy     String?         @map("approved_by")
+  approvedAt     DateTime?       @map("approved_at")
+  payoutDate     DateTime?       @map("payout_date")
+  transactionId  String?         @map("transaction_id")
+  transaction    Transaction?    @relation(fields: [transactionId], references: [id])
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  InsuranceScheme   InsuranceScheme? @relation(fields: [insuranceSchemeId], references: [id])
+  insuranceSchemeId String?
 
   @@index([policyId])
   @@index([memberId])
@@ -2385,7 +2396,7 @@ model InsuranceClaim {
 model ComplianceRecord {
   id             String       @id @default(uuid())
   recordNumber   String       @unique @map("record_number")
-  type           String       // AML, KYC, REGULATORY, TAX, AUDIT
+  type           String // AML, KYC, REGULATORY, TAX, AUDIT
   description    String?
   status         String       @default("PENDING")
   organizationId String       @map("organization_id")
@@ -2410,21 +2421,21 @@ model ComplianceRecord {
 }
 
 model RiskAssessment {
-  id             String       @id @default(uuid())
-  assessmentNumber String     @unique @map("assessment_number")
-  type           String       // CREDIT, OPERATIONAL, MARKET, LIQUIDITY, COMPLIANCE
-  riskLevel      RiskLevel    @default(LOW)
-  score          Decimal      @db.Decimal(5, 2)
-  description    String?
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  memberId       String?      @map("member_id")
-  member         Member?      @relation("RiskAssessmentMember", fields: [memberId], references: [id])
-  assessedById   String       @map("assessed_by_id")
-  assessedBy     User         @relation("RiskAssessedBy", fields: [assessedById], references: [id])
-  mitigationPlan String?      @map("mitigation_plan")
-  status         String       @default("OPEN")
-  reviewDate     DateTime?    @map("review_date")
+  id               String       @id @default(uuid())
+  assessmentNumber String       @unique @map("assessment_number")
+  type             String // CREDIT, OPERATIONAL, MARKET, LIQUIDITY, COMPLIANCE
+  riskLevel        RiskLevel    @default(LOW)
+  score            Decimal      @db.Decimal(5, 2)
+  description      String?
+  organizationId   String       @map("organization_id")
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberId         String?      @map("member_id")
+  member           Member?      @relation("RiskAssessmentMember", fields: [memberId], references: [id])
+  assessedById     String       @map("assessed_by_id")
+  assessedBy       User         @relation("RiskAssessedBy", fields: [assessedById], references: [id])
+  mitigationPlan   String?      @map("mitigation_plan")
+  status           String       @default("OPEN")
+  reviewDate       DateTime?    @map("review_date")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2438,7 +2449,7 @@ model RiskAssessment {
 model FraudAlert {
   id             String       @id @default(uuid())
   alertNumber    String       @unique @map("alert_number")
-  type           String       // DUPLICATE_MEMBER, DUPLICATE_PAYMENT, UNUSUAL_TRANSACTION, ORPHAN_RECORD, INCONSISTENCY
+  type           String // DUPLICATE_MEMBER, DUPLICATE_PAYMENT, UNUSUAL_TRANSACTION, ORPHAN_RECORD, INCONSISTENCY
   severity       RiskLevel    @default(MEDIUM)
   description    String
   status         String       @default("OPEN")
@@ -2470,8 +2481,8 @@ model FraudAlert {
 model Integration {
   id             String       @id @default(uuid())
   name           String
-  provider       String       // MPESA, BANK, STRIPE, PAYPAL, etc.
-  type           String       // PAYMENT, SMS, EMAIL, BANKING, CRM
+  provider       String // MPESA, BANK, STRIPE, PAYPAL, etc.
+  type           String // PAYMENT, SMS, EMAIL, BANKING, CRM
   config         Json?
   isActive       Boolean      @default(true) @map("is_active")
   organizationId String       @map("organization_id")
@@ -2492,7 +2503,7 @@ model ApiKey {
   name           String
   key            String       @unique
   secret         String
-  permissions    String[]     // Comma-separated permissions
+  permissions    String[] // Comma-separated permissions
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   isActive       Boolean      @default(true) @map("is_active")
@@ -2512,10 +2523,10 @@ model ApiKey {
 
 model SystemHealthLog {
   id             String       @id @default(uuid())
-  component      String       // API, DATABASE, REDIS, QUEUE, EMAIL, SMS
-  status         String       // HEALTHY, DEGRADED, DOWN
+  component      String // API, DATABASE, REDIS, QUEUE, EMAIL, SMS
+  status         String // HEALTHY, DEGRADED, DOWN
   responseTime   Int?         @map("response_time") // ms
-  errorRate      Decimal?     @db.Decimal(5, 2) @map("error_rate")
+  errorRate      Decimal?     @map("error_rate") @db.Decimal(5, 2)
   details        Json?
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2532,7 +2543,7 @@ model SystemHealthLog {
 model BackupConfig {
   id             String       @id @default(uuid())
   name           String
-  type           String       // FULL, INCREMENTAL, DIFFERENTIAL
+  type           String // FULL, INCREMENTAL, DIFFERENTIAL
   frequency      Frequency    @default(DAILY)
   retentionDays  Int          @default(30) @map("retention_days")
   storagePath    String       @map("storage_path")
@@ -2541,7 +2552,7 @@ model BackupConfig {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   lastBackupAt   DateTime?    @map("last_backup_at")
 
-  logs           BackupLog[]
+  logs BackupLog[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2555,8 +2566,8 @@ model BackupLog {
   backupConfigId String       @map("backup_config_id")
   backupConfig   BackupConfig @relation(fields: [backupConfigId], references: [id], onDelete: Cascade)
   type           String
-  size           Int?         // bytes
-  status         String       // SUCCESS, FAILED, IN_PROGRESS
+  size           Int? // bytes
+  status         String // SUCCESS, FAILED, IN_PROGRESS
   startedAt      DateTime     @map("started_at")
   completedAt    DateTime?    @map("completed_at")
   filePath       String?      @map("file_path")
@@ -2576,12 +2587,12 @@ model BackupLog {
 // ============================================
 
 model TrustHash {
-  id           String   @id @default(uuid())
-  entityType   String   @map("entity_type")
-  entityId     String   @map("entity_id")
+  id           String  @id @default(uuid())
+  entityType   String  @map("entity_type")
+  entityId     String  @map("entity_id")
   hash         String
-  previousHash String?  @map("previous_hash")
-  chainIndex   Int      @map("chain_index")
+  previousHash String? @map("previous_hash")
+  chainIndex   Int     @map("chain_index")
   metadata     Json?
 
   createdAt DateTime @default(now()) @map("created_at")

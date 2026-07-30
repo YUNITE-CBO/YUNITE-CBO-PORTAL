@@ -161,8 +161,8 @@ export class AccountingEngine {
     // Create reversal entry (swap debits and credits)
     const reversalLines = original.journalLines.map(line => ({
       accountCode: line.accountId,
-      debit: line.credit,
-      credit: line.debit,
+      debit: Number(line.credit) || 0,
+      credit: Number(line.debit) || 0,
       description: `Reversal: ${line.description || original.description}`,
     }));
 
@@ -230,7 +230,20 @@ export class AccountingEngine {
   /**
    * Generate trial balance
    */
-  public async getTrialBalance(organizationId: string, upToDate?: Date): Promise<any> {
+  public async getTrialBalance(organizationId: string, upToDate?: Date): Promise<{
+    date: Date;
+    totalAccounts: number;
+    totalDebit: number;
+    totalCredit: number;
+    accounts: Array<{
+      accountCode: string;
+      accountName: string;
+      type: string;
+      totalDebit: number;
+      totalCredit: number;
+      balance: number;
+    }>;
+  }> {
     const prisma = DatabaseService.getInstance();
     const date = upToDate || new Date();
 
@@ -238,7 +251,14 @@ export class AccountingEngine {
       where: { organizationId, isActive: true },
     });
 
-    const trialBalance = [];
+    const trialBalance: Array<{
+      accountCode: string;
+      accountName: string;
+      type: string;
+      totalDebit: number;
+      totalCredit: number;
+      balance: number;
+    }> = [];
 
     for (const account of accounts) {
       const lines = await prisma.journalEntryLine.findMany({
@@ -283,13 +303,23 @@ export class AccountingEngine {
   /**
    * Generate balance sheet
    */
-  public async getBalanceSheet(organizationId: string, asOfDate?: Date): Promise<any> {
+  public async getBalanceSheet(organizationId: string, asOfDate?: Date): Promise<{
+    asOfDate: Date;
+    totalAssets: number;
+    totalLiabilities: number;
+    totalEquity: number;
+    totalLiabilitiesAndEquity: number;
+    assets: Array<{ accountCode: string; accountName: string; type: string; totalDebit: number; totalCredit: number; balance: number }>;
+    liabilities: Array<{ accountCode: string; accountName: string; type: string; totalDebit: number; totalCredit: number; balance: number }>;
+    equity: Array<{ accountCode: string; accountName: string; type: string; totalDebit: number; totalCredit: number; balance: number }>;
+    isBalanced: boolean;
+  }> {
     const trialBalance = await this.getTrialBalance(organizationId, asOfDate || new Date());
 
     const balanceSheet = {
-      assets: trialBalance.accounts.filter(a => a.type === 'ASSET'),
-      liabilities: trialBalance.accounts.filter(a => a.type === 'LIABILITY'),
-      equity: trialBalance.accounts.filter(a => a.type === 'EQUITY'),
+      assets: trialBalance.accounts.filter((a) => a.type === 'ASSET'),
+      liabilities: trialBalance.accounts.filter((a) => a.type === 'LIABILITY'),
+      equity: trialBalance.accounts.filter((a) => a.type === 'EQUITY'),
     };
 
     const totalAssets = balanceSheet.assets.reduce((s, a) => s + a.balance, 0);

@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
+    "module": "node16",
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src",
@@ -13,17 +13,16 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "baseUrl": "./",
     "paths": {
-      "@core/*": ["src/core/*"],
-      "@engine/*": ["src/engine/*"],
-      "@modules/*": ["src/modules/*"],
-      "@events/*": ["src/events/*"],
-      "@config/*": ["src/config/*"],
-      "@common/*": ["src/common/*"]
+      "@core/*": ["./src/core/*"],
+      "@engine/*": ["./src/engine/*"],
+      "@modules/*": ["./src/modules/*"],
+      "@events/*": ["./src/events/*"],
+      "@config/*": ["./src/config/*"],
+      "@common/*": ["./src/common/*"]
     }
   },
   "include": ["src/**/*"],
