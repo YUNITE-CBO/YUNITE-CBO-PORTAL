@@ -159,7 +159,7 @@ export class AccountingEngine {
     }
 
     // Create reversal entry (swap debits and credits)
-    const reversalLines = original.journalLines.map(line => ({
+    const reversalLines = original.journalLines.map((line: any) => ({
       accountCode: line.accountId,
       debit: Number(line.credit) || 0,
       credit: Number(line.debit) || 0,
