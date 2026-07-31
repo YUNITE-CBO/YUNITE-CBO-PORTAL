@@ -119,21 +119,21 @@ export default function AICenterPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center">
-            <Cpu className="w-5 h-5 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500">
+            <Cpu className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-0">AI Control Center</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-0">AI Control Center</h1>
             <p className="text-sm text-neutral-500">Intelligent insights and automated analysis</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="h-4 w-4" />
             Refresh Analysis
           </Button>
           <Button size="sm">
-            <Zap className="w-4 h-4" />
+            <Zap className="h-4 w-4" />
             Run Analysis
           </Button>
         </div>
@@ -147,13 +147,13 @@ export default function AICenterPage() {
           { label: "Alerts Active", value: "5", sub: "3 critical", color: "bg-red-500" },
           { label: "Accuracy Rate", value: "96.8%", sub: "+0.5% this week", color: "bg-violet-500" },
         ].map((item) => (
-          <div key={item.label} className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
-            <div className="flex items-center justify-between mb-2">
+          <div key={item.label} className="rounded-xl border border-neutral-200/80 bg-white/90 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/90">
+            <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-medium text-neutral-500">{item.label}</p>
-              <div className={cn("w-2 h-2 rounded-full", item.color)} />
+              <div className={cn("h-2 w-2 rounded-full", item.color)} />
             </div>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-0">{item.value}</p>
-            <p className="text-xs text-neutral-400 mt-1">{item.sub}</p>
+            <p className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-0">{item.value}</p>
+            <p className="mt-1 text-xs text-neutral-400">{item.sub}</p>
           </div>
         ))}
       </div>
@@ -171,7 +171,7 @@ export default function AICenterPage() {
                 : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-violet-200"
             )}
           >
-            <cat.icon className={cn("w-4 h-4", cat.color)} />
+            <cat.icon className={cn("h-4 w-4", cat.color)} />
             {cat.label}
           </button>
         ))}
@@ -191,17 +191,17 @@ export default function AICenterPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className={cn(
-                "bg-white dark:bg-neutral-900 rounded-xl border transition-all cursor-pointer",
-                isSelected ? "border-violet-300 dark:border-violet-700 shadow-lg" : "border-neutral-200 dark:border-neutral-800 hover:border-violet-200",
+                "rounded-xl border bg-white/90 shadow-sm transition-all cursor-pointer dark:bg-neutral-900/90",
+                isSelected ? "border-violet-300 dark:border-violet-700 shadow-md" : "border-neutral-200/80 dark:border-neutral-800 hover:border-violet-200",
                 severity.border
               )}
               onClick={() => setSelectedInsight(isSelected ? null : insight.id)}
             >
               <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
+                <div className="mb-3 flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", severity.bg)}>
-                      <SeverityIcon className={cn("w-5 h-5 text-current", 
+                    <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", severity.bg)}>
+                      <SeverityIcon className={cn("h-5 w-5", 
                         insight.severity === "critical" && "text-red-600",
                         insight.severity === "high" && "text-amber-600",
                         insight.severity === "medium" && "text-blue-600",
@@ -222,14 +222,14 @@ export default function AICenterPage() {
                   </Badge>
                 </div>
 
-                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">{insight.description}</p>
+                <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">{insight.description}</p>
 
                 {/* Metrics */}
                 <div className="grid grid-cols-3 gap-3">
                   {Object.entries(insight.metrics).slice(0, 3).map(([key, value]) => (
-                    <div key={key} className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-2.5">
-                      <p className="text-[10px] text-neutral-400 capitalize mb-0.5">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
-                      <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-0 truncate">{String(value)}</p>
+                    <div key={key} className="rounded-lg bg-neutral-50 p-2.5 dark:bg-neutral-800/50">
+                      <p className="mb-0.5 text-[10px] capitalize text-neutral-400">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                      <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-0">{String(value)}</p>
                     </div>
                   ))}
                 </div>
@@ -238,10 +238,10 @@ export default function AICenterPage() {
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
-                    className="space-y-3 pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700"
+                    className="mt-4 space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-700"
                   >
-                    <div className="flex items-start gap-2 p-3 rounded-lg bg-violet-50 dark:bg-violet-900/20">
-                      <Lightbulb className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex items-start gap-2 rounded-lg bg-violet-50 p-3 dark:bg-violet-900/20">
+                      <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0 text-violet-600" />
                       <div>
                         <p className="text-xs font-semibold text-violet-700 dark:text-violet-400">AI Recommendation</p>
                         <p className="text-sm text-violet-600 dark:text-violet-300">{insight.recommendation}</p>
@@ -264,8 +264,8 @@ export default function AICenterPage() {
       </div>
 
       {/* Analysis Modules */}
-      <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-5">
-        <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-0 mb-4">Analysis Modules</h2>
+      <div className="rounded-xl border border-neutral-200/80 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/90">
+        <h2 className="mb-4 text-sm font-semibold text-neutral-900 dark:text-neutral-0">Analysis Modules</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
           {[
             { label: "Fraud Detection", icon: Shield, desc: "Real-time fraud monitoring", color: "from-red-500 to-rose-500" },
@@ -283,14 +283,14 @@ export default function AICenterPage() {
           ].map((module) => (
             <button
               key={module.label}
-              className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-violet-200 dark:hover:border-violet-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all text-left"
+              className="flex items-center gap-3 rounded-xl border border-neutral-200/80 p-3 text-left transition-all hover:border-violet-200 hover:bg-violet-50/50 dark:border-neutral-800 dark:hover:border-violet-800 dark:hover:bg-violet-900/10"
             >
-              <div className={cn("w-9 h-9 rounded-lg bg-gradient-to-br flex items-center justify-center", module.color)}>
-                <module.icon className="w-4 h-4 text-white" />
+              <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br", module.color)}>
+                <module.icon className="h-4 w-4 text-white" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-medium text-neutral-900 dark:text-neutral-0">{module.label}</p>
-                <p className="text-[10px] text-neutral-400 truncate">{module.desc}</p>
+                <p className="truncate text-[10px] text-neutral-400">{module.desc}</p>
               </div>
             </button>
           ))}

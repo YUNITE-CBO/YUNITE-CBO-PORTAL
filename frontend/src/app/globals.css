@@ -3,38 +3,38 @@
 @custom-variant dark (&:is(.dark *));
 
 /* =================================================================
-   YUNITE ENTERPRISE DESIGN SYSTEM v3
+   YUNITE ENTERPRISE DESIGN SYSTEM v4
    Premium Banking-Grade UI/UX - Enterprise Modernization
    ================================================================= */
 
-/* Design Tokens - Enhanced Enterprise Palette */
+/* Design Tokens - Refined Enterprise Palette */
 :root {
-  /* Primary Colors - Emerald (Trust & Growth) */
-  --color-primary-50: #f0fdf4;
-  --color-primary-100: #dcfce7;
-  --color-primary-200: #bbf7d0;
-  --color-primary-300: #86efac;
-  --color-primary-400: #4ade80;
-  --color-primary-500: #22c55e;
-  --color-primary-600: #16a34a;
-  --color-primary-700: #15803d;
-  --color-primary-800: #166534;
-  --color-primary-900: #14532d;
-  --color-primary-950: #052e16;
+  /* Primary Colors - Emerald (Trust & Growth) - Refined */
+  --color-primary-50: #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-200: #a7f3d0;
+  --color-primary-300: #6ee7b7;
+  --color-primary-400: #34d399;
+  --color-primary-500: #10b981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065f46;
+  --color-primary-900: #064e3b;
+  --color-primary-950: #022c22;
   
-  /* Neutral - Slate (Professional & Calm) */
+  /* Neutral - Slate (Professional & Calm) - Refined */
   --color-neutral-0: #ffffff;
   --color-neutral-50: #f8fafc;
   --color-neutral-100: #f1f5f9;
   --color-neutral-200: #e2e8f0;
   --color-neutral-300: #cbd5e1;
   --color-neutral-400: #94a3b8;
-  --color-neutral-500: #71717a;
-  --color-neutral-600: #52525b;
-  --color-neutral-700: #3f3f46;
-  --color-neutral-800: #27272a;
-  --color-neutral-900: #18181b;
-  --color-neutral-950: #09090b;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  --color-neutral-950: #020617;
   
   /* Semantic Colors - Consistent & Clear */
   --color-success-50: #f0fdf4;
@@ -61,16 +61,16 @@
   --color-info-600: #2563eb;
   --color-info-700: #1d4ed8;
   
-  /* Shadows - Premium Depth */
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.04), 0 2px 4px -2px rgb(0 0 0 / 0.04);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.04), 0 4px 6px -4px rgb(0 0 0 / 0.04);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.04);
-  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.1);
-  --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.04);
+  /* Shadows - Premium Depth - Refined */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.02);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.03), 0 1px 2px -1px rgb(0 0 0 / 0.02);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.03), 0 2px 4px -2px rgb(0 0 0 / 0.03);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.03), 0 4px 6px -4px rgb(0 0 0 / 0.03);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.04), 0 8px 10px -6px rgb(0 0 0 / 0.03);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.08);
+  --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.03);
   
-  /* Border Radius */
+  /* Border Radius - Consistent */
   --radius-none: 0;
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -100,15 +100,15 @@
   --space-12: 3rem;
   --space-16: 4rem;
   
-  /* Typography Scale */
+  /* Typography Scale - Refined */
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.8125rem;
   --font-size-base: 0.875rem;
-  --font-size-lg: 1rem;
-  --font-size-xl: 1.125rem;
-  --font-size-2xl: 1.25rem;
-  --font-size-3xl: 1.5rem;
-  --font-size-4xl: 1.875rem;
+  --font-size-lg: 0.9375rem;
+  --font-size-xl: 1rem;
+  --font-size-2xl: 1.125rem;
+  --font-size-3xl: 1.375rem;
+  --font-size-4xl: 1.75rem;
   
   /* Line Heights */
   --leading-none: 1;
@@ -146,24 +146,45 @@ html {
 }
 
 body {
-  font-family: var(--font-sans);
+  font-family: var(--font-inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-size: var(--font-size-base);
   line-height: var(--leading-normal);
+  color: var(--color-neutral-900);
+  background:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.08), transparent 30%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+body::selection {
+  background: rgba(16, 185, 129, 0.2);
+  color: #022c22;
+}
+
+/* Surface Panels - Refined */
+.surface-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.surface-panel-strong {
+  background: rgba(255, 255, 255, 0.95);
 }
 
 /* Focus Ring - Accessible & Visible */
 :focus-visible {
   outline: 2px solid var(--color-primary-500);
   outline-offset: 2px;
+  border-radius: var(--radius-md);
 }
 
-/* Premium Scrollbar */
+/* Premium Scrollbar - Refined */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -171,12 +192,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-300);
+  background: var(--color-neutral-200);
   border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-400);
+  background: var(--color-neutral-300);
 }
 
 .dark ::-webkit-scrollbar-thumb {
@@ -189,7 +210,7 @@ body {
 
 /* Selection */
 ::selection {
-  background: var(--color-primary-200);
+  background: var(--color-primary-100);
   color: var(--color-primary-900);
 }
 
@@ -205,27 +226,27 @@ body {
 }
 
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeInDown {
-  from { opacity: 0; transform: translateY(-8px); }
+  from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideInFromLeft {
-  from { opacity: 0; transform: translateX(-8px); }
+  from { opacity: 0; transform: translateX(-6px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes slideInFromRight {
-  from { opacity: 0; transform: translateX(8px); }
+  from { opacity: 0; transform: translateX(6px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
 
@@ -284,30 +305,30 @@ body {
 }
 
 .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
-.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
-.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
-.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
-.stagger-children > *:nth-child(7) { animation-delay: 300ms; }
-.stagger-children > *:nth-child(8) { animation-delay: 350ms; }
-.stagger-children > *:nth-child(9) { animation-delay: 400ms; }
-.stagger-children > *:nth-child(10) { animation-delay: 450ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 40ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 200ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 280ms; }
+.stagger-children > *:nth-child(9) { animation-delay: 320ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 360ms; }
 
 /* Glass Effect - Premium */
 .glass {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .dark .glass {
-  background: rgba(24, 24, 27, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Loading Skeleton */
+/* Loading Skeleton - Refined */
 .skeleton {
   background: linear-gradient(
     90deg,
@@ -338,7 +359,7 @@ body {
   padding: 0 1.5rem;
 }
 
-/* Typography */
+/* Typography - Refined */
 .text-heading-1 {
   font-size: var(--font-size-4xl);
   font-weight: var(--font-bold);
@@ -380,7 +401,7 @@ body {
   color: var(--color-neutral-700);
 }
 
-/* Page Layout */
+/* Page Layout - Refined */
 .page-header {
   display: flex;
   flex-direction: column;
@@ -414,7 +435,7 @@ body {
   margin-top: 0.25rem;
 }
 
-/* Card Styles */
+/* Card Styles - Refined Premium */
 .card {
   background: var(--color-neutral-0);
   border-radius: var(--radius-xl);
@@ -437,7 +458,7 @@ body {
   border-color: var(--color-neutral-700);
 }
 
-/* Form Elements */
+/* Form Elements - Refined */
 .form-label {
   display: block;
   font-size: var(--font-size-sm);
@@ -480,18 +501,20 @@ body {
 
 .dark .form-input:focus {
   border-color: var(--color-primary-500);
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
 
-/* Table Styles */
+/* Table Styles - Refined Enterprise */
 .table-wrapper {
   overflow-x: auto;
   border-radius: var(--radius-xl);
   border: 1px solid var(--color-neutral-200);
+  background: var(--color-neutral-0);
 }
 
 .dark .table-wrapper {
   border-color: var(--color-neutral-800);
+  background: var(--color-neutral-900);
 }
 
 .table {
@@ -517,6 +540,7 @@ body {
   letter-spacing: 0.05em;
   color: var(--color-neutral-500);
   border-bottom: 1px solid var(--color-neutral-200);
+  white-space: nowrap;
 }
 
 .dark .table th {
@@ -543,16 +567,15 @@ body {
   background: var(--color-neutral-50);
 }
 
-	
 .dark .table tbody tr:hover {
-  background: rgba(39, 39, 42, 0.5);
+  background: rgba(30, 41, 59, 0.5);
 }
 
 .table tbody tr:last-child td {
   border-bottom: none;
 }
 
-/* Status Indicators */
+/* Status Indicators - Refined */
 .status-dot {
   width: 6px;
   height: 6px;
@@ -574,4 +597,65 @@ body {
 
 .status-dot-info {
   background: var(--color-info-500);
+}
+
+/* Enterprise Data Grid Styles */
+.data-grid {
+  @apply w-full border-collapse;
+}
+
+.data-grid thead {
+  @apply bg-neutral-50 dark:bg-neutral-900/50;
+}
+
+.data-grid th {
+  @apply px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-500 border-b border-neutral-200 dark:border-neutral-800 whitespace-nowrap;
+}
+
+.data-grid td {
+  @apply px-4 py-3.5 text-sm text-neutral-700 dark:text-neutral-300 border-b border-neutral-100 dark:border-neutral-800;
+}
+
+.data-grid tbody tr {
+  @apply transition-colors duration-150;
+}
+
+.data-grid tbody tr:hover {
+  @apply bg-neutral-50 dark:bg-neutral-800/30;
+}
+
+.data-grid tbody tr.selected {
+  @apply bg-primary-50/60 dark:bg-primary-900/15;
+}
+
+/* Enterprise Filter Bar */
+.filter-bar {
+  @apply flex flex-wrap items-center gap-3;
+}
+
+/* Enterprise Stat Card */
+.stat-card {
+  @apply rounded-xl border border-neutral-200/80 bg-white/90 p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/90;
+}
+
+.stat-card-value {
+  @apply text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-0;
+}
+
+.stat-card-label {
+  @apply text-[11px] font-semibold uppercase tracking-[0.15em] text-neutral-500;
+}
+
+/* Enterprise KPI Card */
+.kpi-card {
+  @apply flex items-center gap-4 rounded-xl border border-neutral-200/80 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/90;
+}
+
+/* Enterprise Section Title */
+.section-title {
+  @apply text-sm font-semibold text-neutral-900 dark:text-neutral-0;
+}
+
+.section-subtitle {
+  @apply text-xs text-neutral-500 mt-0.5;
 }

@@ -3,13 +3,16 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
-import { config } from './config';
+import { config, validateConfig } from './config';
 import { Logger } from './core/services/Logger';
+import { SupabaseHealthService } from './core/services/SupabaseHealthService';
+import { SupabaseMigrationService } from './core/services/SupabaseMigrationService';
 import { errorHandler } from './interfaces/http/middleware/errorHandler';
 import { requestLogger } from './interfaces/http/middleware/requestLogger';
 import { InMemoryEventBus } from './events/bus/InMemoryEventBus';
 import { SupabaseService } from './core/services/SupabaseService';
 import { SupabaseStorageService } from './core/services/SupabaseStorageService';
+import authRouter from './modules/auth/authRoutes';
 
 const app = express();
 const port = config.server.port;
@@ -46,7 +49,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
 // Health Check
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  const status = await SupabaseHealthService.getStatus();
+
   res.json({
     success: true,
     data: {
@@ -55,12 +60,23 @@ app.get('/health', (req, res) => {
       uptime: process.uptime(),
       version: '1.0.0',
       name: 'YUNITE Banking System',
+      integrations: status,
     },
   });
 });
 
 // API Routes will be registered here
-// app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/auth', authRouter);
+
+app.get('/api/v1/integrations/supabase', async (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      message: 'Supabase is configured as the primary backend data source',
+      services: ['database', 'auth', 'storage', 'realtime', 'health'],
+    },
+  });
+});
 // app.use('/api/v1/organizations', organizationRouter);
 // app.use('/api/v1/members', memberRouter);
 // app.use('/api/v1/savings', savingsRouter);
@@ -145,8 +161,10 @@ app.use(errorHandler);
 // Initialize Supabase
 async function initializeSupabase(): Promise<void> {
   try {
+    validateConfig();
     await SupabaseService.initialize();
     await SupabaseStorageService.initialize();
+    await SupabaseMigrationService.applyMigrations();
   } catch (error) {
     Logger.error('Supabase initialization failed, continuing without Supabase', error);
   }

@@ -28,12 +28,12 @@ export function Card({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        "bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm",
-        hover && "hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-200",
+        "rounded-xl border border-neutral-200/80 bg-white/90 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/90",
+        hover && "transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md dark:hover:border-neutral-700",
         paddingClasses[padding],
         onClick && "cursor-pointer",
         className
@@ -52,7 +52,7 @@ interface CardHeaderProps {
 
 export function CardHeader({ children, className }: CardHeaderProps) {
   return (
-    <div className={cn("flex items-center justify-between mb-4", className)}>
+    <div className={cn("mb-4 flex items-center justify-between", className)}>
       {children}
     </div>
   );
@@ -65,7 +65,7 @@ interface CardTitleProps {
 
 export function CardTitle({ children, className }: CardTitleProps) {
   return (
-    <h3 className={cn("text-base font-semibold text-neutral-900 dark:text-neutral-0", className)}>
+    <h3 className={cn("text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-0", className)}>
       {children}
     </h3>
   );
@@ -100,13 +100,12 @@ interface CardFooterProps {
 
 export function CardFooter({ children, className }: CardFooterProps) {
   return (
-    <div className={cn("flex items-center pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-800", className)}>
+    <div className={cn("mt-4 flex items-center border-t border-neutral-200/60 pt-4 dark:border-neutral-800", className)}>
       {children}
     </div>
   );
 }
 
-// Stat Card Component for Dashboard
 interface StatCardProps {
   title: string;
   value: string | number;
@@ -128,26 +127,25 @@ export function StatCard({
 }: StatCardProps) {
   return (
     <div className={cn(
-      "bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-5",
-      "transition-all duration-200 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-700",
+      "rounded-xl border border-neutral-200/80 bg-white/90 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900/90",
       className
     )}>
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">{title}</p>
-          <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-0 tracking-tight">{value}</p>
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-neutral-500">{title}</p>
+          <p className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-0">{value}</p>
           {change && (
             <div className="flex items-center gap-1.5">
               {change.positive ? (
                 <span className="inline-flex items-center text-xs font-semibold text-primary-600">
-                  <svg className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="mr-0.5 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                   </svg>
                   {change.value}
                 </span>
               ) : (
                 <span className="inline-flex items-center text-xs font-semibold text-red-600 dark:text-red-400">
-                  <svg className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="mr-0.5 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                   </svg>
                   {change.value}
@@ -160,7 +158,7 @@ export function StatCard({
           )}
         </div>
         {icon && (
-          <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shadow-sm", iconColor)}>
+          <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg shadow-sm", iconColor)}>
             {icon}
           </div>
         )}

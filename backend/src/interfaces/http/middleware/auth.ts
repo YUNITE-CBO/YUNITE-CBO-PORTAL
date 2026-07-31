@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { config } from '../../../config';
 import { AuthenticationError, AuthorizationError } from '../../../common/errors/AppError';
 import { Logger } from '../../../core/services/Logger';
+import { SupabaseAuthService } from '../../../core/services/SupabaseAuthService';
 
 export interface JwtPayload {
   userId: string;
@@ -20,7 +19,7 @@ declare global {
   }
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -28,17 +27,21 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
-    
-    req.user = decoded;
+    const user = await SupabaseAuthService.verifyJwt(token);
+
+    req.user = {
+      userId: user.id,
+      email: user.email ?? '',
+      role: user.role ?? 'USER',
+      organizationId: (user as any).organization_id ?? undefined,
+      branchId: (user as any).branch_id ?? undefined,
+    };
+
     next();
   } catch (error) {
+    Logger.warn('Supabase auth middleware failed', error);
     if (error instanceof AuthenticationError) {
       next(error);
-    } else if (error instanceof jwt.TokenExpiredError) {
-      next(new AuthenticationError('Token has expired'));
-    } else if (error instanceof jwt.JsonWebTokenError) {
-      next(new AuthenticationError('Invalid token'));
     } else {
       next(new AuthenticationError('Authentication failed'));
     }

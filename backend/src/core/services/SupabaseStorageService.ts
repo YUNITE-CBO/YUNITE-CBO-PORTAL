@@ -37,14 +37,12 @@ export interface StorageFileInfo {
 export class SupabaseStorageService {
   private static initialized = false;
   private static defaultBuckets = [
-    'organizations',
-    'members',
     'documents',
-    'loans',
-    'projects',
-    'meetings',
+    'member-photos',
+    'organization-logos',
     'reports',
-    'avatars',
+    'receipts',
+    'attachments',
   ];
 
   /**
@@ -63,11 +61,11 @@ export class SupabaseStorageService {
         
         if (listError && listError.message.includes('not found')) {
           const { error: createError } = await adminClient.storage.createBucket(bucketName, {
-            public: bucketName === 'avatars',
+            public: bucketName === 'member-photos' || bucketName === 'organization-logos',
             fileSizeLimit: config.upload.maxFileSize,
-            allowedMimeTypes: bucketName === 'avatars' 
+            allowedMimeTypes: bucketName === 'member-photos' || bucketName === 'organization-logos'
               ? ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-              : undefined,
+              : ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png', 'text/plain'],
           });
 
           if (createError) {

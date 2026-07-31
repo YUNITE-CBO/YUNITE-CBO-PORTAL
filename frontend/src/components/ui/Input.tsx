@@ -25,13 +25,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+          <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
             {label}
           </label>
         )}
         <div className="relative">
           {icon && iconPosition === "left" && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none">
+            <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">
               {icon}
             </div>
           )}
@@ -39,16 +39,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             type={type}
             className={cn(
-              "w-full h-9 px-3 text-sm text-neutral-900 dark:text-white",
-              "bg-white dark:bg-neutral-900",
-              "border border-neutral-300 dark:border-neutral-700",
-              "rounded-lg",
-              "placeholder:text-neutral-400 dark:placeholder:text-neutral-500",
-              "transition-all duration-150",
-              "focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500",
+              "h-10 w-full rounded-xl border border-neutral-300/80 bg-white/90 px-3 text-sm text-neutral-900 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-all duration-200 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-white dark:placeholder:text-neutral-500",
+              "focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20",
               icon && iconPosition === "left" && "pl-10",
               icon && iconPosition === "right" && "pr-10",
-              error && "border-red-500 dark:border-red-500 focus:ring-red-500/20 focus:border-red-500",
+              error && "border-red-500 focus:border-red-500 focus:ring-red-500/20",
               className
             )}
             {...props}
@@ -72,7 +67,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
 Input.displayName = "Input";
 
-// Textarea Component
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
@@ -84,22 +78,15 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+          <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
             {label}
           </label>
         )}
         <textarea
           ref={ref}
           className={cn(
-            "w-full px-3 py-2 text-sm text-neutral-900 dark:text-white",
-            "bg-white dark:bg-neutral-900",
-            "border border-neutral-300 dark:border-neutral-700",
-            "rounded-lg",
-            "placeholder:text-neutral-400 dark:placeholder:text-neutral-500",
-            "transition-all duration-150",
-            "focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500",
-            "resize-y min-h-[80px]",
-            error && "border-red-500 dark:border-red-500 focus:ring-red-500/20 focus:border-red-500",
+            "min-h-[92px] w-full rounded-xl border border-neutral-300/80 bg-white/90 px-3 py-2.5 text-sm text-neutral-900 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-all duration-200 placeholder:text-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-white dark:placeholder:text-neutral-500",
+            error && "border-red-500 focus:border-red-500 focus:ring-red-500/20",
             className
           )}
           {...props}
@@ -117,7 +104,6 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 
 Textarea.displayName = "Textarea";
 
-// Search Input Component
 interface SearchInputProps extends Omit<InputProps, 'icon'> {
   onClear?: () => void;
 }
@@ -141,7 +127,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             onClick={onClear}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -155,7 +141,7 @@ SearchInput.displayName = "SearchInput";
 
 function SearchIcon() {
   return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
   );

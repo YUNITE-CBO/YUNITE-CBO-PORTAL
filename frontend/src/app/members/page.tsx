@@ -49,13 +49,13 @@ function StatusIcon({ status, className }: { status: string; className?: string 
 function getStatusColors(status: string) {
   switch (status) {
     case "active":
-      return { bg: "bg-primary-100 dark:bg-primary-900/30", text: "text-primary-600" };
+      return { bg: "bg-primary-50 dark:bg-primary-900/25", text: "text-primary-600" };
     case "pending":
-      return { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-600" };
+      return { bg: "bg-amber-50 dark:bg-amber-900/25", text: "text-amber-600" };
     case "inactive":
       return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600" };
     case "suspended":
-      return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-600" };
+      return { bg: "bg-red-50 dark:bg-red-900/25", text: "text-red-600" };
     default:
       return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600" };
   }
@@ -100,16 +100,16 @@ export default function MembersPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-0">Members</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-0">Members</h1>
           <p className="text-sm text-neutral-500 mt-1">Manage all organization members</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
-            <Upload className="w-4 h-4" />
+            <Upload className="h-4 w-4" />
             Import
           </Button>
           <Button size="sm">
-            <Plus className="w-4 h-4" />
+            <Plus className="h-4 w-4" />
             Add Member
           </Button>
         </div>
@@ -126,7 +126,7 @@ export default function MembersPage() {
               className={cn(
                 "flex items-center gap-3 p-3 rounded-lg border transition-all",
                 selectedStatus === key
-                  ? "bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800"
+                  ? "bg-primary-50 dark:bg-primary-900/15 border-primary-200 dark:border-primary-800"
                   : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 hover:border-primary-200"
               )}
             >
@@ -153,24 +153,24 @@ export default function MembersPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
-            <Filter className="w-4 h-4" />
+            <Filter className="h-4 w-4" />
             Filters
-            <ChevronDown className="w-3 h-3 ml-1" />
+            <ChevronDown className="ml-1 h-3 w-3" />
           </Button>
           <Button variant="outline" size="sm">
-            <Download className="w-4 h-4" />
+            <Download className="h-4 w-4" />
             Export
           </Button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      <div className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
-                <th className="w-10 px-4 py-3">
+              <tr className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/50">
+                <th className="w-10 px-4 py-3.5">
                   <input
                     type="checkbox"
                     checked={selectedMembers.length === filteredMembers.length && filteredMembers.length > 0}
@@ -178,14 +178,14 @@ export default function MembersPage() {
                     className="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500"
                   />
                 </th>
-                <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Member</th>
-                <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Contact</th>
-                <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Type</th>
-                <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Status</th>
-                <th className="text-right px-3 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Savings</th>
-                <th className="text-right px-3 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Loans</th>
-                <th className="text-right px-3 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Shares</th>
-                <th className="w-10 px-4 py-3"></th>
+                <th className="text-left px-3 py-3.5 text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Member</th>
+                <th className="text-left px-3 py-3.5 text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Contact</th>
+                <th className="text-left px-3 py-3.5 text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Type</th>
+                <th className="text-left px-3 py-3.5 text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Status</th>
+                <th className="text-right px-3 py-3.5 text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Savings</th>
+                <th className="text-right px-3 py-3.5 text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Loans</th>
+                <th className="text-right px-3 py-3.5 text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Shares</th>
+                <th className="w-10 px-4 py-3.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -193,11 +193,11 @@ export default function MembersPage() {
                 <tr
                   key={member.id}
                   className={cn(
-                    "hover:bg-neutral-50 dark:hover:bg-neutral-800/30 transition-colors",
+                    "transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/30",
                     selectedMembers.includes(member.id) && "bg-primary-50/50 dark:bg-primary-900/10"
                   )}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3.5">
                     <input
                       type="checkbox"
                       checked={selectedMembers.includes(member.id)}
@@ -205,9 +205,9 @@ export default function MembersPage() {
                       className="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500"
                     />
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white text-xs font-bold">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-xs font-bold text-white">
                         {getInitials(`${member.firstName} ${member.lastName}`)}
                       </div>
                       <div>
@@ -218,28 +218,28 @@ export default function MembersPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3.5">
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">{member.email}</p>
                     <p className="text-xs text-neutral-400">{member.phone}</p>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3.5">
                     <span className="text-sm capitalize text-neutral-700 dark:text-neutral-300">{member.membershipType}</span>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3.5">
                     <StatusBadge status={member.status as any} size="sm" />
                   </td>
-                  <td className="px-3 py-3 text-right text-sm font-medium text-neutral-900 dark:text-neutral-0">
+                  <td className="px-3 py-3.5 text-right text-sm font-medium text-neutral-900 dark:text-neutral-0">
                     {formatCurrency(member.savingsBalance)}
                   </td>
-                  <td className="px-3 py-3 text-right text-sm font-medium text-neutral-900 dark:text-neutral-0">
+                  <td className="px-3 py-3.5 text-right text-sm font-medium text-neutral-900 dark:text-neutral-0">
                     {formatCurrency(member.loanBalance)}
                   </td>
-                  <td className="px-3 py-3 text-right text-sm font-medium text-neutral-900 dark:text-neutral-0">
+                  <td className="px-3 py-3.5 text-right text-sm font-medium text-neutral-900 dark:text-neutral-0">
                     {formatCurrency(member.sharesValue)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3.5">
                     <IconButton variant="ghost" size="sm" aria-label="More options">
-                      <MoreHorizontal className="w-4 h-4" />
+                      <MoreHorizontal className="h-4 w-4" />
                     </IconButton>
                   </td>
                 </tr>
@@ -248,7 +248,7 @@ export default function MembersPage() {
           </table>
         </div>
         {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-200 dark:border-neutral-800">
+        <div className="flex items-center justify-between border-t border-neutral-200 px-4 py-3 dark:border-neutral-800">
           <p className="text-sm text-neutral-500">{filteredMembers.length} members</p>
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" disabled>

@@ -3,6 +3,13 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+function requireEnv(name: string, value: string | undefined): string {
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 export const config = {
   server: {
     port: parseInt(process.env.PORT || '3001', 10),
@@ -73,3 +80,18 @@ export const config = {
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760', 10),
   },
 };
+
+export function validateConfig(): void {
+  requireEnv('SUPABASE_URL', config.supabase.url);
+  requireEnv('SUPABASE_ANON_KEY', config.supabase.anonKey);
+  requireEnv('SUPABASE_SERVICE_ROLE_KEY', config.supabase.serviceRoleKey);
+  requireEnv('DATABASE_URL', config.database.url);
+}
+
+export function getSupabaseConfig() {
+  return {
+    url: config.supabase.url,
+    anonKey: config.supabase.anonKey,
+    serviceRoleKey: config.supabase.serviceRoleKey,
+  };
+}

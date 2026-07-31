@@ -21,13 +21,13 @@ export function Badge({
   const baseStyles = "inline-flex items-center gap-1.5 font-medium rounded-full transition-colors";
   
   const variants = {
-    default: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
-    success: "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400",
-    warning: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    error: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    info: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    default: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+    success: "bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-400",
+    warning: "bg-amber-50 text-amber-700 dark:bg-amber-900/25 dark:text-amber-400",
+    error: "bg-red-50 text-red-700 dark:bg-red-900/25 dark:text-red-400",
+    info: "bg-blue-50 text-blue-700 dark:bg-blue-900/25 dark:text-blue-400",
     outline: "bg-transparent border border-neutral-300 text-neutral-600 dark:border-neutral-600 dark:text-neutral-400",
-    primary: "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400",
+    primary: "bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-400",
   };
   
   const sizes = {
@@ -48,7 +48,7 @@ export function Badge({
 
   return (
     <span className={cn(baseStyles, variants[variant], sizes[size], className)}>
-      {dot && <span className={cn("w-1.5 h-1.5 rounded-full", dotColors[variant])} />}
+      {dot && <span className={cn("h-1.5 w-1.5 rounded-full", dotColors[variant])} />}
       {children}
     </span>
   );
@@ -82,7 +82,6 @@ export function StatusBadge({ status, size = "md", showDot = true }: StatusBadge
   );
 }
 
-// Notification Badge (for counts)
 interface NotificationBadgeProps {
   count: number;
   maxCount?: number;
@@ -96,8 +95,7 @@ export function NotificationBadge({ count, maxCount = 99, className }: Notificat
   
   return (
     <span className={cn(
-      "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1",
-      "text-[10px] font-semibold text-white bg-red-500 rounded-full",
+      "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white",
       className
     )}>
       {displayCount}

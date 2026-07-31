@@ -27,23 +27,23 @@ export function Table<T extends { id?: string | number }>({
 }: TableProps<T>) {
   if (data.length === 0 && emptyState) {
     return (
-      <div className={cn("bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800", className)}>
+      <div className={cn("rounded-2xl border border-neutral-200/80 bg-white/85 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.16)] dark:border-neutral-800 dark:bg-neutral-900/85", className)}>
         {emptyState}
       </div>
     );
   }
 
   return (
-    <div className={cn("bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden", className)}>
+    <div className={cn("overflow-hidden rounded-2xl border border-neutral-200/80 bg-white/85 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.16)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/85", className)}>
       <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+        <table className="min-w-full border-separate border-spacing-0">
+          <thead className="sticky top-0 z-10 bg-neutral-50/90 backdrop-blur dark:bg-neutral-900/90">
+            <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
                   className={cn(
-                    "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500",
+                    "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500",
                     column.className
                   )}
                 >
@@ -58,7 +58,7 @@ export function Table<T extends { id?: string | number }>({
                 key={row.id || index}
                 onClick={() => onRowClick?.(row)}
                 className={cn(
-                  "transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
+                  "transition-colors hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50",
                   onRowClick && "cursor-pointer"
                 )}
               >
@@ -82,7 +82,6 @@ export function Table<T extends { id?: string | number }>({
   );
 }
 
-// Pagination Component
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
@@ -129,7 +128,7 @@ export function Pagination({ currentPage, totalPages, onPageChange, className }:
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           Previous
         </button>
@@ -140,10 +139,10 @@ export function Pagination({ currentPage, totalPages, onPageChange, className }:
               key={index}
               onClick={() => onPageChange(page)}
               className={cn(
-                "px-3 py-1.5 text-sm rounded-lg border transition-colors",
+                "rounded-lg border px-3 py-1.5 text-sm transition-colors",
                 currentPage === page
-                  ? "bg-primary-600 text-white border-primary-600"
-                  : "border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  ? "border-primary-600 bg-primary-600 text-white"
+                  : "border-neutral-300 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
               )}
             >
               {page}
@@ -156,7 +155,7 @@ export function Pagination({ currentPage, totalPages, onPageChange, className }:
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           Next
         </button>
@@ -165,7 +164,6 @@ export function Pagination({ currentPage, totalPages, onPageChange, className }:
   );
 }
 
-// Table Header Cell with Sort
 interface SortConfig {
   key: string;
   direction: "asc" | "desc";
@@ -186,7 +184,7 @@ export function SortableHeader({ label, sortKey, sortConfig, onSort, className }
     <button
       onClick={() => onSort(sortKey)}
       className={cn(
-        "flex items-center gap-1 text-left text-xs font-semibold uppercase tracking-wider transition-colors",
+        "flex items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-[0.2em] transition-colors",
         isActive ? "text-primary-600 dark:text-primary-400" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300",
         className
       )}
@@ -195,7 +193,7 @@ export function SortableHeader({ label, sortKey, sortConfig, onSort, className }
       <span className="flex flex-col">
         <svg
           className={cn(
-            "w-2 h-2",
+            "h-2 w-2",
             isActive && sortConfig.direction === "asc" ? "text-primary-600" : "text-neutral-300"
           )}
           viewBox="0 0 10 5"
@@ -204,7 +202,7 @@ export function SortableHeader({ label, sortKey, sortConfig, onSort, className }
         </svg>
         <svg
           className={cn(
-            "w-2 h-2 -mt-0.5",
+            "-mt-0.5 h-2 w-2",
             isActive && sortConfig.direction === "desc" ? "text-primary-600" : "text-neutral-300"
           )}
           viewBox="0 0 10 5"
