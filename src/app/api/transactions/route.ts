@@ -2,15 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { transactionEngine, AccountType } from '@/lib/services';
 import { z } from 'zod';
 
+// Map simplified client transaction types to internal types
+const TRANSACTION_TYPE_MAP: Record<string, string> = {
+  // Savings
+  deposit: 'savings_deposit',
+  withdrawal: 'savings_withdrawal',
+  adjustment: 'savings_adjustment',
+  // Contributions
+  contribution: 'contribution_monthly',
+  contribution_monthly: 'contribution_monthly',
+  contribution_special: 'contribution_special',
+  contribution_development: 'contribution_development',
+  // Welfare
+  welfare_deposit: 'welfare_deposit',
+  welfare_disbursement: 'welfare_disbursement',
+  // Fines
+  fine: 'fine_payment',
+  fine_payment: 'fine_payment',
+  // Loans
+  loan_repayment: 'loan_repayment',
+  // Shares
+  share_purchase: 'savings_adjustment', // Maps to savings adjustment for simplicity
+  // Transfer
+  transfer: 'savings_adjustment', // Maps to savings adjustment for simplicity
+  fee: 'fine_payment', // Maps to fine payment for simplicity
+};
+
 const transactionSchema = z.object({
   member_id: z.string().uuid(),
-  account_type: z.enum(['savings', 'contributions', 'welfare', 'fines']),
-  transaction_type: z.enum([
-    'savings_deposit', 'savings_withdrawal', 'savings_adjustment',
-    'contribution_monthly', 'contribution_special', 'contribution_development',
-    'welfare_deposit', 'welfare_disbursement',
-    'fine_payment'
-  ]),
+  account_type: z.enum(['savings', 'shares', 'contributions', 'welfare', 'fines']),
+  transaction_type: z.string(),
   amount: z.number().positive(),
   description: z.string().optional(),
   reference_number: z.string().optional(),
@@ -61,10 +82,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = transactionSchema.parse(body);
 
+    // Map client transaction type to internal type
+    const internalTransactionType = TRANSACTION_TYPE_MAP[validated.transaction_type];
+    if (!internalTransactionType) {
+      return NextResponse.json(
+        { success: false, error: `Invalid transaction type: ${validated.transaction_type}` },
+        { status: 400 }
+      );
+    }
+
     const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
 
     const result = await transactionEngine.execute({
-      ...validated,
+      member_id: validated.member_id,
+      account_type: validated.account_type,
+      transaction_type: internalTransactionType as 'savings_deposit' | 'savings_withdrawal' | 'savings_adjustment' | 'contribution_monthly' | 'contribution_special' | 'contribution_development' | 'welfare_deposit' | 'welfare_disbursement' | 'fine_payment' | 'loan_repayment' | 'reversal',
+      amount: validated.amount,
+      description: validated.description,
+      reference_number: validated.reference_number,
+      metadata: validated.metadata,
       user_id: userId,
     });
 
