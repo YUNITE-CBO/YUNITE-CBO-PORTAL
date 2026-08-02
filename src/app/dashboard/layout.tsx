@@ -12,12 +12,13 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+  { name: 'Member Lookup', href: '/dashboard/lookup', icon: '🔍' },
   { name: 'Members', href: '/dashboard/members', icon: '👥' },
   { name: 'Transactions', href: '/dashboard/transactions', icon: '💰' },
   { name: 'Loans', href: '/dashboard/loans', icon: '🏦' },
   { name: 'Fines', href: '/dashboard/fines', icon: '⚠️' },
   { name: 'Contributions', href: '/dashboard/contributions', icon: '🎯' },
-  { name: 'Reports', href: '/dashboard/reports', icon: '📈' },
+  { name: 'Audit Logs', href: '/dashboard/audit-logs', icon: '📋' },
   { name: 'Settings', href: '/dashboard/settings', icon: '⚙️' },
 ];
 

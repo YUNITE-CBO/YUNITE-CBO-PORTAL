@@ -1,9 +1,18 @@
-# YUNITE Enterprise Operating System - Release 1
+# YUNITE Enterprise Operating System - Release 1.0.1
 
 ## Architecture Specification
 
 ### Core Principle
 **Every piece of data has one owner, one source of truth, and one place where it is maintained.**
+
+---
+
+## Release 1.0.1 Summary
+- Added Member Lookup workspace for verification
+- Added functional Quick Actions on Member Detail (savings, contributions, fines)
+- Added Transaction reversal with audit trail
+- Added Audit Log viewer for compliance
+- Improved navigation with all workspaces accessible
 
 ---
 
@@ -541,3 +550,65 @@ INSERT INTO settings (key, value, category) VALUES
 - [x] All financial operations reversible
 - [x] Member workspace shows complete picture
 - [x] Build passes without errors
+
+---
+
+## 13. Release 1 Workspaces
+
+### 13.1 Dashboard
+- Live organization overview
+- Real-time calculations from Supabase
+- Recent activity feed
+- Alerts for pending items
+- Quick action shortcuts
+
+### 13.2 Member Lookup
+- Read-only member verification
+- Search by member number or phone
+- Complete member workspace view
+- Financial summary
+- Transaction history
+- Loan and fine records
+- Document and compliance status
+
+### 13.3 Member Management
+- Member registration
+- Search and filter
+- Status management
+- Member workspace access
+
+### 13.4 Transactions
+- Fast member search
+- All transaction types
+- Transaction history
+- Real-time balance updates
+
+### 13.5 Loans
+- Loan applications
+- Approval workflow
+- Disbursement tracking
+- Repayment processing
+
+### 13.6 Fines
+- Fine issuance
+- Fine types
+- Payment processing
+- Outstanding tracking
+
+### 13.7 Contributions
+- Monthly contributions
+- Special contributions
+- Development contributions
+- History tracking
+
+### 13.8 Audit Logs
+- Complete action history
+- Filter by action type
+- Detailed change tracking
+- Compliance documentation
+
+### 13.9 Settings
+- Organization configuration
+- Financial rules
+- Membership policies
+- Business rules management

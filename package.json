@@ -1,6 +1,6 @@
 {
   "name": "yunite-enterprise-os",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "YUNITE Enterprise Operating System - A production-grade platform for Community-Based Organizations",
   "private": true,
   "scripts": {
