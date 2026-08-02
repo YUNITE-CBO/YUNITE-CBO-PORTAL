@@ -1,31 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { memberService } from '@/lib/services';
+import { memberRegistrationService, transactionEngine } from '@/lib/services';
 import { createClient } from '@/lib/supabase/server';
 
-// GET /api/members/[id] - Get member profile
+// GET /api/members/[id] - Get member workspace
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const profile = await memberService.getProfile(id);
 
-    if (!profile) {
+    const workspace = await memberRegistrationService.getWorkspace(id);
+
+    if (!workspace) {
       return NextResponse.json(
         { success: false, error: 'Member not found' },
         { status: 404 }
       );
     }
 
+    // Calculate live balances
+    const balances = await transactionEngine.calculateAllBalances(id);
+
     return NextResponse.json({
       success: true,
-      data: profile,
+      data: {
+        ...workspace,
+        balances,
+      },
     });
   } catch (error) {
-    console.error('Error fetching member profile:', error);
+    console.error('Error fetching member workspace:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch member profile' },
+      { success: false, error: 'Failed to fetch member' },
       { status: 500 }
     );
   }
@@ -41,6 +48,22 @@ export async function PATCH(
     const body = await request.json();
 
     const supabase = await createClient();
+    
+    // Get current values for audit
+    const { data: current } = await supabase
+      .from('members')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (!current) {
+      return NextResponse.json(
+        { success: false, error: 'Member not found' },
+        { status: 404 }
+      );
+    }
+
+    // Update
     const { data: member, error } = await supabase
       .from('members')
       .update(body)
@@ -48,7 +71,20 @@ export async function PATCH(
       .select()
       .single();
 
-    if (error) throw error;
+    if (error || !member) {
+      throw new Error(error?.message || 'Update failed');
+    }
+
+    // Audit
+    await supabase.from('audit_logs').insert({
+      id: crypto.randomUUID(),
+      action: 'members.update',
+      record_id: member.id,
+      user_id: body.user_id || '00000000-0000-0000-0000-000000000000',
+      before_value: current,
+      after_value: member,
+      created_at: new Date().toISOString(),
+    });
 
     return NextResponse.json({
       success: true,

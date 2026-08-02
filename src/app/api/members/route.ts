@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { memberService } from '@/lib/services';
+import { memberRegistrationService } from '@/lib/services';
 import { z } from 'zod';
 
 const registrationSchema = z.object({
-  first_name: z.string().min(1).max(100),
-  last_name: z.string().min(1).max(100),
+  first_name: z.string().min(1),
+  last_name: z.string().min(1),
   email: z.string().email().optional(),
-  phone: z.string().min(1).max(50),
+  phone: z.string().min(1),
   id_number: z.string().optional(),
   date_of_birth: z.string().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
@@ -20,61 +20,28 @@ const registrationSchema = z.object({
   next_of_kin_relationship: z.string().optional(),
 });
 
-// GET /api/members - Search or list members
-export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get('query') || undefined;
-    const member_number = searchParams.get('member_number') || undefined;
-    const phone = searchParams.get('phone') || undefined;
-    const status = searchParams.get('status') as any || undefined;
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-
-    const result = await memberService.search({
-      query,
-      member_number,
-      phone,
-      status,
-      page,
-      limit,
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: result.members,
-      pagination: {
-        page,
-        limit,
-        total: result.total,
-        totalPages: Math.ceil(result.total / limit),
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching members:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch members' },
-      { status: 500 }
-    );
-  }
-}
-
 // POST /api/members - Register new member
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validated = registrationSchema.parse(body);
 
-    // TODO: Get actual user_id from session
-    const userId = 'system';
+    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
 
-    const { member, accounts } = await memberService.register(validated, userId);
+    try {
+      const result = await memberRegistrationService.register(validated, userId);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Member registered successfully',
-      data: { member, accounts },
-    }, { status: 201 });
+      return NextResponse.json({
+        success: true,
+        message: 'Member registered successfully',
+        data: {
+          member: result.member,
+          accounts: result.accounts,
+        },
+      }, { status: 201 });
+    } catch (error) {
+      throw error; // Let the outer catch handle it
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -83,9 +50,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Error registering member:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+    console.error('Registration error:', error);
+
     return NextResponse.json(
-      { success: false, error: 'Failed to register member' },
+      { success: false, error: errorMessage },
+      { status: 500 }
+    );
+  }
+}
+
+// GET /api/members - Search members
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+
+    const result = await memberRegistrationService.search({
+      query: searchParams.get('query') || undefined,
+      status: searchParams.get('status') || undefined,
+      page: parseInt(searchParams.get('page') || '1'),
+      limit: parseInt(searchParams.get('limit') || '20'),
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: result.members,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+      },
+    });
+  } catch (error) {
+    console.error('Error searching members:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to search members' },
       { status: 500 }
     );
   }

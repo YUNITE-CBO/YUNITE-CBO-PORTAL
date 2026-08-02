@@ -1,0 +1,330 @@
+/**
+ * TRANSACTION ENGINE - The Heart of YUNITE
+ * 
+ * Every financial operation passes through this engine.
+ * No module directly updates balances.
+ */
+
+import { createClient } from '@/lib/supabase/server';
+import { v4 as uuidv4 } from 'uuid';
+
+export type TransactionType =
+  | 'savings_deposit'
+  | 'savings_withdrawal'
+  | 'savings_adjustment'
+  | 'registration_fee'
+  | 'annual_fee'
+  | 'contribution_monthly'
+  | 'contribution_special'
+  | 'contribution_development'
+  | 'welfare_deposit'
+  | 'welfare_disbursement'
+  | 'fine_posting'
+  | 'fine_payment'
+  | 'loan_disbursement'
+  | 'loan_repayment'
+  | 'reversal';
+
+export type AccountType = 'savings' | 'shares' | 'contributions' | 'welfare' | 'fines' | 'loans';
+
+export interface TransactionRequest {
+  member_id: string;
+  account_type: AccountType;
+  transaction_type: TransactionType;
+  amount: number;
+  description?: string;
+  reference_number?: string;
+  metadata?: Record<string, unknown>;
+  user_id: string;
+}
+
+export interface CalculatedBalances {
+  savings: number;
+  shares: number;
+  contributions: number;
+  welfare: number;
+  fines: number;
+  loans: number;
+}
+
+export class TransactionEngine {
+  /**
+   * Execute a financial transaction
+   */
+  async execute(request: TransactionRequest) {
+    const supabase = await createClient();
+
+    // Validate
+    if (!request.member_id || !request.account_type || !request.transaction_type || !request.amount) {
+      throw new Error('Missing required fields');
+    }
+
+    // Get account
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('member_id', request.member_id)
+      .eq('account_type', request.account_type)
+      .eq('status', 'active')
+      .single();
+
+    if (!account) throw new Error('Account not found');
+
+    // Calculate current balance from ledger
+    const currentBalance = await this.calculateBalance(request.member_id, request.account_type);
+
+    // Calculate new balance
+    const newBalance = this.calculateNewBalance(currentBalance, request.transaction_type, request.amount);
+
+    // Validate sufficient balance for withdrawals
+    if (newBalance < 0 && this.isDebitTransaction(request.transaction_type)) {
+      throw new Error('Insufficient balance');
+    }
+
+    // Generate reference
+    const transactionRef = this.generateTransactionRef(request.transaction_type);
+
+    // Create transaction
+    const { data: transaction, error } = await supabase
+      .from('transactions')
+      .insert({
+        id: uuidv4(),
+        transaction_ref: transactionRef,
+        account_id: account.id,
+        member_id: request.member_id,
+        transaction_type: request.transaction_type,
+        amount: request.amount,
+        balance_before: currentBalance,
+        balance_after: newBalance,
+        description: request.description,
+        reference_number: request.reference_number,
+        posted_by: request.user_id,
+        reversed: false,
+        metadata: request.metadata,
+      })
+      .select()
+      .single();
+
+    if (error || !transaction) throw new Error(`Transaction failed: ${error?.message}`);
+
+    // Audit log
+    await supabase.from('audit_logs').insert({
+      id: uuidv4(),
+      action: `transactions.${request.transaction_type}`,
+      record_id: transaction.id,
+      user_id: request.user_id,
+      after_value: { balance: newBalance, ref: transactionRef },
+      created_at: new Date().toISOString(),
+    });
+
+    // Calculate all balances
+    const balances = await this.calculateAllBalances(request.member_id);
+
+    return { transaction, balances };
+  }
+
+  /**
+   * Reverse a transaction
+   */
+  async reverse(transactionId: string, userId: string, reason: string) {
+    const supabase = await createClient();
+
+    const { data: original } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .single();
+
+    if (!original) throw new Error('Transaction not found');
+    if (original.reversed) throw new Error('Already reversed');
+
+    const reversalRef = `REV-${original.transaction_ref}`;
+    const isDebitOriginal = this.isDebitTransaction(original.transaction_type as TransactionType);
+    const balanceChange = isDebitOriginal ? Number(original.amount) : -Number(original.amount);
+
+    const { data: reversal, error } = await supabase
+      .from('transactions')
+      .insert({
+        id: uuidv4(),
+        transaction_ref: reversalRef,
+        account_id: original.account_id,
+        member_id: original.member_id,
+        transaction_type: 'reversal',
+        amount: original.amount,
+        balance_before: original.balance_after,
+        balance_after: Number(original.balance_after) + balanceChange,
+        description: `Reversal: ${reason}`,
+        posted_by: userId,
+        reversed: false,
+        metadata: { original_transaction_id: original.id },
+      })
+      .select()
+      .single();
+
+    if (error || !reversal) throw new Error('Reversal failed');
+
+    await supabase.from('transactions').update({
+      reversed: true,
+      reversed_at: new Date().toISOString(),
+      reversed_by: userId,
+      reversal_reason: reason,
+    }).eq('id', original.id);
+
+    await supabase.from('audit_logs').insert({
+      id: uuidv4(),
+      action: 'transactions.reverse',
+      record_id: reversal.id,
+      user_id: userId,
+      after_value: { original_id: original.id, reason },
+      created_at: new Date().toISOString(),
+    });
+
+    const balances = await this.calculateAllBalances(original.member_id);
+    return { reversal, balances };
+  }
+
+  /**
+   * Get transaction history
+   */
+  async getHistory(params: {
+    member_id: string;
+    account_type?: AccountType;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const supabase = await createClient();
+    const page = params.page || 1;
+    const limit = params.limit || 50;
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('transactions')
+      .select('*', { count: 'exact' })
+      .eq('member_id', params.member_id)
+      .eq('reversed', false);
+
+    if (params.start_date) query = query.gte('created_at', params.start_date);
+    if (params.end_date) query = query.lte('created_at', params.end_date);
+
+    const { data, count } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    return {
+      transactions: data || [],
+      total: count || 0,
+      page,
+      limit,
+      totalPages: Math.ceil((count || 0) / limit),
+    };
+  }
+
+  /**
+   * Calculate balance from ledger (NOT stored)
+   */
+  async calculateBalance(memberId: string, accountType: AccountType): Promise<number> {
+    const supabase = await createClient();
+
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('member_id', memberId)
+      .eq('account_type', accountType)
+      .single();
+
+    if (!account) return 0;
+
+    const { data: txns } = await supabase
+      .from('transactions')
+      .select('transaction_type, amount')
+      .eq('account_id', account.id)
+      .eq('reversed', false);
+
+    if (!txns) return 0;
+
+    let balance = 0;
+    for (const txn of txns) {
+      if (this.isDebitTransaction(txn.transaction_type as TransactionType)) {
+        balance -= Number(txn.amount);
+      } else {
+        balance += Number(txn.amount);
+      }
+    }
+    return balance;
+  }
+
+  /**
+   * Calculate all balances for a member
+   */
+  async calculateAllBalances(memberId: string): Promise<CalculatedBalances> {
+    const [savings, contributions, welfare, fines, shareValue] = await Promise.all([
+      this.calculateBalance(memberId, 'savings'),
+      this.calculateBalance(memberId, 'contributions'),
+      this.calculateBalance(memberId, 'welfare'),
+      this.calculateBalance(memberId, 'fines'),
+      this.getShareValue(),
+    ]);
+
+    const shares = Math.floor(savings / shareValue);
+    const loans = await this.calculateLoanBalance(memberId);
+
+    return { savings, shares, contributions, welfare, fines, loans };
+  }
+
+  /**
+   * Get share value from settings
+   */
+  private async getShareValue(): Promise<number> {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'shares.share_value')
+      .single();
+    return data ? parseFloat(data.value) : 100;
+  }
+
+  /**
+   * Calculate loan balance
+   */
+  private async calculateLoanBalance(memberId: string): Promise<number> {
+    const supabase = await createClient();
+    const { data: loans } = await supabase
+      .from('loans')
+      .select('amount_due')
+      .eq('member_id', memberId)
+      .in('status', ['approved', 'disbursed', 'active']);
+    return loans?.reduce((sum, l) => sum + Number(l.amount_due || 0), 0) || 0;
+  }
+
+  private isDebitTransaction(type: TransactionType): boolean {
+    const debitTypes: TransactionType[] = [
+      'savings_withdrawal', 'registration_fee', 'annual_fee',
+      'welfare_disbursement', 'fine_payment', 'loan_disbursement',
+    ];
+    return debitTypes.includes(type);
+  }
+
+  private calculateNewBalance(current: number, type: TransactionType, amount: number): number {
+    if (type === 'savings_adjustment') return current + amount;
+    if (this.isDebitTransaction(type)) return current - amount;
+    return current + amount;
+  }
+
+  private generateTransactionRef(type: TransactionType): string {
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const prefixes: Record<string, string> = {
+      savings_deposit: 'SDP', savings_withdrawal: 'SWD', savings_adjustment: 'SAD',
+      registration_fee: 'RGF', annual_fee: 'ANF', contribution_monthly: 'CMT',
+      contribution_special: 'CSP', contribution_development: 'CDV', welfare_deposit: 'WFD',
+      welfare_disbursement: 'WFW', fine_posting: 'FNP', fine_payment: 'FNP',
+      loan_disbursement: 'LND', loan_repayment: 'LNR', reversal: 'REV',
+    };
+    const prefix = prefixes[type] || 'TRN';
+    return `TXN-${date}-${prefix}-${uuidv4().split('-')[0]}`;
+  }
+}
+
+export const transactionEngine = new TransactionEngine();

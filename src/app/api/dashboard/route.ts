@@ -1,25 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { dashboardService } from '@/lib/services';
 
-// GET /api/dashboard - Get dashboard data
-export async function GET(request: NextRequest) {
+// GET /api/dashboard - Get live dashboard data
+export async function GET() {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const type = searchParams.get('type') || 'stats';
-
-    if (type === 'activity') {
-      const limit = parseInt(searchParams.get('limit') || '20');
-      const activity = await dashboardService.getRecentActivity(limit);
-      return NextResponse.json({ success: true, data: activity });
-    }
-
-    if (type === 'alerts') {
-      const alerts = await dashboardService.getAlerts();
-      return NextResponse.json({ success: true, data: alerts });
-    }
-
-    // Default: return all dashboard data
-    const [stats, activity, alerts] = await Promise.all([
+    const [stats, recentActivity, alerts] = await Promise.all([
       dashboardService.getStats(),
       dashboardService.getRecentActivity(20),
       dashboardService.getAlerts(),
@@ -27,12 +12,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: { stats, activity, alerts },
+      data: {
+        stats,
+        recent_activity: recentActivity,
+        alerts,
+      },
     });
   } catch (error) {
-    console.error('Error fetching dashboard data:', error);
+    console.error('Dashboard error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch dashboard data' },
+      { success: false, error: 'Failed to load dashboard' },
       { status: 500 }
     );
   }

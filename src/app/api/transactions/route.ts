@@ -1,43 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { transactionService } from '@/lib/services';
+import { transactionEngine, AccountType } from '@/lib/services';
 import { z } from 'zod';
 
 const transactionSchema = z.object({
   member_id: z.string().uuid(),
-  account_type: z.enum(['savings', 'shares', 'contributions', 'welfare', 'fines']),
+  account_type: z.enum(['savings', 'contributions', 'welfare', 'fines']),
   transaction_type: z.enum([
-    'deposit', 'withdrawal', 'transfer', 'fee', 'fine',
-    'loan_disbursement', 'loan_repayment', 'contribution',
-    'share_purchase', 'interest', 'adjustment'
+    'savings_deposit', 'savings_withdrawal', 'savings_adjustment',
+    'contribution_monthly', 'contribution_special', 'contribution_development',
+    'welfare_deposit', 'welfare_disbursement',
+    'fine_payment'
   ]),
   amount: z.number().positive(),
   description: z.string().optional(),
   reference_number: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
-  user_id: z.string().uuid().optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
-const reversalSchema = z.object({
-  transaction_id: z.string().uuid(),
-  reason: z.string().min(1),
-  user_id: z.string().uuid().optional(),
-});
-
-// GET /api/transactions - Get recent transactions
+// GET /api/transactions - Get transaction history
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const transaction_type = searchParams.get('type') as any || undefined;
+    const memberId = searchParams.get('member_id');
+    
+    if (!memberId) {
+      return NextResponse.json({ success: false, error: 'Member ID required' }, { status: 400 });
+    }
 
-    const transactions = await transactionService.getRecent({
-      limit,
-      transaction_type,
+    const result = await transactionEngine.getHistory({
+      member_id: memberId,
+      account_type: searchParams.get('account_type') as AccountType | undefined,
+      start_date: searchParams.get('start_date') || undefined,
+      end_date: searchParams.get('end_date') || undefined,
+      page: parseInt(searchParams.get('page') || '1'),
+      limit: parseInt(searchParams.get('limit') || '50'),
     });
 
     return NextResponse.json({
       success: true,
-      data: transactions,
+      data: result.transactions,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
     });
   } catch (error) {
     console.error('Error fetching transactions:', error);
@@ -48,24 +55,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/transactions - Post new transaction
+// POST /api/transactions - Execute transaction
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validated = transactionSchema.parse(body);
 
-    // TODO: Get actual user_id from session
-    const userId = validated.user_id || '00000000-0000-0000-0000-000000000000';
+    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
 
-    const transaction = await transactionService.postTransaction({
+    const result = await transactionEngine.execute({
       ...validated,
       user_id: userId,
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Transaction posted successfully',
-      data: transaction,
+      message: 'Transaction completed successfully',
+      data: result,
     }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -75,8 +81,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const errorMessage = error instanceof Error ? error.message : 'Failed to post transaction';
-    console.error('Error posting transaction:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
+    console.error('Transaction error:', error);
 
     return NextResponse.json(
       { success: false, error: errorMessage },

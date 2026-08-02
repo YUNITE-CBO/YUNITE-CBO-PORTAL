@@ -8,52 +8,23 @@ const applicationSchema = z.object({
   principal_amount: z.number().positive(),
   repayment_period_months: z.number().positive().optional(),
   purpose: z.string().optional(),
-  collateral_description: z.string().optional(),
-  guarantor_id: z.string().uuid().optional(),
 });
 
-const approvalSchema = z.object({
-  loan_id: z.string().uuid(),
-  approved_amount: z.number().positive().optional(),
-  interest_rate: z.number().positive().optional(),
-  repayment_period_months: z.number().positive().optional(),
-  notes: z.string().optional(),
-});
-
-const disbursementSchema = z.object({
-  loan_id: z.string().uuid(),
-  notes: z.string().optional(),
-});
-
-const repaymentSchema = z.object({
-  loan_id: z.string().uuid(),
-  amount: z.number().positive(),
-  notes: z.string().optional(),
-});
-
-// GET /api/loans - Get pending loans
+// GET /api/loans - Get pending loans or member loans
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get('status');
     const memberId = searchParams.get('member_id');
 
-    let loans;
-
     if (memberId) {
-      loans = await loanService.getByMember(memberId);
-    } else if (status === 'pending') {
-      loans = await loanService.getPending();
-    } else {
-      loans = [];
+      const loans = await loanService.getByMember(memberId);
+      return NextResponse.json({ success: true, data: loans });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: loans,
-    });
+    const loans = await loanService.getPending();
+    return NextResponse.json({ success: true, data: loans });
   } catch (error) {
-    console.error('Error fetching loans:', error);
+    console.error('Loans error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch loans' },
       { status: 500 }
@@ -67,7 +38,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = applicationSchema.parse(body);
 
-    const userId = '00000000-0000-0000-0000-000000000000';
+    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
 
     const loan = await loanService.apply({
       ...validated,
@@ -76,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Loan application submitted successfully',
+      message: 'Loan application submitted',
       data: loan,
     }, { status: 201 });
   } catch (error) {
@@ -87,8 +58,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const errorMessage = error instanceof Error ? error.message : 'Failed to submit loan application';
-    console.error('Error applying for loan:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Loan application failed';
+    console.error('Loan application error:', error);
 
     return NextResponse.json(
       { success: false, error: errorMessage },

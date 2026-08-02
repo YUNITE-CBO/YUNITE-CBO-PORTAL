@@ -2,236 +2,231 @@
 
 import { useEffect, useState } from 'react';
 
-interface DashboardData {
-  stats: {
-    total_members: number;
-    active_members: number;
-    new_registrations: number;
-    total_savings: number;
-    total_shares: number;
-    total_loans_disbursed: number;
-    total_loans_outstanding: number;
-    total_fines_pending: number;
-    total_contributions: number;
-  };
-  activity: Array<{
-    id: string;
-    type: string;
-    description: string;
-    member_name?: string;
-    amount?: number;
-    user_name: string;
-    created_at: string;
-  }>;
-  alerts: Array<{
-    type: 'warning' | 'error' | 'info';
-    title: string;
-    message: string;
-    action_url?: string;
-  }>;
+interface DashboardStats {
+  total_members: number;
+  active_members: number;
+  pending_members: number;
+  total_savings: number;
+  total_shares: number;
+  total_contributions: number;
+  total_welfare: number;
+  total_fines_pending: number;
+  total_loans_outstanding: number;
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+interface Activity {
+  id: string;
+  type: string;
+  description: string;
+  amount?: number;
+  member_name?: string;
+  created_at: string;
 }
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-KE', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+interface Alert {
+  type: string;
+  title: string;
+  message: string;
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activity, setActivity] = useState<Activity[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchDashboard() {
-      try {
-        const response = await fetch('/api/dashboard');
-        const result = await response.json();
-        
-        if (result.success) {
-          setData(result.data);
-        } else {
-          setError(result.error || 'Failed to load dashboard');
-        }
-      } catch (err) {
-        setError('Failed to connect to server');
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchDashboard();
   }, []);
 
+  const fetchDashboard = async () => {
+    try {
+      const res = await fetch('/api/dashboard');
+      const data = await res.json();
+
+      if (data.success) {
+        setStats(data.data.stats);
+        setActivity(data.data.recent_activity || []);
+        setAlerts(data.data.alerts || []);
+      } else {
+        setError(data.error);
+      }
+    } catch {
+      setError('Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('en-KE', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading dashboard...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
-        {error}
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-red-500">Error: {error}</div>
       </div>
     );
   }
 
-  if (!data) return null;
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Alerts */}
+        {alerts.length > 0 && (
+          <div className="mb-6 space-y-3">
+            {alerts.map((alert, i) => (
+              <div
+                key={i}
+                className={`p-4 rounded-lg border ${
+                  alert.type === 'warning'
+                    ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                    : alert.type === 'error'
+                    ? 'bg-red-50 border-red-200 text-red-800'
+                    : 'bg-blue-50 border-blue-200 text-blue-800'
+                }`}
+              >
+                <div className="font-medium">{alert.title}</div>
+                <div className="text-sm">{alert.message}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard
+            title="Total Members"
+            value={stats?.total_members || 0}
+            subtitle={`${stats?.active_members || 0} active`}
+            color="blue"
+          />
+          <StatCard
+            title="Total Savings"
+            value={formatCurrency(stats?.total_savings || 0)}
+            color="green"
+          />
+          <StatCard
+            title="Total Shares"
+            value={stats?.total_shares || 0}
+            color="purple"
+          />
+          <StatCard
+            title="Loans Outstanding"
+            value={formatCurrency(stats?.total_loans_outstanding || 0)}
+            color="orange"
+          />
+        </div>
+
+        {/* Secondary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <StatCard
+            title="Contributions"
+            value={formatCurrency(stats?.total_contributions || 0)}
+            color="teal"
+          />
+          <StatCard
+            title="Welfare Fund"
+            value={formatCurrency(stats?.total_welfare || 0)}
+            color="indigo"
+          />
+          <StatCard
+            title="Pending Fines"
+            value={formatCurrency(stats?.total_fines_pending || 0)}
+            color="red"
+          />
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+          </div>
+          <div className="divide-y">
+            {activity.length === 0 ? (
+              <div className="px-6 py-8 text-center text-gray-500">
+                No recent activity
+              </div>
+            ) : (
+              activity.map((item) => (
+                <div key={item.id} className="px-6 py-4 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-gray-900">{item.description}</div>
+                    <div className="text-sm text-gray-500">
+                      {item.member_name && `${item.member_name} · `}
+                      {formatDate(item.created_at)}
+                    </div>
+                  </div>
+                  {item.amount && (
+                    <div className="text-right font-medium text-gray-900">
+                      {formatCurrency(item.amount)}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+  color,
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  color: 'blue' | 'green' | 'purple' | 'orange' | 'teal' | 'indigo' | 'red';
+}) {
+  const colors = {
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    green: 'bg-green-50 text-green-700 border-green-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    orange: 'bg-orange-50 text-orange-700 border-orange-200',
+    teal: 'bg-teal-50 text-teal-700 border-teal-200',
+    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <span className="text-sm text-gray-500">
-          Last updated: {new Date().toLocaleTimeString()}
-        </span>
-      </div>
-
-      {/* Alerts */}
-      {data.alerts.length > 0 && (
-        <div className="space-y-2">
-          {data.alerts.map((alert, index) => (
-            <div
-              key={index}
-              className={`px-4 py-3 rounded-md flex items-center justify-between ${
-                alert.type === 'error'
-                  ? 'bg-red-50 border border-red-200 text-red-700'
-                  : alert.type === 'warning'
-                  ? 'bg-yellow-50 border border-yellow-200 text-yellow-700'
-                  : 'bg-blue-50 border border-blue-200 text-blue-700'
-              }`}
-            >
-              <div className="flex items-center">
-                <span className="font-medium">{alert.title}:</span>
-                <span className="ml-2">{alert.message}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Statistics Grid */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <div className="bg-white overflow-hidden rounded-lg shadow">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Total Members</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              {data.stats.total_members}
-            </dd>
-            <p className="mt-1 text-sm text-gray-500">
-              {data.stats.active_members} active
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden rounded-lg shadow">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Total Savings</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              {formatCurrency(data.stats.total_savings)}
-            </dd>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden rounded-lg shadow">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Total Shares</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              {formatCurrency(data.stats.total_shares)}
-            </dd>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden rounded-lg shadow">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Loans Disbursed</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              {formatCurrency(data.stats.total_loans_disbursed)}
-            </dd>
-            <p className="mt-1 text-sm text-red-500">
-              Outstanding: {formatCurrency(data.stats.total_loans_outstanding)}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden rounded-lg shadow">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Pending Fines</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              {formatCurrency(data.stats.total_fines_pending)}
-            </dd>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden rounded-lg shadow">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Contributions</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              {formatCurrency(data.stats.total_contributions)}
-            </dd>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden rounded-lg shadow">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">New This Month</dt>
-            <dd className="mt-1 text-3xl font-semibold text-green-600">
-              +{data.stats.new_registrations}
-            </dd>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
-          <h2 className="text-lg font-medium text-gray-900">Recent Activity</h2>
-        </div>
-        <div className="divide-y divide-gray-200">
-          {data.activity.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-500">
-              No recent activity
-            </div>
-          ) : (
-            data.activity.map((item) => (
-              <div key={item.id} className="px-4 py-4 sm:px-6 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {item.description}
-                    {item.member_name && (
-                      <span className="text-gray-500"> - {item.member_name}</span>
-                    )}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    by {item.user_name} • {formatDate(item.created_at)}
-                  </p>
-                </div>
-                {item.amount && (
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatCurrency(item.amount)}
-                  </span>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+    <div className={`rounded-lg border p-6 ${colors[color]}`}>
+      <div className="text-sm font-medium opacity-75">{title}</div>
+      <div className="text-2xl font-bold mt-1">{value}</div>
+      {subtitle && <div className="text-sm mt-1 opacity-75">{subtitle}</div>}
     </div>
   );
 }

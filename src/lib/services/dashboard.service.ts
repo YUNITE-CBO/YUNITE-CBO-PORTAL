@@ -1,44 +1,292 @@
+/**
+ * DASHBOARD SERVICE - Live calculations, never stored
+ */
+
 import { createClient } from '@/lib/supabase/server';
+import { transactionEngine } from './transaction.engine';
+
+export interface DashboardStats {
+  total_members: number;
+  active_members: number;
+  pending_members: number;
+  total_savings: number;
+  total_shares: number;
+  total_contributions: number;
+  total_welfare: number;
+  total_fines_pending: number;
+  total_loans_outstanding: number;
+  total_loan_repayments: number;
+}
+
+export interface ActivityItem {
+  id: string;
+  type: string;
+  description: string;
+  amount?: number;
+  member_name?: string;
+  user_name?: string;
+  created_at: string;
+}
+
+export interface DashboardAlert {
+  type: 'warning' | 'error' | 'info';
+  title: string;
+  message: string;
+}
 
 export class DashboardService {
-  async getStats() {
+  /**
+   * Get live dashboard stats
+   * All values calculated from authoritative sources
+   */
+  async getStats(): Promise<DashboardStats> {
     const supabase = await createClient();
-    const { count: totalMembers } = await supabase.from('members').select('*', {count: 'exact', head: true});
-    const { count: activeMembers } = await supabase.from('members').select('*', {count: 'exact', head: true}).eq('status', 'active');
-    const startOfMonth = new Date(); startOfMonth.setDate(1);
-    const { count: newRegs } = await supabase.from('members').select('*', {count: 'exact', head: true}).gte('registration_date', startOfMonth.toISOString().split('T')[0]);
-    
-    const { data: savingsData } = await supabase.from('accounts').select('balance').eq('account_type', 'savings').eq('status', 'active');
-    const { data: sharesData } = await supabase.from('accounts').select('balance').eq('account_type', 'shares').eq('status', 'active');
-    const { data: disbursedLoans } = await supabase.from('loans').select('principal_amount').in('status', ['disbursed', 'active', 'completed']);
-    const { data: outstandingLoans } = await supabase.from('loans').select('amount_due').in('status', ['disbursed', 'active']);
-    
+
+    // Member counts
+    const [totalMembers, activeMembers, pendingMembers] = await Promise.all([
+      this.count('members'),
+      this.count('members', { status: 'active' }),
+      this.count('members', { status: 'pending' }),
+    ]);
+
+    // Calculate all financial totals from transactions
+    const [savingsTxns, contributionTxns, welfareTxns, fineTxns, loanTxns] = await Promise.all([
+      this.getTransactionTotals('savings'),
+      this.getTransactionTotals('contributions'),
+      this.getTransactionTotals('welfare'),
+      this.getTransactionTotals('fines'),
+      this.getLoanTotals(),
+    ]);
+
+    // Get share value and calculate total shares
+    const { data: shareValueSetting } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'shares.share_value')
+      .single();
+    const shareValue = shareValueSetting ? parseFloat(shareValueSetting.value) : 100;
+    const totalShares = Math.floor(savingsTxns.totalDeposits / shareValue);
+
     return {
-      total_members: totalMembers || 0, active_members: activeMembers || 0, new_registrations: newRegs || 0,
-      total_savings: savingsData?.reduce((s: number, a: any) => s + Number(a.balance), 0) || 0,
-      total_shares: sharesData?.reduce((s: number, a: any) => s + Number(a.balance), 0) || 0,
-      total_loans_disbursed: disbursedLoans?.reduce((s: number, l: any) => s + Number(l.principal_amount), 0) || 0,
-      total_loans_outstanding: outstandingLoans?.reduce((s: number, l: any) => s + Number(l.amount_due), 0) || 0,
-      total_fines_pending: 0, total_contributions: 0
+      total_members: totalMembers,
+      active_members: activeMembers,
+      pending_members: pendingMembers,
+      total_savings: savingsTxns.balance,
+      total_shares: totalShares,
+      total_contributions: contributionTxns.balance,
+      total_welfare: welfareTxns.balance,
+      total_fines_pending: fineTxns.balance,
+      total_loans_outstanding: loanTxns.outstanding,
+      total_loan_repayments: loanTxns.repayments,
     };
   }
 
-  async getRecentActivity(limit: number = 20) {
+  /**
+   * Get recent activity
+   */
+  async getRecentActivity(limit: number = 20): Promise<ActivityItem[]> {
     const supabase = await createClient();
-    const activities: any[] = [];
-    const { data: members } = await supabase.from('members').select('id,first_name,last_name,created_at').order('created_at', {ascending: false}).limit(limit);
-    (members || []).forEach((m: any) => activities.push({id: `m-${m.id}`, type: 'member_registration', description: 'New member', member_name: `${m.first_name} ${m.last_name}`, created_at: m.created_at}));
-    const { data: txns } = await supabase.from('transactions').select('*').eq('reversed', false).order('created_at', {ascending: false}).limit(limit);
-    (txns || []).forEach((t: any) => activities.push({id: `t-${t.id}`, type: t.transaction_type, description: t.transaction_type, amount: Number(t.amount), created_at: t.created_at}));
-    return activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, limit);
+
+    // Get recent transactions with member and user info
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select(`
+        id, transaction_type, amount, description, created_at,
+        member:members(first_name, last_name, member_number),
+        user:users(full_name)
+      `)
+      .eq('reversed', false)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    // Get recent member registrations
+    const { data: members } = await supabase
+      .from('members')
+      .select('id, member_number, first_name, last_name, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const activity: ActivityItem[] = [];
+
+    // Map transactions
+    (transactions || []).forEach((t: any) => {
+      const typeMap: Record<string, string> = {
+        savings_deposit: 'Savings Deposit',
+        savings_withdrawal: 'Savings Withdrawal',
+        contribution_monthly: 'Monthly Contribution',
+        contribution_special: 'Special Contribution',
+        welfare_deposit: 'Welfare Contribution',
+        fine_payment: 'Fine Payment',
+        loan_repayment: 'Loan Repayment',
+        loan_disbursement: 'Loan Disbursement',
+        registration_fee: 'Registration Fee',
+        annual_fee: 'Annual Fee',
+      };
+
+      activity.push({
+        id: `txn-${t.id}`,
+        type: t.transaction_type,
+        description: typeMap[t.transaction_type] || t.transaction_type,
+        amount: Number(t.amount),
+        member_name: t.member ? `${t.member.first_name} ${t.member.last_name}` : undefined,
+        user_name: t.user?.full_name,
+        created_at: t.created_at,
+      });
+    });
+
+    // Map member registrations
+    (members || []).forEach((m: any) => {
+      activity.push({
+        id: `member-${m.id}`,
+        type: 'member_registration',
+        description: 'New Member Registered',
+        member_name: `${m.first_name} ${m.last_name}`,
+        created_at: m.created_at,
+      });
+    });
+
+    // Sort by date
+    activity.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    return activity.slice(0, limit);
   }
 
-  async getAlerts() {
+  /**
+   * Get alerts
+   */
+  async getAlerts(): Promise<DashboardAlert[]> {
     const supabase = await createClient();
-    const alerts: any[] = [];
-    const { count: pendingLoans } = await supabase.from('loans').select('*', {count: 'exact', head: true}).eq('status', 'pending');
-    if (pendingLoans) alerts.push({type: 'info', title: 'Pending Loans', message: `${pendingLoans} application(s) awaiting approval`});
+    const alerts: DashboardAlert[] = [];
+
+    // Pending loans
+    const { count: pendingLoans } = await supabase
+      .from('loans')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (pendingLoans && pendingLoans > 0) {
+      alerts.push({
+        type: 'info',
+        title: 'Pending Loans',
+        message: `${pendingLoans} loan application(s) awaiting approval`,
+      });
+    }
+
+    // Pending members
+    const { count: pendingMembers } = await supabase
+      .from('members')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (pendingMembers && pendingMembers > 0) {
+      alerts.push({
+        type: 'warning',
+        title: 'Pending Registrations',
+        message: `${pendingMembers} member registration(s) awaiting approval`,
+      });
+    }
+
+    // Pending fines
+    const { count: pendingFines } = await supabase
+      .from('fines')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (pendingFines && pendingFines > 0) {
+      alerts.push({
+        type: 'info',
+        title: 'Pending Fines',
+        message: `${pendingFines} fine(s) awaiting payment`,
+      });
+    }
+
     return alerts;
   }
+
+  // Helper methods
+  private async count(table: string, filters?: Record<string, string>): Promise<number> {
+    const supabase = await createClient();
+    let query = supabase.from(table).select('*', { count: 'exact', head: true });
+    
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        query = query.eq(key, value);
+      });
+    }
+
+    const { count } = await query;
+    return count || 0;
+  }
+
+  private async getTransactionTotals(accountType: string) {
+    const supabase = await createClient();
+
+    // Get account IDs for this type
+    const { data: accounts } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('account_type', accountType);
+
+    if (!accounts || accounts.length === 0) {
+      return { totalDeposits: 0, totalWithdrawals: 0, balance: 0 };
+    }
+
+    const accountIds = accounts.map(a => a.id);
+
+    // Get all non-reversed transactions
+    const { data: txns } = await supabase
+      .from('transactions')
+      .select('transaction_type, amount')
+      .in('account_id', accountIds)
+      .eq('reversed', false);
+
+    if (!txns) return { totalDeposits: 0, totalWithdrawals: 0, balance: 0 };
+
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    let balance = 0;
+
+    const creditTypes = [`${accountType}_deposit`, `${accountType}_monthly`, `${accountType}_special`, `${accountType}_development`];
+    const debitTypes = [`${accountType}_withdrawal`, `${accountType}_disbursement`];
+
+    for (const txn of txns) {
+      if (creditTypes.includes(txn.transaction_type)) {
+        totalDeposits += Number(txn.amount);
+        balance += Number(txn.amount);
+      } else if (debitTypes.includes(txn.transaction_type)) {
+        totalWithdrawals += Number(txn.amount);
+        balance -= Number(txn.amount);
+      }
+    }
+
+    return { totalDeposits, totalWithdrawals, balance };
+  }
+
+  private async getLoanTotals() {
+    const supabase = await createClient();
+
+    // Get disbursements from transactions
+    const { data: disbursements } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('transaction_type', 'loan_disbursement')
+      .eq('reversed', false);
+
+    const { data: repayments } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('transaction_type', 'loan_repayment')
+      .eq('reversed', false);
+
+    const totalDisbursements = disbursements?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+    const totalRepayments = repayments?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+
+    return {
+      disbursements: totalDisbursements,
+      repayments: totalRepayments,
+      outstanding: totalDisbursements - totalRepayments,
+    };
+  }
 }
+
 export const dashboardService = new DashboardService();
