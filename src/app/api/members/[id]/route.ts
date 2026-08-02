@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
+import { transactionEngine } from '@/lib/services/transaction.engine';
 
 export async function GET(
   request: NextRequest,
@@ -7,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     // Fetch member
     const { data: member, error: memberError } = await supabase
@@ -26,41 +27,36 @@ export async function GET(
       .select('*')
       .eq('member_id', id);
 
-    // Fetch recent transactions
+    // Fetch recent transactions (excluding reversals)
     const { data: transactions } = await supabase
       .from('transactions')
       .select('*')
       .eq('member_id', id)
+      .eq('reversed', false)
       .order('created_at', { ascending: false })
       .limit(20);
 
-    // Fetch loans
+    // Fetch active loans
     const { data: loans } = await supabase
       .from('loans')
       .select('*')
       .eq('member_id', id)
-      .order('application_date', { ascending: false });
+      .in('status', ['pending', 'approved', 'disbursed', 'active']);
 
-    // Fetch fines
+    // Fetch pending/partial fines
     const { data: fines } = await supabase
       .from('fines')
       .select('*')
       .eq('member_id', id)
-      .order('issued_date', { ascending: false });
+      .in('status', ['pending', 'partial']);
 
-    // Calculate balances
-    const savingsAccount = accounts?.find(a => a.account_type === 'savings');
-    const sharesAccount = accounts?.find(a => a.account_type === 'shares');
-    
-    const savingsBalance = savingsAccount?.balance || 0;
-    const sharesBalance = sharesAccount?.balance || 0;
-    
-    // Calculate shares from savings (assuming 1 share = 100 KES)
-    const shareValue = 100;
-    const calculatedShares = Math.floor(savingsBalance / shareValue);
-    
-    const totalLoans = loans?.reduce((sum, l) => sum + (l.amount_due || 0), 0) || 0;
-    const totalContributions = transactions?.filter(t => t.transaction_type === 'contribution').reduce((sum, t) => sum + t.amount, 0) || 0;
+    // Calculate balances using TransactionEngine
+    const balances = await transactionEngine.calculateAllBalances(id);
+
+    // Calculate contributions from transactions
+    const contributions = transactions
+      ?.filter(t => t.transaction_type.startsWith('contribution_'))
+      .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
     return NextResponse.json({
       success: true,
@@ -70,10 +66,10 @@ export async function GET(
         transactions: transactions || [],
         loans: loans || [],
         fines: fines || [],
-        savingsBalance,
-        sharesBalance: calculatedShares,
-        totalContributions,
-        totalLoans,
+        balances: {
+          ...balances,
+          contributions,
+        },
       },
     });
   } catch (error) {
