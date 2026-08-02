@@ -43,28 +43,49 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const memberId = searchParams.get('member_id');
-    
-    if (!memberId) {
-      return NextResponse.json({ success: false, error: 'Member ID required' }, { status: 400 });
+
+    // If member_id is provided, use transaction engine for that member
+    if (memberId) {
+      const result = await transactionEngine.getHistory({
+        member_id: memberId,
+        account_type: searchParams.get('account_type') as AccountType | undefined,
+        start_date: searchParams.get('start_date') || undefined,
+        end_date: searchParams.get('end_date') || undefined,
+        page: parseInt(searchParams.get('page') || '1'),
+        limit: parseInt(searchParams.get('limit') || '50'),
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: result.transactions,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      });
     }
 
-    const result = await transactionEngine.getHistory({
-      member_id: memberId,
-      account_type: searchParams.get('account_type') as AccountType | undefined,
-      start_date: searchParams.get('start_date') || undefined,
-      end_date: searchParams.get('end_date') || undefined,
-      page: parseInt(searchParams.get('page') || '1'),
-      limit: parseInt(searchParams.get('limit') || '50'),
-    });
+    // If no member_id, fetch all transactions directly
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const supabase = await createServiceClient();
+
+    const { data: transactions, count } = await supabase
+      .from('transactions')
+      .select('*', { count: 'exact' })
+      .eq('reversed', false)
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     return NextResponse.json({
       success: true,
-      data: result.transactions,
+      data: transactions || [],
       pagination: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
+        page: 1,
+        limit: 50,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / 50),
       },
     });
   } catch (error) {
