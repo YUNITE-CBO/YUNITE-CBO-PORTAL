@@ -5,7 +5,7 @@
  * No module directly updates balances.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 
 export type TransactionType =
@@ -52,7 +52,7 @@ export class TransactionEngine {
    * Execute a financial transaction
    */
   async execute(request: TransactionRequest) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     // Validate
     if (!request.member_id || !request.account_type || !request.transaction_type || !request.amount) {
@@ -127,7 +127,7 @@ export class TransactionEngine {
    * Reverse a transaction
    */
   async reverse(transactionId: string, userId: string, reason: string) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     const { data: original } = await supabase
       .from('transactions')
@@ -194,7 +194,7 @@ export class TransactionEngine {
     page?: number;
     limit?: number;
   }) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const page = params.page || 1;
     const limit = params.limit || 50;
     const offset = (page - 1) * limit;
@@ -225,7 +225,7 @@ export class TransactionEngine {
    * Calculate balance from ledger (NOT stored)
    */
   async calculateBalance(memberId: string, accountType: AccountType): Promise<number> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     const { data: account } = await supabase
       .from('accounts')
@@ -277,7 +277,7 @@ export class TransactionEngine {
    * Get share value from settings
    */
   private async getShareValue(): Promise<number> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { data } = await supabase
       .from('settings')
       .select('value')
@@ -290,7 +290,7 @@ export class TransactionEngine {
    * Calculate loan balance
    */
   private async calculateLoanBalance(memberId: string): Promise<number> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { data: loans } = await supabase
       .from('loans')
       .select('amount_due')

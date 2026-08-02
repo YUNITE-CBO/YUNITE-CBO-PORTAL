@@ -4,7 +4,7 @@
  * Atomic registration creates complete member workspace.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface MemberRegistrationData {
@@ -30,7 +30,7 @@ export class MemberRegistrationService {
    * Register member with complete workspace
    */
   async register(data: MemberRegistrationData, userId: string) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const memberNumber = await this.generateMemberNumber();
 
     // 1. Create Member
@@ -111,7 +111,7 @@ export class MemberRegistrationService {
    * Generate unique member number
    */
   private async generateMemberNumber(): Promise<string> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     
     const { count } = await supabase
@@ -128,7 +128,7 @@ export class MemberRegistrationService {
    * Get complete member workspace
    */
   async getWorkspace(memberId: string) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     const { data: member } = await supabase
       .from('members')
@@ -179,7 +179,7 @@ export class MemberRegistrationService {
    * Search members
    */
   async search(params: { query?: string; status?: string; page?: number; limit?: number }) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const page = params.page || 1;
     const limit = params.limit || 20;
     const offset = (page - 1) * limit;

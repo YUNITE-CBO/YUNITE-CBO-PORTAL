@@ -4,7 +4,7 @@
  * Eligibility = Savings × Loan Percentage (from Settings)
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { transactionEngine } from './transaction.engine';
 import { settingsService } from './settings.service';
@@ -56,7 +56,7 @@ export class LoanService {
    * Apply for loan
    */
   async apply(application: LoanApplication) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     
     // Check eligibility
     const eligibility = await this.calculateEligibility(application.member_id);
@@ -114,7 +114,7 @@ export class LoanService {
    * Get pending loans
    */
   async getPending() {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { data } = await supabase
       .from('loans')
       .select('*, member:members(first_name, last_name, member_number, phone)')
@@ -127,7 +127,7 @@ export class LoanService {
    * Get member loans
    */
   async getByMember(memberId: string) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { data } = await supabase
       .from('loans')
       .select('*')
