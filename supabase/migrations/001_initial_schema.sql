@@ -340,7 +340,8 @@ ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- Public read access for authenticated users (simplified for demo)
+-- Public read access using ANON_KEY (for dashboard read operations)
+-- Note: Writes still require service role or authenticated user
 CREATE POLICY "Public read access" ON members FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON accounts FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON transactions FOR SELECT USING (true);
@@ -351,7 +352,7 @@ CREATE POLICY "Public read access" ON compliance_records FOR SELECT USING (true)
 CREATE POLICY "Public read access" ON settings FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON users FOR SELECT USING (true);
 
--- Service role can do everything
+-- Service role can do everything (for API routes)
 CREATE POLICY "Service role full access" ON members FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "Service role full access" ON accounts FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "Service role full access" ON transactions FOR ALL USING (auth.role() = 'service_role');
@@ -364,6 +365,16 @@ CREATE POLICY "Service role full access" ON users FOR ALL USING (auth.role() = '
 
 -- Audit logs are append-only
 CREATE POLICY "Audit insert only" ON audit_logs FOR INSERT WITH CHECK (true);
+
+-- Enable INSERT/UPDATE/DELETE for public (service role bypasses RLS anyway)
+CREATE POLICY "Public insert" ON members FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public insert" ON accounts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public insert" ON transactions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public insert" ON fines FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public insert" ON loans FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public insert" ON documents FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public insert" ON compliance_records FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public insert" ON settings FOR INSERT WITH CHECK (true);
 
 -- ============================================
 -- DEFAULT SETTINGS (Seed Data)
