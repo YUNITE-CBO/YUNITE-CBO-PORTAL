@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface Member {
@@ -43,8 +43,8 @@ interface Transaction {
 
 type ActionModal = 'savings_deposit' | 'savings_withdrawal' | 'contribution' | 'fine' | null;
 
-export default function MemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function MemberDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const [member, setMember] = useState<Member | null>(null);
   const [balances, setBalances] = useState<CalculatedBalances | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
