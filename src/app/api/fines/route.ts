@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transactionEngine } from '@/lib/services';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const memberId = searchParams.get('member_id');
 
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     let query = supabase.from('fines').select('*, member:members(first_name, last_name, member_number)');
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = fineSchema.parse(body);
 
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
 
     // Generate fine number

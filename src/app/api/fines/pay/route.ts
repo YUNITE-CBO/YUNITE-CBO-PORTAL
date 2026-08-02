@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transactionEngine } from '@/lib/services';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
 const paymentSchema = z.object({
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = paymentSchema.parse(body);
 
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
 
     // Get fine
