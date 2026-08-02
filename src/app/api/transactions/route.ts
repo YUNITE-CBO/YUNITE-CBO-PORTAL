@@ -73,7 +73,10 @@ export async function GET(request: NextRequest) {
 
     const { data: transactions, count } = await supabase
       .from('transactions')
-      .select('*', { count: 'exact' })
+      .select(`
+        *,
+        member:members(first_name, last_name, member_number)
+      `, { count: 'exact' })
       .eq('reversed', false)
       .order('created_at', { ascending: false })
       .limit(50);

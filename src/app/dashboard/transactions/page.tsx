@@ -22,6 +22,11 @@ interface Transaction {
   reference_number: string | null;
   posted_at: string;
   balance_after: number;
+  member?: {
+    first_name: string;
+    last_name: string;
+    member_number: string;
+  };
 }
 
 interface TransactionForm {
@@ -396,7 +401,7 @@ export default function TransactionsPage() {
                         <span className="text-xs text-gray-500">{tx.transaction_ref}</span>
                       </div>
                       <p className="text-sm text-gray-900 mt-1">
-                        {tx.member_name || 'Unknown Member'}
+                        {tx.member_name || (tx.member ? `${tx.member.first_name} ${tx.member.last_name}` : 'Unknown Member')}
                       </p>
                       {tx.description && (
                         <p className="text-xs text-gray-500 mt-1">{tx.description}</p>
