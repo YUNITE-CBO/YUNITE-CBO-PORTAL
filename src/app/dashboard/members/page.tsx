@@ -1,162 +1,345 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 interface Member {
   id: string;
   member_number: string;
   first_name: string;
   last_name: string;
+  email: string | null;
+  phone: string;
+  status: 'pending' | 'active' | 'suspended' | 'withdrawn' | 'deceased';
+  registration_date: string;
+  created_at: string;
+}
+
+interface RegistrationForm {
+  first_name: string;
+  last_name: string;
   email: string;
   phone: string;
-  status: string;
-  registration_date: string;
+  id_number: string;
+  date_of_birth: string;
+  gender: 'male' | 'female' | 'other';
+  physical_address: string;
+  occupation: string;
+  employer: string;
+  next_of_kin_name: string;
+  next_of_kin_phone: string;
+  next_of_kin_relationship: string;
 }
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const [formData, setFormData] = useState<RegistrationForm>({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    id_number: '',
+    date_of_birth: '',
+    gender: 'male',
+    physical_address: '',
+    occupation: '',
+    employer: '',
+    next_of_kin_name: '',
+    next_of_kin_phone: '',
+    next_of_kin_relationship: '',
+  });
 
   useEffect(() => {
     fetchMembers();
-  }, [search]);
+  }, []);
 
   const fetchMembers = async () => {
     try {
-      const url = search
-        ? `/api/members?query=${encodeURIComponent(search)}`
-        : '/api/members';
-      const res = await fetch(url);
+      const res = await fetch('/api/members');
       const data = await res.json();
       if (data.success) {
         setMembers(data.data);
       }
-    } catch (err) {
-      console.error('Failed to fetch members:', err);
+    } catch (error) {
+      console.error('Failed to fetch members:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'suspended':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Member registered successfully!' });
+        setFormData({
+          first_name: '',
+          last_name: '',
+          email: '',
+          phone: '',
+          id_number: '',
+          date_of_birth: '',
+          gender: 'male',
+          physical_address: '',
+          occupation: '',
+          employer: '',
+          next_of_kin_name: '',
+          next_of_kin_phone: '',
+          next_of_kin_relationship: '',
+        });
+        setShowForm(false);
+        fetchMembers();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to register member' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to register member' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  const filteredMembers = members.filter((member) => {
+    const matchesSearch =
+      member.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      member.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      member.phone.includes(searchTerm) ||
+      member.member_number.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || member.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      active: 'bg-green-100 text-green-800',
+      pending: 'bg-yellow-100 text-yellow-800',
+      suspended: 'bg-red-100 text-red-800',
+      withdrawn: 'bg-gray-100 text-gray-800',
+      deceased: 'bg-gray-200 text-gray-600',
+    };
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || styles.pending}`}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Members</h1>
-          <a
-            href="/dashboard/members/register"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Register New Member
-          </a>
+    <div className="p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Members</h1>
+          <p className="text-gray-500 mt-1">Manage organization members and registrations</p>
         </div>
-      </header>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+            showForm
+              ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+          }`}
+        >
+          <span>{showForm ? '✕' : '+'}</span>
+          {showForm ? 'Cancel' : 'Register Member'}
+        </button>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Search */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search by name, member number, or phone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full max-w-md px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
+      {/* Message */}
+      {message && (
+        <div className={`mb-6 p-4 rounded-lg ${
+          message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+        }`}>
+          {message.text}
         </div>
+      )}
 
-        {/* Members Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading...</div>
-          ) : members.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              No members found
+      {/* Registration Form */}
+      {showForm && (
+        <div className="bg-white rounded-xl shadow-sm border p-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">New Member Registration</h2>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                <input type="text" name="first_name" value={formData.first_name} onChange={handleInputChange} required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                <input type="text" name="last_name" value={formData.last_name} onChange={handleInputChange} required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" name="email" value={formData.email} onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} required placeholder="0712345678"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
+                <input type="text" name="id_number" value={formData.id_number} onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                <select name="gender" value={formData.gender} onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Physical Address</label>
+                <input type="text" name="physical_address" value={formData.physical_address} onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
             </div>
-          ) : (
-            <table className="min-w-full divide-y divide-gray-200">
+
+            <div className="border-t pt-6">
+              <h3 className="text-md font-medium text-gray-900 mb-4">Employment Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
+                  <input type="text" name="occupation" value={formData.occupation} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Employer</label>
+                  <input type="text" name="employer" value={formData.employer} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-md font-medium text-gray-900 mb-4">Next of Kin</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                  <input type="text" name="next_of_kin_name" value={formData.next_of_kin_name} onChange={handleInputChange} required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                  <input type="tel" name="next_of_kin_phone" value={formData.next_of_kin_phone} onChange={handleInputChange} required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Relationship *</label>
+                  <input type="text" name="next_of_kin_relationship" value={formData.next_of_kin_relationship} onChange={handleInputChange} required placeholder="Spouse, Parent..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="submit" disabled={submitting} className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                {submitting ? 'Registering...' : 'Register Member'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <input type="text" placeholder="Search by name, phone, or member number..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="suspended">Suspended</option>
+            <option value="withdrawn">Withdrawn</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Members Table */}
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-gray-500">Loading members...</div>
+        ) : filteredMembers.length === 0 ? (
+          <div className="p-8 text-center text-gray-500"><span className="text-4xl">👥</span><p className="mt-2">No members found</p></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Member
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Member #
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Phone
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Registered
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Member</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Member #</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Registered</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {members.map((member) => (
+              <tbody className="divide-y divide-gray-200">
+                {filteredMembers.map((member) => (
                   <tr key={member.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <span className="text-blue-700 font-medium">
-                            {member.first_name[0]}{member.last_name[0]}
-                          </span>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-medium">
+                          {member.first_name[0]}{member.last_name[0]}
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {member.first_name} {member.last_name}
-                          </div>
-                          <div className="text-sm text-gray-500">{member.email}</div>
-                        </div>
+                        <div className="font-medium text-gray-900">{member.first_name} {member.last_name}</div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {member.member_number}
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">{member.phone}</div>
+                      {member.email && <div className="text-sm text-gray-500">{member.email}</div>}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {member.phone}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(member.status)}`}>
-                        {member.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(member.registration_date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      <a
-                        href={`/dashboard/members/${member.id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        View
-                      </a>
+                    <td className="px-6 py-4 text-sm text-gray-600">{member.member_number}</td>
+                    <td className="px-6 py-4">{getStatusBadge(member.status)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{new Date(member.registration_date).toLocaleDateString('en-KE')}</td>
+                    <td className="px-6 py-4">
+                      <Link href={`/dashboard/members/${member.id}`} className="text-indigo-600 hover:text-indigo-900 text-sm font-medium">View →</Link>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-      </main>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

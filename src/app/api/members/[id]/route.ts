@@ -1,101 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { memberRegistrationService, transactionEngine } from '@/lib/services';
 import { createClient } from '@/lib/supabase/server';
 
-// GET /api/members/[id] - Get member workspace
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-
-    const workspace = await memberRegistrationService.getWorkspace(id);
-
-    if (!workspace) {
-      return NextResponse.json(
-        { success: false, error: 'Member not found' },
-        { status: 404 }
-      );
-    }
-
-    // Calculate live balances
-    const balances = await transactionEngine.calculateAllBalances(id);
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...workspace,
-        balances,
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching member workspace:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch member' },
-      { status: 500 }
-    );
-  }
-}
-
-// PATCH /api/members/[id] - Update member
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const body = await request.json();
-
     const supabase = await createClient();
-    
-    // Get current values for audit
-    const { data: current } = await supabase
+
+    // Fetch member
+    const { data: member, error: memberError } = await supabase
       .from('members')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (!current) {
-      return NextResponse.json(
-        { success: false, error: 'Member not found' },
-        { status: 404 }
-      );
+    if (memberError || !member) {
+      return NextResponse.json({ success: false, error: 'Member not found' }, { status: 404 });
     }
 
-    // Update
-    const { data: member, error } = await supabase
-      .from('members')
-      .update(body)
-      .eq('id', id)
-      .select()
-      .single();
+    // Fetch accounts
+    const { data: accounts } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('member_id', id);
 
-    if (error || !member) {
-      throw new Error(error?.message || 'Update failed');
-    }
+    // Fetch recent transactions
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('member_id', id)
+      .order('created_at', { ascending: false })
+      .limit(20);
 
-    // Audit
-    await supabase.from('audit_logs').insert({
-      id: crypto.randomUUID(),
-      action: 'members.update',
-      record_id: member.id,
-      user_id: body.user_id || '00000000-0000-0000-0000-000000000000',
-      before_value: current,
-      after_value: member,
-      created_at: new Date().toISOString(),
-    });
+    // Fetch loans
+    const { data: loans } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('member_id', id)
+      .order('application_date', { ascending: false });
+
+    // Fetch fines
+    const { data: fines } = await supabase
+      .from('fines')
+      .select('*')
+      .eq('member_id', id)
+      .order('issued_date', { ascending: false });
+
+    // Calculate balances
+    const savingsAccount = accounts?.find(a => a.account_type === 'savings');
+    const sharesAccount = accounts?.find(a => a.account_type === 'shares');
+    
+    const savingsBalance = savingsAccount?.balance || 0;
+    const sharesBalance = sharesAccount?.balance || 0;
+    
+    // Calculate shares from savings (assuming 1 share = 100 KES)
+    const shareValue = 100;
+    const calculatedShares = Math.floor(savingsBalance / shareValue);
+    
+    const totalLoans = loans?.reduce((sum, l) => sum + (l.amount_due || 0), 0) || 0;
+    const totalContributions = transactions?.filter(t => t.transaction_type === 'contribution').reduce((sum, t) => sum + t.amount, 0) || 0;
 
     return NextResponse.json({
       success: true,
-      message: 'Member updated successfully',
-      data: member,
+      data: {
+        member,
+        accounts: accounts || [],
+        transactions: transactions || [],
+        loans: loans || [],
+        fines: fines || [],
+        savingsBalance,
+        sharesBalance: calculatedShares,
+        totalContributions,
+        totalLoans,
+      },
     });
   } catch (error) {
-    console.error('Error updating member:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to update member' },
-      { status: 500 }
-    );
+    console.error('Error fetching member:', error);
+    return NextResponse.json({ success: false, error: 'Failed to fetch member' }, { status: 500 });
   }
 }

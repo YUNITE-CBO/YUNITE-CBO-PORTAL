@@ -1,49 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { settingsService } from '@/lib/services';
+import { createClient } from '@/lib/supabase/server';
 
-// GET /api/settings - Get all settings
 export async function GET() {
   try {
-    const settings = await settingsService.getAll();
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('settings')
+      .select('*')
+      .order('category', { ascending: true });
 
-    return NextResponse.json({
-      success: true,
-      data: settings,
-    });
+    if (error) throw error;
+
+    // Transform to key-value pairs
+    const settings = data?.reduce((acc, item) => {
+      acc[item.key] = { value: item.value, description: item.description };
+      return acc;
+    }, {} as Record<string, { value: string; description: string | null }>);
+
+    return NextResponse.json({ success: true, data: settings || {} });
   } catch (error) {
-    console.error('Settings error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to load settings' },
-      { status: 500 }
-    );
+    console.error('Error fetching settings:', error);
+    return NextResponse.json({ success: false, error: 'Failed to fetch settings' }, { status: 500 });
   }
 }
 
-// POST /api/settings - Update a setting
-export async function POST(request: NextRequest) {
+export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
+    const supabase = await createClient();
 
-    if (!body.key || body.value === undefined) {
-      return NextResponse.json(
-        { success: false, error: 'Key and value required' },
-        { status: 400 }
-      );
+    const updates = body.settings as Record<string, string>;
+
+    for (const [key, value] of Object.entries(updates)) {
+      const { error } = await supabase
+        .from('settings')
+        .update({ value, updated_at: new Date().toISOString() })
+        .eq('key', key);
+
+      if (error) {
+        // If key doesn't exist, insert it
+        if (error.code === 'PGRST116') {
+          await supabase.from('settings').insert({
+            key,
+            value,
+            category: body.category || 'system',
+            description: null,
+            is_encrypted: false,
+          });
+        }
+      }
     }
 
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
-    const setting = await settingsService.update(body.key, String(body.value), userId);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Setting updated successfully',
-      data: setting,
-    });
+    return NextResponse.json({ success: true, message: 'Settings updated successfully' });
   } catch (error) {
-    console.error('Settings update error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to update setting' },
-      { status: 500 }
-    );
+    console.error('Error updating settings:', error);
+    return NextResponse.json({ success: false, error: 'Failed to update settings' }, { status: 500 });
   }
 }
