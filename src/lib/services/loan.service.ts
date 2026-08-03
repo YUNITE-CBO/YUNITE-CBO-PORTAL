@@ -327,33 +327,17 @@ export class LoanService {
 
     if (error || !updatedLoan) throw new Error('Failed to record repayment');
 
-    // Create a loan repayment transaction
-    const savingsAccount = await this.getOrCreateAccount(loan.member_id, 'savings');
-    const loansAccount = await this.getOrCreateAccount(loan.member_id, 'loans');
+    // Create a single loan repayment transaction
     const transactionRef = `LOAN-RPY-${Date.now()}`;
     
-    // Debit savings (money out of savings account to pay loan)
     await supabase.from('transactions').insert({
       id: uuidv4(),
       transaction_ref: transactionRef,
       member_id: loan.member_id,
-      account_id: savingsAccount.id,
+      account_id: loan.member_id, // Use member_id as reference
       transaction_type: 'loan_repayment',
       amount: amount,
       description: `Loan repayment - ${loan.loan_number} (${newStatus === 'completed' ? 'FULL' : 'PARTIAL'})`,
-      reference_number: loan.loan_number,
-      metadata: { loan_id: loan.id, loan_number: loan.loan_number, is_full_repayment: newStatus === 'completed' },
-    });
-
-    // Credit loans account
-    await supabase.from('transactions').insert({
-      id: uuidv4(),
-      transaction_ref: `${transactionRef}-C`,
-      member_id: loan.member_id,
-      account_id: loansAccount.id,
-      transaction_type: 'loan_repayment',
-      amount: amount,
-      description: `Loan repayment received - ${loan.loan_number}`,
       reference_number: loan.loan_number,
       metadata: { loan_id: loan.id, loan_number: loan.loan_number, is_full_repayment: newStatus === 'completed' },
     });
