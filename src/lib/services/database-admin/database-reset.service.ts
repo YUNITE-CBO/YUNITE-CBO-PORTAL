@@ -215,21 +215,8 @@ export class DatabaseResetService {
   async getDatabaseStats(): Promise<ResetStats> {
     const supabase = await createServiceClient();
     
-    const [
-      transactions,
-      loans,
-      fines,
-      campaigns,
-      accounts,
-      documents,
-      compliance_records,
-      meetings,
-      notifications,
-      reports,
-      members,
-      users,
-      roles,
-    ] = await Promise.all([
+    // Core tables that always exist
+    const coreStats = await Promise.all([
       supabase.from('transactions').select('*', { count: 'exact', head: true }),
       supabase.from('loans').select('*', { count: 'exact', head: true }),
       supabase.from('fines').select('*', { count: 'exact', head: true }),
@@ -237,28 +224,58 @@ export class DatabaseResetService {
       supabase.from('accounts').select('*', { count: 'exact', head: true }),
       supabase.from('documents').select('*', { count: 'exact', head: true }),
       supabase.from('compliance_records').select('*', { count: 'exact', head: true }),
-      supabase.from('meetings').select('*', { count: 'exact', head: true }),
-      supabase.from('notifications').select('*', { count: 'exact', head: true }),
-      supabase.from('reports').select('*', { count: 'exact', head: true }),
       supabase.from('members').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('*', { count: 'exact', head: true }),
-      supabase.from('roles').select('*', { count: 'exact', head: true }),
     ]);
 
+    // Optional tables that may not exist
+    let meetingsCount = 0;
+    let notificationsCount = 0;
+    let reportsCount = 0;
+    let rolesCount = 0;
+
+    try {
+      const meetings = await supabase.from('meetings').select('*', { count: 'exact', head: true });
+      meetingsCount = meetings.count || 0;
+    } catch (e) {
+      console.log('meetings table not found');
+    }
+
+    try {
+      const notifications = await supabase.from('notifications').select('*', { count: 'exact', head: true });
+      notificationsCount = notifications.count || 0;
+    } catch (e) {
+      console.log('notifications table not found');
+    }
+
+    try {
+      const reports = await supabase.from('reports').select('*', { count: 'exact', head: true });
+      reportsCount = reports.count || 0;
+    } catch (e) {
+      console.log('reports table not found');
+    }
+
+    try {
+      const roles = await supabase.from('roles').select('*', { count: 'exact', head: true });
+      rolesCount = roles.count || 0;
+    } catch (e) {
+      console.log('roles table not found');
+    }
+
     return {
-      transactions: transactions.count || 0,
-      loans: loans.count || 0,
-      fines: fines.count || 0,
-      campaigns: campaigns.count || 0,
-      accounts: accounts.count || 0,
-      documents: documents.count || 0,
-      compliance_records: compliance_records.count || 0,
-      meetings: meetings.count || 0,
-      notifications: notifications.count || 0,
-      reports: reports.count || 0,
-      members: members.count || 0,
-      users: users.count || 0,
-      roles: roles.count || 0,
+      transactions: coreStats[0].count || 0,
+      loans: coreStats[1].count || 0,
+      fines: coreStats[2].count || 0,
+      campaigns: coreStats[3].count || 0,
+      accounts: coreStats[4].count || 0,
+      documents: coreStats[5].count || 0,
+      compliance_records: coreStats[6].count || 0,
+      meetings: meetingsCount,
+      notifications: notificationsCount,
+      reports: reportsCount,
+      members: coreStats[7].count || 0,
+      users: coreStats[8].count || 0,
+      roles: rolesCount,
     };
   }
 
@@ -325,25 +342,41 @@ export class DatabaseResetService {
     const config = RESET_LEVEL_CONFIG[level];
     const archivedStats: Partial<ResetStats> = {};
     
+    // Try to create archives table if it doesn't exist
+    let archivesAvailable = true;
+    try {
+      await supabase.from('archives').select('id').limit(1);
+    } catch (e) {
+      console.log('Archives table not available, skipping archive creation');
+      archivesAvailable = false;
+    }
+    
     // Archive each table
     for (const table of config.tables_to_delete) {
-      const { data, error } = await supabase
-        .from(table as any)
-        .select('*');
-      
-      if (data && data.length > 0) {
-        // Insert into archive table
-        await supabase.from('archives').insert({
-          id: uuidv4(),
-          archive_id: archiveId,
-          table_name: table,
-          records: data,
-          reset_level: level,
-          created_at: new Date().toISOString(),
-        });
+      try {
+        const { data, error } = await supabase
+          .from(table as any)
+          .select('*');
         
-        (archivedStats as any)[`archived_${table}`] = data.length;
-        console.log(`✓ Archived ${data.length} records from ${table}`);
+        if (data && data.length > 0 && archivesAvailable) {
+          // Insert into archive table
+          await supabase.from('archives').insert({
+            id: uuidv4(),
+            archive_id: archiveId,
+            table_name: table,
+            records: data,
+            reset_level: level,
+            record_count: data.length,
+            created_at: new Date().toISOString(),
+          });
+          
+          (archivedStats as any)[`archived_${table}`] = data.length;
+          console.log(`✓ Archived ${data.length} records from ${table}`);
+        } else if (data && data.length > 0) {
+          console.log(`⚠ Table ${table} has ${data.length} records but archives table not available`);
+        }
+      } catch (e) {
+        console.log(`⚠ Table ${table} not found, skipping archive`);
       }
     }
     
@@ -496,10 +529,15 @@ export class DatabaseResetService {
         report: this.resetReport,
       });
 
-      // Save report to database
-      await supabase.from('reset_reports').insert({
-        ...this.resetReport,
-      });
+      // Save report to database (if table exists)
+      try {
+        await supabase.from('reset_reports').insert({
+          ...this.resetReport,
+        });
+        console.log('✓ Reset report saved');
+      } catch (e) {
+        console.log('⚠ reset_reports table not available, skipping report save');
+      }
 
       this.emitProgress({
         phase: 'Complete',
@@ -563,7 +601,7 @@ export class DatabaseResetService {
   private async deleteOperationalRecords(): Promise<void> {
     const supabase = await createServiceClient();
     
-    const tables = ['documents', 'compliance_records', 'meetings', 'notifications', 'reports'];
+    const tables = ['documents', 'compliance_records'];
     
     for (const table of tables) {
       try {
@@ -582,6 +620,27 @@ export class DatabaseResetService {
         console.log(`⚠ Table ${table} does not exist, skipping`);
       }
     }
+
+    // Additional tables that may not exist
+    const optionalTables = ['meetings', 'notifications', 'reports', 'meeting_attendance'];
+    
+    for (const table of optionalTables) {
+      try {
+        const { error } = await supabase
+          .from(table as any)
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+        
+        if (error) {
+          console.warn(`Warning deleting ${table}:`, error.message);
+        } else {
+          console.log(`✓ Deleted all records from ${table}`);
+        }
+      } catch (e) {
+        // Table doesn't exist, skip
+        console.log(`⚠ Table ${table} does not exist, skipping`);
+      }
+    }
   }
 
   /**
@@ -592,8 +651,16 @@ export class DatabaseResetService {
     
     // First archive members and users before deletion
     const archiveId = this.resetReport?.archive_id;
+    let archivesAvailable = true;
     
-    if (archiveId) {
+    try {
+      await supabase.from('archives').select('id').limit(1);
+    } catch (e) {
+      console.log('Archives table not available');
+      archivesAvailable = false;
+    }
+    
+    if (archiveId && archivesAvailable) {
       // Archive members
       const { data: members } = await supabase.from('members').select('*');
       if (members && members.length > 0) {
@@ -602,9 +669,11 @@ export class DatabaseResetService {
           archive_id: archiveId,
           table_name: 'members',
           records: members,
+          record_count: members.length,
           reset_level: 'level_3_organization',
           created_at: new Date().toISOString(),
         });
+        console.log(`✓ Archived ${members.length} members`);
       }
       
       // Archive users (except super admin)
@@ -615,19 +684,21 @@ export class DatabaseResetService {
           archive_id: archiveId,
           table_name: 'users',
           records: users,
+          record_count: users.length,
           reset_level: 'level_3_organization',
           created_at: new Date().toISOString(),
         });
+        console.log(`✓ Archived ${users.length} users`);
       }
     }
     
     // Delete non-super-admin users
     await supabase.from('users').delete().neq('role', 'super_admin');
-    console.log('✓ Archived and deleted non-admin users');
+    console.log('✓ Deleted non-admin users');
     
     // Delete members
     await supabase.from('members').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    console.log('✓ Archived and deleted all members');
+    console.log('✓ Deleted all members');
   }
 
   /**

@@ -42,11 +42,12 @@ interface DataStats {
     accounts: number;
     documents: number;
     compliance_records: number;
-    meetings?: number;
-    notifications?: number;
-    reports?: number;
-    members?: number;
-    users?: number;
+    meetings: number;
+    notifications: number;
+    reports: number;
+    members: number;
+    users: number;
+    roles: number;
   };
   will_be_preserved: {
     members: number;
