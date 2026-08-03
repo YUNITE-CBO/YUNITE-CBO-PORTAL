@@ -74,11 +74,15 @@ export class LoanService {
     const totalAmount = application.principal_amount + interestAmount;
     const monthlyRepayment = totalAmount / repaymentPeriod;
 
+    // Generate loan number
+    const loanNumber = `LN-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
     // Create loan record
     const { data: loan, error } = await supabase
       .from('loans')
       .insert({
         id: uuidv4(),
+        loan_number: loanNumber,
         member_id: application.member_id,
         loan_type: application.loan_type,
         principal_amount: application.principal_amount,
