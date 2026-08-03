@@ -271,6 +271,29 @@ export class TransactionEngine {
       }
     }
 
+    // SPECIAL HANDLING FOR FINE POSTINGS (issuing a fine)
+    // When reversing a fine posting, we need to mark the fine as waived
+    if (original.transaction_type === 'fine_posting' && original.metadata?.fine_id) {
+      const fineId = original.metadata.fine_id;
+      console.log('Reversing fine posting for fine:', fineId);
+      
+      const { error: fineUpdateError } = await supabase
+        .from('fines')
+        .update({
+          status: 'waived',
+          waived_by: userId,
+          waived_at: new Date().toISOString(),
+          waiver_reason: `Reversed: ${reason}`,
+        })
+        .eq('id', fineId);
+
+      if (fineUpdateError) {
+        console.error('Error waiving fine:', fineUpdateError);
+      } else {
+        console.log('Fine waived:', { fineId });
+      }
+    }
+
     // SPECIAL HANDLING FOR FINE PAYMENTS
     // Need to update the fine record to reverse the payment
     if (original.transaction_type === 'fine_payment' && original.metadata?.fine_id) {

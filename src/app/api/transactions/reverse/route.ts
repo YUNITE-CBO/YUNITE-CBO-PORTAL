@@ -62,9 +62,9 @@ export async function POST(request: NextRequest) {
       updatedLoans = loan;
     }
 
-    // Get updated fine data if this was a fine payment
+    // Get updated fine data if this was a fine payment or fine posting
     let updatedFine = null;
-    if (original.transaction_type === 'fine_payment' && original.metadata?.fine_id) {
+    if ((original.transaction_type === 'fine_payment' || original.transaction_type === 'fine_posting') && original.metadata?.fine_id) {
       const { data: fine } = await supabase
         .from('fines')
         .select('*')
