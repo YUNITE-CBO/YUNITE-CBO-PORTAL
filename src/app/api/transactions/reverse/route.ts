@@ -51,9 +51,9 @@ export async function POST(request: NextRequest) {
     // Get updated member data with balances
     const memberBalances = result.balances;
     
-    // Get updated loans data if this was a loan repayment
+    // Get updated loans data if this was a loan repayment or disbursement
     let updatedLoans = null;
-    if (original.transaction_type === 'loan_repayment' && original.metadata?.loan_id) {
+    if ((original.transaction_type === 'loan_repayment' || original.transaction_type === 'loan_disbursement') && original.metadata?.loan_id) {
       const { data: loan } = await supabase
         .from('loans')
         .select('*')

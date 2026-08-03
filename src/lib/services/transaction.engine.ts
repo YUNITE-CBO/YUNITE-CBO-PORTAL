@@ -198,6 +198,37 @@ export class TransactionEngine {
       console.log('Original transaction marked as reversed');
     }
 
+    // SPECIAL HANDLING FOR LOAN DISBURSEMENTS
+    // Reverse the disbursement effect on loan
+    if (original.transaction_type === 'loan_disbursement' && original.metadata?.loan_id) {
+      const loanId = original.metadata.loan_id;
+      console.log('Reversing loan disbursement for loan:', loanId);
+      
+      const { data: loan } = await supabase
+        .from('loans')
+        .select('*')
+        .eq('id', loanId)
+        .single();
+
+      if (loan) {
+        // Revert loan status to approved (awaiting actual disbursement)
+        const { error: loanUpdateError } = await supabase
+          .from('loans')
+          .update({
+            status: 'approved',
+            disbursement_date: null,
+            disbursed_by: null,
+          })
+          .eq('id', loanId);
+        
+        if (loanUpdateError) {
+          console.error('Error reverting loan disbursement:', loanUpdateError);
+        } else {
+          console.log('Loan disbursement reverted:', { loanId });
+        }
+      }
+    }
+
     // SPECIAL HANDLING FOR LOAN REPAYMENTS
     if (original.transaction_type === 'loan_repayment' && original.metadata?.loan_id) {
       const loanId = original.metadata.loan_id;
@@ -210,14 +241,23 @@ export class TransactionEngine {
         .single();
 
       if (loan) {
-        const newAmountPaid = Number(loan.amount_paid) - Number(original.amount);
+        // Reverse the payment effect on loan
+        const newAmountPaid = Math.max(0, Number(loan.amount_paid) - Number(original.amount));
         const newAmountDue = Number(loan.total_amount) - newAmountPaid;
-        const newStatus = newAmountPaid <= 0 ? 'disbursed' : 'active';
+        
+        // Determine new status based on payment state
+        let newStatus = 'active';
+        if (newAmountPaid <= 0) {
+          newStatus = 'disbursed'; // No payments made yet
+        } else if (newAmountDue <= 0) {
+          newStatus = 'completed'; // Fully paid
+        }
+        // else 'active' - partially paid
 
         const { error: loanUpdateError } = await supabase
           .from('loans')
           .update({
-            amount_paid: Math.max(0, newAmountPaid),
+            amount_paid: newAmountPaid,
             amount_due: Math.max(0, newAmountDue),
             status: newStatus,
           })
@@ -244,33 +284,32 @@ export class TransactionEngine {
         .single();
 
       if (fine) {
-        // Reverse the payment effect on fine
-        const newAmountPaid = Math.max(0, Number(fine.amount_paid) - Number(original.amount));
-        // Calculate the original amount_paid before this payment
-        const originalAmountPaid = Number(fine.amount_paid);
-        const paymentAmount = Number(original.amount);
-        const priorAmountPaid = originalAmountPaid - paymentAmount;
+        // The fine.amount_paid currently INCLUDES this payment
+        // Subtract the payment amount to get the prior state
+        const priorAmountPaid = Math.max(0, Number(fine.amount_paid) - Number(original.amount));
         
         // Determine status based on what's been paid
-        let newStatus = fine.status;
-        if (priorAmountPaid <= 0) {
-          newStatus = 'pending';
-        } else if (newAmountPaid >= Number(fine.amount)) {
+        let newStatus = 'pending';
+        if (priorAmountPaid >= Number(fine.amount)) {
           newStatus = 'paid';
-        } else if (newAmountPaid > 0) {
+        } else if (priorAmountPaid > 0) {
           newStatus = 'partial';
         }
+        // If priorAmountPaid <= 0, status stays 'pending'
+
+        // Clear paid_date if status is not 'paid'
+        const paidDate = newStatus === 'paid' ? fine.paid_date : null;
 
         const { error: fineUpdateError } = await supabase.from('fines').update({
-          amount_paid: newAmountPaid,
+          amount_paid: priorAmountPaid,
           status: newStatus,
-          paid_date: newStatus === 'paid' ? null : fine.paid_date,
+          paid_date: paidDate,
         }).eq('id', fineId);
 
         if (fineUpdateError) {
           console.error('Error updating fine:', fineUpdateError);
         } else {
-          console.log('Fine updated:', { newAmountPaid, newStatus });
+          console.log('Fine updated:', { priorAmountPaid, newStatus });
         }
       }
     }
@@ -282,15 +321,21 @@ export class TransactionEngine {
       const campaignId = original.metadata.campaign_id;
       console.log('Reversing contribution for campaign:', campaignId);
       
-      // Recalculate campaign totals from non-reversed transactions
-      const { data: allTxns } = await supabase
+      // Recalculate campaign totals from non-reversed transactions of THIS campaign
+      // Filter by both transaction_type AND campaign_id in metadata
+      const { data: campaignTxns } = await supabase
         .from('transactions')
-        .select('id, amount')
+        .select('id, amount, metadata')
         .eq('transaction_type', original.transaction_type)
         .eq('reversed', false);
 
-      const totalAmount = allTxns?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
-      const count = allTxns?.length || 0;
+      // Filter transactions that belong to this specific campaign
+      const relevantTxns = campaignTxns?.filter(t => 
+        t.metadata && typeof t.metadata === 'object' && (t.metadata as any).campaign_id === campaignId
+      ) || [];
+
+      const totalAmount = relevantTxns.reduce((sum, t) => sum + Number(t.amount), 0);
+      const count = relevantTxns.length;
 
       const { error: campaignUpdateError } = await supabase.from('campaigns').update({
         collected_amount: totalAmount,
@@ -300,7 +345,7 @@ export class TransactionEngine {
       if (campaignUpdateError) {
         console.error('Error updating campaign:', campaignUpdateError);
       } else {
-        console.log('Campaign updated:', { totalAmount, count });
+        console.log('Campaign updated:', { campaignId, totalAmount, count });
       }
     }
 
