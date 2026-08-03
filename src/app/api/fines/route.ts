@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 const fineSchema = z.object({
   member_id: z.string().uuid(),
-  fine_type: z.enum(['meeting_absence', 'late_payment', 'penalty', 'manual']),
+  fine_type: z.enum(['late_payment', 'missing_meeting', 'non_compliance', 'documentation', 'misconduct', 'share_shortfall', 'loan_default', 'other', 'penalty', 'manual']),
   amount: z.number().positive(),
   reason: z.string().min(1),
   due_date: z.string().optional(),
