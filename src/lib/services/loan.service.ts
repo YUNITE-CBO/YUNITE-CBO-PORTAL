@@ -244,6 +244,13 @@ export class LoanService {
 
     if (!loan) throw new Error('Loan not found or not approved');
 
+    // Get or create loans account for this member
+    const loansAccount = await this.getOrCreateAccount(loan.member_id, 'loans');
+
+    // Calculate current loan balance (from amount_due)
+    const balanceBefore = Number(loan.amount_due);
+    const balanceAfter = Number(loan.amount_due); // No change until repayment
+
     // Update loan status
     const { data: updatedLoan, error } = await supabase
       .from('loans')
@@ -258,9 +265,8 @@ export class LoanService {
 
     if (error || !updatedLoan) throw new Error('Failed to disburse loan');
 
-    // Create a loan account transaction (debit - this is money out)
-    const loansAccount = await this.getOrCreateAccount(loan.member_id, 'loans');
-    const transactionRef = `LOAN-DISB-${Date.now()}`;
+    // Create a loan disbursement transaction record
+    const transactionRef = `LOAN-DISB-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     
     await supabase.from('transactions').insert({
       id: uuidv4(),
@@ -269,8 +275,12 @@ export class LoanService {
       account_id: loansAccount.id,
       transaction_type: 'loan_disbursement',
       amount: loan.principal_amount,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
       description: `Loan disbursement - ${loan.loan_number}`,
       reference_number: loan.loan_number,
+      posted_by: userId,
+      reversed: false,
       metadata: { loan_id: loan.id },
     });
 
