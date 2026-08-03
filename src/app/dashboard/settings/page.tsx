@@ -34,24 +34,19 @@ interface SettingsData {
 }
 
 interface DataStats {
-  will_be_deleted: {
-    transactions: number;
-    loans: number;
-    fines: number;
-    campaigns: number;
-    accounts: number;
-    documents: number;
-    compliance_records: number;
-    meetings: number;
-    notifications: number;
-    reports: number;
-    members: number;
-    users: number;
-    roles: number;
-  };
-  will_be_preserved: {
-    members: number;
-  };
+  transactions: number;
+  loans: number;
+  fines: number;
+  campaigns: number;
+  accounts: number;
+  documents: number;
+  compliance_records: number;
+  meetings: number;
+  notifications: number;
+  reports: number;
+  members: number;
+  users: number;
+  roles: number;
 }
 
 interface ResetLevel {
@@ -306,15 +301,10 @@ export default function SettingsPage() {
       if (data.success && data.data) {
         setDataStats(data.data.database_stats);
         setSystemState(data.data.system_state);
-        setResetLevels(data.data.reset_levels || []);
         console.log('Database reset info loaded:', data.data);
-      } else {
-        console.error('Failed to load database reset info:', data.error);
-        setError(data.error || 'Failed to load database reset information');
       }
     } catch (err) {
       console.error('Failed to fetch database reset info:', err);
-      setError('Failed to connect to database reset service');
     }
   }, []);
 
@@ -333,7 +323,7 @@ export default function SettingsPage() {
   }, []);
 
   // Open database reset wizard
-  const handleOpenResetWizard = () => {
+  const handleOpenResetWizard = useCallback(() => {
     setShowResetWizard(true);
     setResetStep('select_level');
     setSelectedLevel(null);
@@ -344,10 +334,7 @@ export default function SettingsPage() {
     setResetProgress(null);
     setResetResult(null);
     setError(null);
-    
-    // Fetch data in background
-    fetchDatabaseResetInfo();
-  };
+  }, []);
 
   // Proceed to review step
   const handleProceedToReview = (level: ResetLevel) => {
@@ -1093,7 +1080,7 @@ export default function SettingsPage() {
                 <span className="text-gray-500">Total Records</span>
                 <p className="font-medium text-gray-900">
                   {dataStats 
-                    ? Object.values(dataStats.will_be_deleted).reduce((a, b) => a + (b || 0), 0) + (dataStats.will_be_preserved.members || 0)
+                    ? Object.values(dataStats).reduce((a, b) => a + (b || 0), 0)
                     : '...'}
                 </p>
               </div>
