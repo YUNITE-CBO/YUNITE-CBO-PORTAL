@@ -33,12 +33,33 @@ interface SettingsData {
   membership: MembershipSettings;
 }
 
+interface DataStats {
+  will_be_deleted: {
+    transactions: number;
+    loans: number;
+    fines: number;
+    campaigns: number;
+    accounts: number;
+    documents: number;
+    compliance_records: number;
+  };
+  will_be_preserved: {
+    members: number;
+  };
+}
+
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'organization' | 'financial' | 'membership'>('organization');
+  const [activeTab, setActiveTab] = useState<'organization' | 'financial' | 'membership' | 'system'>('organization');
+  
+  // Reset data state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [dataStats, setDataStats] = useState<DataStats | null>(null);
   const [settings, setSettings] = useState<SettingsData>({
     organization: {
       name: '',
@@ -197,6 +218,63 @@ export default function SettingsPage() {
     }
   };
 
+  // Fetch data statistics for reset
+  const fetchDataStats = async () => {
+    try {
+      const res = await fetch('/api/settings/reset-data');
+      const data = await res.json();
+      if (data.success) {
+        setDataStats(data.data);
+      }
+    } catch {
+      console.error('Failed to fetch data stats');
+    }
+  };
+
+  // Open reset modal
+  const handleOpenResetModal = () => {
+    fetchDataStats();
+    setShowResetModal(true);
+    setResetConfirmText('');
+  };
+
+  // Handle data reset
+  const handleResetData = async () => {
+    if (resetConfirmText !== 'RESET ALL DATA') {
+      setError('Please type "RESET ALL DATA" to confirm');
+      return;
+    }
+
+    setResetting(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/settings/reset-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirm_reset: true,
+          user_id: '00000000-0000-0000-0000-000000000000',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSuccess('All financial data has been reset successfully!');
+        setShowResetModal(false);
+        fetchDataStats(); // Refresh stats
+        setTimeout(() => setSuccess(null), 5000);
+      } else {
+        setError(data.error || 'Failed to reset data');
+      }
+    } catch {
+      setError('Failed to reset data');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8">
@@ -261,6 +339,16 @@ export default function SettingsPage() {
             }`}
           >
             👥 Membership
+          </button>
+          <button
+            onClick={() => setActiveTab('system')}
+            className={`px-6 py-4 text-sm font-medium transition-colors ${
+              activeTab === 'system'
+                ? 'text-red-600 border-b-2 border-red-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            ⚙️ System
           </button>
         </div>
       </div>
@@ -674,6 +762,178 @@ export default function SettingsPage() {
                 </>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* System Settings - Reset Data */}
+      {activeTab === 'system' && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">System Operations</h2>
+          
+          {/* Data Statistics */}
+          <div className="mb-8">
+            <h3 className="text-sm font-medium text-gray-700 mb-4">Current Data Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {dataStats?.will_be_deleted.transactions || '...'}
+                </p>
+                <p className="text-xs text-gray-500">Transactions</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {dataStats?.will_be_deleted.loans || '...'}
+                </p>
+                <p className="text-xs text-gray-500">Loans</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {dataStats?.will_be_deleted.fines || '...'}
+                </p>
+                <p className="text-xs text-gray-500">Fines</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {dataStats?.will_be_deleted.accounts || '...'}
+                </p>
+                <p className="text-xs text-gray-500">Accounts</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {dataStats?.will_be_preserved.members || '...'}
+                </p>
+                <p className="text-xs text-gray-500">Members (Preserved)</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {dataStats?.will_be_deleted.campaigns || '...'}
+                </p>
+                <p className="text-xs text-gray-500">Campaigns</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {dataStats?.will_be_deleted.documents || '...'}
+                </p>
+                <p className="text-xs text-gray-500">Documents</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {dataStats?.will_be_deleted.compliance_records || '...'}
+                </p>
+                <p className="text-xs text-gray-500">Compliance Records</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Reset Data Section */}
+          <div className="border-t pt-6">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="text-4xl">⚠️</div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-red-900">Danger Zone - Reset All Financial Data</h3>
+                  <p className="mt-2 text-sm text-red-700">
+                    This action will permanently delete all financial records including transactions, loans, fines, 
+                    contributions, and accounts. <strong>Members will be preserved</strong> but their financial 
+                    balances will be reset to zero.
+                  </p>
+                  <p className="mt-2 text-sm text-red-700">
+                    <strong>This action cannot be undone!</strong> Make sure to backup your data before proceeding.
+                  </p>
+                  
+                  <button
+                    onClick={handleOpenResetModal}
+                    className="mt-4 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                  >
+                    <span>🗑️</span>
+                    Reset All Financial Data
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Data Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="bg-red-600 px-6 py-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <span>⚠️</span>
+                Confirm Data Reset
+              </h3>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4">
+                You are about to reset all financial data. This will delete:
+              </p>
+              <ul className="text-sm text-gray-700 space-y-1 mb-4">
+                <li>• {dataStats?.will_be_deleted.transactions || 0} transactions</li>
+                <li>• {dataStats?.will_be_deleted.loans || 0} loans</li>
+                <li>• {dataStats?.will_be_deleted.fines || 0} fines</li>
+                <li>• {dataStats?.will_be_deleted.accounts || 0} member accounts</li>
+                <li>• {dataStats?.will_be_deleted.campaigns || 0} campaigns</li>
+                <li>• {dataStats?.will_be_deleted.documents || 0} documents</li>
+                <li>• {dataStats?.will_be_deleted.compliance_records || 0} compliance records</li>
+              </ul>
+              <p className="text-sm text-gray-600 mb-4">
+                <strong>{dataStats?.will_be_preserved.members || 0} members</strong> will be preserved.
+              </p>
+              
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Type <span className="font-bold text-red-600">RESET ALL DATA</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  placeholder="RESET ALL DATA"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono"
+                />
+              </div>
+              
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {error}
+                </div>
+              )}
+            </div>
+            
+            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowResetModal(false);
+                  setResetConfirmText('');
+                  setError(null);
+                }}
+                disabled={resetting}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetData}
+                disabled={resetting || resetConfirmText !== 'RESET ALL DATA'}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {resetting ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <span>🗑️</span>
+                    Reset Data
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
