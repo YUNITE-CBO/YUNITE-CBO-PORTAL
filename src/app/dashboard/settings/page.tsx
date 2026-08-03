@@ -166,6 +166,7 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchSession();
     fetchSettings();
+    fetchDatabaseResetInfo();
   }, []);
 
   const fetchSession = async () => {

@@ -281,15 +281,18 @@ export class DatabaseResetService {
 
   /**
    * Get current system state (balances)
+   * Uses the same calculation logic as TransactionEngine for consistency
    */
   async getSystemState(): Promise<ResetReport['system_state']> {
     const supabase = await createServiceClient();
     
-    // Calculate total balances from transactions
+    // Get all non-reversed transactions, excluding reversal transactions themselves
+    // This matches the TransactionEngine.calculateBalance() logic
     const { data: txns } = await supabase
       .from('transactions')
       .select('transaction_type, amount')
-      .eq('reversed', false);
+      .eq('reversed', false)
+      .neq('transaction_type', 'reversal');
 
     let savings = 0;
     let contributions = 0;
@@ -297,33 +300,44 @@ export class DatabaseResetService {
     let fines = 0;
     let welfare = 0;
 
+    // Debit transaction types (subtract from balance)
+    const debitTypes = [
+      'savings_withdrawal', 'registration_fee', 'annual_fee',
+      'welfare_disbursement', 'fine_payment', 'loan_disbursement'
+    ];
+
     if (txns) {
       for (const txn of txns) {
         const amount = Number(txn.amount);
         const type = txn.transaction_type;
         
+        const isDebit = debitTypes.includes(type);
+        
         if (['savings_deposit', 'savings_withdrawal'].includes(type)) {
-          savings += type === 'savings_deposit' ? amount : -amount;
+          savings += isDebit ? -amount : amount;
         } else if (['contribution_monthly', 'contribution_special', 'contribution_development'].includes(type)) {
           contributions += amount;
         } else if (['loan_disbursement', 'loan_repayment'].includes(type)) {
-          loans += type === 'loan_disbursement' ? amount : -amount;
+          loans += isDebit ? -amount : amount;
         } else if (['fine_posting', 'fine_payment'].includes(type)) {
-          fines += type === 'fine_posting' ? amount : -amount;
+          fines += isDebit ? -amount : amount;
         } else if (['welfare_deposit', 'welfare_disbursement'].includes(type)) {
-          welfare += type === 'welfare_deposit' ? amount : -amount;
+          welfare += isDebit ? -amount : amount;
         }
       }
     }
 
+    // Get active accounts count
     const { count: accountsCount } = await supabase
       .from('accounts')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'active');
 
     return {
       savings_balance: Math.max(0, savings),
       contributions_balance: Math.max(0, contributions),
-      loans_balance: Math.max(0, loans),
+      // Loans can be positive (outstanding) or negative (overpaid) - show actual value
+      loans_balance: loans,
       fines_balance: Math.max(0, fines),
       welfare_balance: Math.max(0, welfare),
       accounts_count: accountsCount || 0,
