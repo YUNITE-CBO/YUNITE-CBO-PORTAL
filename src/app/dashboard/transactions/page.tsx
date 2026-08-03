@@ -71,6 +71,7 @@ export default function TransactionsPage() {
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [reverseTransaction, setReverseTransaction] = useState<Transaction | null>(null);
   const [reverseReason, setReverseReason] = useState('');
+  const [memberBalances, setMemberBalances] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
@@ -160,9 +161,21 @@ export default function TransactionsPage() {
     }
   };
 
-  const handleReverseClick = (tx: Transaction) => {
+  const handleReverseClick = async (tx: Transaction) => {
     setReverseTransaction(tx);
     setReverseReason('');
+    
+    // Fetch member balances for display
+    try {
+      const res = await fetch(`/api/members/${tx.member_id}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setMemberBalances(data.data.balances || data.data);
+      }
+    } catch {
+      console.error('Failed to fetch balances');
+    }
+    
     setShowReverseModal(true);
   };
 
@@ -190,8 +203,14 @@ export default function TransactionsPage() {
       if (data.success) {
         setShowReverseModal(false);
         setSubmitSuccess(true);
-        fetchData();
-        setTimeout(() => setSubmitSuccess(false), 3000);
+        setMemberBalances(data.data?.balances); // Show updated balances
+        fetchData(); // Refresh transactions list
+        
+        // Auto-hide success and balances after 5 seconds
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          setMemberBalances(null);
+        }, 5000);
       } else {
         setError(data.error || 'Failed to reverse transaction');
       }
@@ -331,6 +350,22 @@ export default function TransactionsPage() {
             {submitSuccess && (
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
                 Transaction posted successfully!
+                {memberBalances && (
+                  <div className="mt-2 pt-2 border-t border-green-200 text-xs">
+                    <p className="font-medium">Updated Balances:</p>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      {memberBalances.savings !== undefined && (
+                        <span>Savings: {formatCurrency(memberBalances.savings)}</span>
+                      )}
+                      {memberBalances.contributions !== undefined && (
+                        <span>Contributions: {formatCurrency(memberBalances.contributions)}</span>
+                      )}
+                      {memberBalances.loans !== undefined && (
+                        <span>Loans: {formatCurrency(memberBalances.loans)}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
