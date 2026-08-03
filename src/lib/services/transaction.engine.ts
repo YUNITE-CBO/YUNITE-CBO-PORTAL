@@ -231,6 +231,79 @@ export class TransactionEngine {
       }
     }
 
+    // SPECIAL HANDLING FOR FINE PAYMENTS
+    // Need to update the fine record to reverse the payment
+    if (original.transaction_type === 'fine_payment' && original.metadata?.fine_id) {
+      const fineId = original.metadata.fine_id;
+      console.log('Reversing fine payment for fine:', fineId);
+      
+      const { data: fine } = await supabase
+        .from('fines')
+        .select('*')
+        .eq('id', fineId)
+        .single();
+
+      if (fine) {
+        // Reverse the payment effect on fine
+        const newAmountPaid = Math.max(0, Number(fine.amount_paid) - Number(original.amount));
+        // Calculate the original amount_paid before this payment
+        const originalAmountPaid = Number(fine.amount_paid);
+        const paymentAmount = Number(original.amount);
+        const priorAmountPaid = originalAmountPaid - paymentAmount;
+        
+        // Determine status based on what's been paid
+        let newStatus = fine.status;
+        if (priorAmountPaid <= 0) {
+          newStatus = 'pending';
+        } else if (newAmountPaid >= Number(fine.amount)) {
+          newStatus = 'paid';
+        } else if (newAmountPaid > 0) {
+          newStatus = 'partial';
+        }
+
+        const { error: fineUpdateError } = await supabase.from('fines').update({
+          amount_paid: newAmountPaid,
+          status: newStatus,
+          paid_date: newStatus === 'paid' ? null : fine.paid_date,
+        }).eq('id', fineId);
+
+        if (fineUpdateError) {
+          console.error('Error updating fine:', fineUpdateError);
+        } else {
+          console.log('Fine updated:', { newAmountPaid, newStatus });
+        }
+      }
+    }
+
+    // SPECIAL HANDLING FOR CONTRIBUTIONS
+    // Need to recalculate campaign totals if this was a campaign contribution
+    const contributionTypes = ['contribution_monthly', 'contribution_special', 'contribution_development'];
+    if (contributionTypes.includes(original.transaction_type) && original.metadata?.campaign_id) {
+      const campaignId = original.metadata.campaign_id;
+      console.log('Reversing contribution for campaign:', campaignId);
+      
+      // Recalculate campaign totals from non-reversed transactions
+      const { data: allTxns } = await supabase
+        .from('transactions')
+        .select('id, amount')
+        .eq('transaction_type', original.transaction_type)
+        .eq('reversed', false);
+
+      const totalAmount = allTxns?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+      const count = allTxns?.length || 0;
+
+      const { error: campaignUpdateError } = await supabase.from('campaigns').update({
+        collected_amount: totalAmount,
+        contribution_count: count,
+      }).eq('id', campaignId);
+
+      if (campaignUpdateError) {
+        console.error('Error updating campaign:', campaignUpdateError);
+      } else {
+        console.log('Campaign updated:', { totalAmount, count });
+      }
+    }
+
     // Audit log
     await supabase.from('audit_logs').insert({
       id: uuidv4(),

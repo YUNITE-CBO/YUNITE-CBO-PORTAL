@@ -62,6 +62,29 @@ export async function POST(request: NextRequest) {
       updatedLoans = loan;
     }
 
+    // Get updated fine data if this was a fine payment
+    let updatedFine = null;
+    if (original.transaction_type === 'fine_payment' && original.metadata?.fine_id) {
+      const { data: fine } = await supabase
+        .from('fines')
+        .select('*')
+        .eq('id', original.metadata.fine_id)
+        .single();
+      updatedFine = fine;
+    }
+
+    // Get updated campaign data if this was a contribution
+    let updatedCampaign = null;
+    const contributionTypes = ['contribution_monthly', 'contribution_special', 'contribution_development'];
+    if (contributionTypes.includes(original.transaction_type) && original.metadata?.campaign_id) {
+      const { data: campaign } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', original.metadata.campaign_id)
+        .single();
+      updatedCampaign = campaign;
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Transaction reversed successfully',
@@ -69,6 +92,8 @@ export async function POST(request: NextRequest) {
         reversal: result.reversal,
         balances: memberBalances,
         updatedLoans,
+        updatedFine,
+        updatedCampaign,
         transactionType: original.transaction_type,
       },
     });
