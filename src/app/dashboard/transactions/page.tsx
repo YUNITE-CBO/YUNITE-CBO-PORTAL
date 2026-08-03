@@ -68,6 +68,9 @@ export default function TransactionsPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [showReverseModal, setShowReverseModal] = useState(false);
+  const [reverseTransaction, setReverseTransaction] = useState<Transaction | null>(null);
+  const [reverseReason, setReverseReason] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -157,8 +160,15 @@ export default function TransactionsPage() {
     }
   };
 
-  const handleDeleteTransaction = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this transaction? This cannot be undone.')) {
+  const handleReverseClick = (tx: Transaction) => {
+    setReverseTransaction(tx);
+    setReverseReason('');
+    setShowReverseModal(true);
+  };
+
+  const handleReverseTransaction = async () => {
+    if (!reverseTransaction || !reverseReason.trim()) {
+      setError('Please provide a reason for reversal');
       return;
     }
 
@@ -166,21 +176,27 @@ export default function TransactionsPage() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/transactions?id=${id}`, {
-        method: 'DELETE',
+      const res = await fetch('/api/transactions/reverse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_id: reverseTransaction.id,
+          reason: reverseReason.trim(),
+        }),
       });
 
       const data = await res.json();
 
       if (data.success) {
+        setShowReverseModal(false);
         setSubmitSuccess(true);
         fetchData();
         setTimeout(() => setSubmitSuccess(false), 3000);
       } else {
-        setError(data.error || 'Failed to delete transaction');
+        setError(data.error || 'Failed to reverse transaction');
       }
     } catch {
-      setError('Failed to delete transaction');
+      setError('Failed to reverse transaction');
     } finally {
       setSubmitting(false);
     }
@@ -441,7 +457,7 @@ export default function TransactionsPage() {
                         <span className="text-xs text-gray-500">{tx.transaction_ref}</span>
                         {tx.reversed && (
                           <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            DELETED
+                            REVERSED
                           </span>
                         )}
                       </div>
@@ -464,11 +480,11 @@ export default function TransactionsPage() {
                       </div>
                       {!tx.reversed && (
                         <button
-                          onClick={() => handleDeleteTransaction(tx.id)}
+                          onClick={() => handleReverseClick(tx)}
                           className="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50"
-                          title="Delete transaction"
+                          title="Reverse transaction"
                         >
-                          🗑️
+                          ↩️
                         </button>
                       )}
                     </div>
@@ -479,6 +495,57 @@ export default function TransactionsPage() {
           </div>
         </div>
       </div>
+
+      {/* Reverse Transaction Modal */}
+      {showReverseModal && reverseTransaction && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Reverse Transaction
+            </h3>
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">Transaction Reference:</p>
+              <p className="font-medium text-gray-900">{reverseTransaction.transaction_ref}</p>
+              <p className="text-sm text-gray-600 mt-2">Amount:</p>
+              <p className="font-medium text-red-600">-{formatCurrency(reverseTransaction.amount)}</p>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Reason for Reversal <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={reverseReason}
+                onChange={(e) => setReverseReason(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                rows={3}
+                placeholder="Enter reason for reversing this transaction..."
+                required
+              />
+            </div>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowReverseModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReverseTransaction}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                disabled={submitting || !reverseReason.trim()}
+              >
+                {submitting ? 'Reversing...' : 'Reverse Transaction'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
