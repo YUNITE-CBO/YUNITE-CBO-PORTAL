@@ -95,23 +95,48 @@ export default function ContributionsPage() {
 
   const fetchData = async () => {
     try {
-      const [membersRes, campaignsRes] = await Promise.all([
+      const [membersRes, campaignsRes, contributionsRes] = await Promise.all([
         fetch('/api/members'),
         fetch('/api/contributions/campaigns'),
+        fetch('/api/contributions'),
       ]);
       const membersData = await membersRes.json();
       const campaignsData = await campaignsRes.json();
+      const contributionsData = await contributionsRes.json();
 
       if (membersData.success) setMembers(membersData.data || []);
       if (campaignsData.success) {
         setCampaigns(campaignsData.data || []);
         calculateStats(campaignsData.data || []);
       }
+      if (contributionsData.success) {
+        // Transform contributions to match frontend interface
+        const transformedContributions: Contribution[] = (contributionsData.data || []).map((c: any) => ({
+          id: c.id,
+          member_id: c.member_id,
+          member_name: c.members ? `${c.members.first_name} ${c.members.last_name}` : 'Unknown',
+          campaign_id: c.transaction_type,
+          campaign_name: formatCampaignName(c.transaction_type),
+          amount: parseFloat(c.amount),
+          payment_date: c.created_at,
+          payment_method: c.metadata?.payment_method || 'cash',
+          reference: c.reference_number || c.metadata?.reference || null,
+        }));
+        setContributions(transformedContributions);
+      }
     } catch {
       setError('Failed to load data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatCampaignName = (type: string): string => {
+    return type
+      .replace('contribution_', '')
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ') + ' Contributions';
   };
 
   const calculateStats = (campaignsData: Campaign[]) => {
