@@ -155,6 +155,35 @@ export default function TransactionsPage() {
     }
   };
 
+  const handleDeleteTransaction = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this transaction? This cannot be undone.')) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/transactions?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSubmitSuccess(true);
+        fetchData();
+        setTimeout(() => setSubmitSuccess(false), 3000);
+      } else {
+        setError(data.error || 'Failed to delete transaction');
+      }
+    } catch {
+      setError('Failed to delete transaction');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
@@ -408,6 +437,11 @@ export default function TransactionsPage() {
                           {getTransactionLabel(tx.transaction_type)}
                         </span>
                         <span className="text-xs text-gray-500">{tx.transaction_ref}</span>
+                        {tx.reversed && (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            DELETED
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-900 mt-1">
                         {tx.member_name || (tx.member ? `${tx.member.first_name} ${tx.member.last_name}` : 'Unknown Member')}
@@ -417,13 +451,24 @@ export default function TransactionsPage() {
                       )}
                       <p className="text-xs text-gray-400 mt-1">{formatDate(tx.posted_at)}</p>
                     </div>
-                    <div className={`text-right font-semibold ${
-                      ['deposit', 'savings_deposit', 'loan_repayment', 'contribution_monthly', 'contribution_special', 'contribution_development'].includes(tx.transaction_type)
-                        ? 'text-green-600'
-                        : 'text-red-600'
-                    }`}>
-                      {['deposit', 'savings_deposit', 'loan_repayment', 'contribution_monthly', 'contribution_special', 'contribution_development'].includes(tx.transaction_type) ? '+' : '-'}
-                      {formatCurrency(tx.amount)}
+                    <div className="flex items-center gap-3">
+                      <div className={`text-right font-semibold ${
+                        ['deposit', 'savings_deposit', 'loan_repayment', 'contribution_monthly', 'contribution_special', 'contribution_development'].includes(tx.transaction_type)
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}>
+                        {['deposit', 'savings_deposit', 'loan_repayment', 'contribution_monthly', 'contribution_special', 'contribution_development'].includes(tx.transaction_type) ? '+' : '-'}
+                        {formatCurrency(tx.amount)}
+                      </div>
+                      {!tx.reversed && (
+                        <button
+                          onClick={() => handleDeleteTransaction(tx.id)}
+                          className="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50"
+                          title="Delete transaction"
+                        >
+                          🗑️
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

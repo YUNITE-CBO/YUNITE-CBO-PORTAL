@@ -150,3 +150,43 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// DELETE /api/transactions - Delete a transaction
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Transaction ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const supabase = await createServiceClient();
+
+    // Mark transaction as reversed instead of deleting
+    const { error } = await supabase
+      .from('transactions')
+      .update({ 
+        reversed: true,
+        reversed_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    return NextResponse.json({
+      success: true,
+      message: 'Transaction deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting transaction:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete transaction' },
+      { status: 500 }
+    );
+  }
+}
