@@ -175,14 +175,23 @@ export default function TransactionsPage() {
 
   const getTransactionColor = (type: string) => {
     const colors: Record<string, string> = {
+      // Incoming money (green)
       deposit: 'text-green-600 bg-green-50',
+      savings_deposit: 'text-green-600 bg-green-50',
+      loan_repayment: 'text-green-600 bg-green-50',
+      contribution_monthly: 'text-green-600 bg-green-50',
+      contribution_special: 'text-green-600 bg-green-50',
+      contribution_development: 'text-green-600 bg-green-50',
+      // Outgoing money (red)
       withdrawal: 'text-red-600 bg-red-50',
+      savings_withdrawal: 'text-red-600 bg-red-50',
+      loan_disbursement: 'text-red-600 bg-red-50',
+      // Other transactions (orange/blue)
       transfer: 'text-blue-600 bg-blue-50',
       fee: 'text-orange-600 bg-orange-50',
-      fine: 'text-red-600 bg-red-50',
+      fine: 'text-orange-600 bg-orange-50',
       contribution: 'text-purple-600 bg-purple-50',
       share_purchase: 'text-indigo-600 bg-indigo-50',
-      loan_repayment: 'text-teal-600 bg-teal-50',
     };
     return colors[type] || 'text-gray-600 bg-gray-50';
   };
@@ -409,11 +418,11 @@ export default function TransactionsPage() {
                       <p className="text-xs text-gray-400 mt-1">{formatDate(tx.posted_at)}</p>
                     </div>
                     <div className={`text-right font-semibold ${
-                      ['deposit', 'loan_repayment'].includes(tx.transaction_type)
+                      ['deposit', 'savings_deposit', 'loan_repayment', 'contribution_monthly', 'contribution_special', 'contribution_development'].includes(tx.transaction_type)
                         ? 'text-green-600'
                         : 'text-red-600'
                     }`}>
-                      {['deposit', 'loan_repayment'].includes(tx.transaction_type) ? '+' : '-'}
+                      {['deposit', 'savings_deposit', 'loan_repayment', 'contribution_monthly', 'contribution_special', 'contribution_development'].includes(tx.transaction_type) ? '+' : '-'}
                       {formatCurrency(tx.amount)}
                     </div>
                   </div>
