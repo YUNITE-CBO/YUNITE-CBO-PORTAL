@@ -23,9 +23,14 @@ import { v4 as uuidv4 } from 'uuid';
  * This operation CANNOT be undone!
  */
 export async function POST(request: NextRequest) {
+  let body: any;
+  let supabase: Awaited<ReturnType<typeof createServiceClient>>;
+  let userIdForAudit: string = 'system';
+
   try {
-    const body = await request.json();
-    const supabase = await createServiceClient();
+    body = await request.json();
+    supabase = await createServiceClient();
+    userIdForAudit = body.user_id || 'system';
     
     // Require explicit confirmation
     const { confirm_reset, user_id } = body;
@@ -185,18 +190,23 @@ export async function POST(request: NextRequest) {
     console.error('❌ Data reset failed:', error);
 
     // Log the failure
-    await supabase.from('audit_logs').insert({
-      id: uuidv4(),
-      action: 'system.data_reset_failed',
-      record_id: 'system',
-      user_id: body?.user_id || 'system',
-      after_value: { 
-        status: 'failed', 
-        error: errorMessage,
-        timestamp: new Date().toISOString()
-      },
-      created_at: new Date().toISOString(),
-    });
+    try {
+      const errorSupabase = await createServiceClient();
+      await errorSupabase.from('audit_logs').insert({
+        id: uuidv4(),
+        action: 'system.data_reset_failed',
+        record_id: 'system',
+        user_id: userIdForAudit,
+        after_value: { 
+          status: 'failed', 
+          error: errorMessage,
+          timestamp: new Date().toISOString()
+        },
+        created_at: new Date().toISOString(),
+      });
+    } catch (logError) {
+      console.error('Failed to log audit event:', logError);
+    }
 
     return NextResponse.json(
       { success: false, error: errorMessage },
