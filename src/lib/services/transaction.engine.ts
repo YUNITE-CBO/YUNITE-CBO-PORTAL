@@ -163,12 +163,39 @@ export class TransactionEngine {
 
     if (error || !reversal) throw new Error('Reversal failed');
 
+    // Update original transaction as reversed
     await supabase.from('transactions').update({
       reversed: true,
       reversed_at: new Date().toISOString(),
       reversed_by: userId,
       reversal_reason: reason,
     }).eq('id', original.id);
+
+    // SPECIAL HANDLING FOR LOAN REPAYMENTS
+    // Need to update the loan record to reverse the payment
+    if (original.transaction_type === 'loan_repayment' && original.metadata?.loan_id) {
+      const loanId = original.metadata.loan_id;
+      
+      // Get the current loan
+      const { data: loan } = await supabase
+        .from('loans')
+        .select('*')
+        .eq('id', loanId)
+        .single();
+
+      if (loan) {
+        // Reverse the payment effect on loan
+        const newAmountPaid = Number(loan.amount_paid) - Number(original.amount);
+        const newAmountDue = Number(loan.total_amount) - newAmountPaid;
+        const newStatus = newAmountPaid <= 0 ? 'disbursed' : 'active';
+
+        await supabase.from('loans').update({
+          amount_paid: Math.max(0, newAmountPaid),
+          amount_due: Math.max(0, newAmountDue),
+          status: newStatus,
+        }).eq('id', loanId);
+      }
+    }
 
     await supabase.from('audit_logs').insert({
       id: uuidv4(),
