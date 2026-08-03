@@ -31,6 +31,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Check if this is a protected path
+  if (protectedPaths.some((path) => pathname.startsWith(path))) {
+    const token = request.cookies.get('auth_token')?.value;
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    }
+
+    try {
+      const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET || 'secret');
+      const { jwtVerify } = await import('jose');
+      await jwtVerify(token, secret);
+      return NextResponse.next();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 });
+    }
+  }
+
   // Check if this is an API route
   if (pathname.startsWith('/api/')) {
     // GET requests are public for read operations

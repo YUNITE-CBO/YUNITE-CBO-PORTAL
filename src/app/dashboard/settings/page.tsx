@@ -91,6 +91,11 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'organization' | 'financial' | 'membership' | 'system'>('organization');
   
+  // Current user state
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; role: string } | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  
   // Database Reset state
   const [showResetWizard, setShowResetWizard] = useState(false);
   const [resetStep, setResetStep] = useState<ResetStep>('select_level');
@@ -133,7 +138,6 @@ export default function SettingsPage() {
   const [countdown, setCountdown] = useState(10);
   const [resetProgress, setResetProgress] = useState<ResetProgress | null>(null);
   const [resetResult, setResetResult] = useState<any>(null);
-  const [userId, setUserId] = useState<string>('00000000-0000-0000-0000-000000000000');
   const [settings, setSettings] = useState<SettingsData>({
     organization: {
       name: '',
@@ -160,8 +164,32 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
+    fetchSession();
     fetchSettings();
   }, []);
+
+  const fetchSession = async () => {
+    try {
+      const res = await fetch('/api/auth/session');
+      const data = await res.json();
+
+      if (data.success && data.data) {
+        setCurrentUser(data.data.user);
+        setIsSuperAdmin(data.data.isSuperAdmin);
+        setSessionError(null);
+      } else {
+        setCurrentUser(null);
+        setIsSuperAdmin(false);
+        setSessionError(data.error || 'Not authenticated');
+      }
+    } catch {
+      setCurrentUser(null);
+      setIsSuperAdmin(false);
+      setSessionError('Failed to fetch session');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -197,8 +225,6 @@ export default function SettingsPage() {
       }
     } catch {
       setError('Failed to load settings');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -383,6 +409,13 @@ export default function SettingsPage() {
 
   // Execute database reset
   const handleExecuteReset = async () => {
+    // Check if user is a super admin
+    if (!isSuperAdmin || !currentUser) {
+      setError('Only Super Administrators can perform database reset');
+      setResetStep('failed');
+      return;
+    }
+
     setResetting(true);
     setResetStep('executing');
     setResetProgress({
@@ -399,7 +432,7 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           level: selectedLevel?.id,
-          user_id: userId,
+          user_id: currentUser.id,
           confirmation_phrase: confirmationPhrase,
           backup_verified: backupVerified,
           archive_instead_of_delete: archiveInsteadOfDelete,
@@ -928,6 +961,26 @@ export default function SettingsPage() {
       {/* System Settings */}
       {activeTab === 'system' && (
         <div className="space-y-6">
+          {/* Permission Notice */}
+          {!isSuperAdmin && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">🔒</span>
+                <div>
+                  <h3 className="font-semibold text-yellow-900">Restricted Access</h3>
+                  <p className="text-sm text-yellow-800 mt-1">
+                    Database reset functionality is only available to Super Administrators. 
+                    {currentUser ? (
+                      <> Your current role is <span className="font-medium">{currentUser.role || 'user'}</span>.</>
+                    ) : (
+                      <> You may need to log in with a Super Administrator account.</>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Database Reset & Initialization Card */}
           <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
             <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4">
@@ -984,79 +1037,87 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Reset Levels */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">Available Reset Options</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Level 1 - Financial Reset */}
-                  <button
-                    onClick={() => handleOpenResetWizard()}
-                    className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:bg-blue-50 transition-all"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">💰</span>
-                      <h4 className="font-semibold text-gray-900">Level 1: Financial Reset</h4>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Resets all financial transactions. Members and core structure remain intact.
-                    </p>
-                    <div className="text-xs text-gray-500">
-                      <p className="font-medium text-red-600">Deletes:</p>
-                      <p>Transactions, Loans, Fines, Campaigns, Accounts</p>
-                    </div>
-                  </button>
+              {/* Reset Levels - Only show for Super Admins */}
+              {isSuperAdmin ? (
+                <>
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">Available Reset Options</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Level 1 - Financial Reset */}
+                    <button
+                      onClick={() => handleOpenResetWizard()}
+                      className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:bg-blue-50 transition-all"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">💰</span>
+                        <h4 className="font-semibold text-gray-900">Level 1: Financial Reset</h4>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Resets all financial transactions. Members and core structure remain intact.
+                      </p>
+                      <div className="text-xs text-gray-500">
+                        <p className="font-medium text-red-600">Deletes:</p>
+                        <p>Transactions, Loans, Fines, Campaigns, Accounts</p>
+                      </div>
+                    </button>
 
-                  {/* Level 2 - Operational Reset */}
-                  <button
-                    onClick={() => handleOpenResetWizard()}
-                    className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-orange-500 hover:bg-orange-50 transition-all"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">⚙️</span>
-                      <h4 className="font-semibold text-gray-900">Level 2: Operational Reset</h4>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Resets all financial and operational records. Members and users remain.
-                    </p>
-                    <div className="text-xs text-gray-500">
-                      <p className="font-medium text-red-600">Deletes:</p>
-                      <p>+ Meetings, Documents, Notifications, Reports</p>
-                    </div>
-                  </button>
+                    {/* Level 2 - Operational Reset */}
+                    <button
+                      onClick={() => handleOpenResetWizard()}
+                      className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-orange-500 hover:bg-orange-50 transition-all"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">⚙️</span>
+                        <h4 className="font-semibold text-gray-900">Level 2: Operational Reset</h4>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Resets all financial and operational records. Members and users remain.
+                      </p>
+                      <div className="text-xs text-gray-500">
+                        <p className="font-medium text-red-600">Deletes:</p>
+                        <p>+ Meetings, Documents, Notifications, Reports</p>
+                      </div>
+                    </button>
 
-                  {/* Level 3 - Organization Reset */}
-                  <button
-                    onClick={() => handleOpenResetWizard()}
-                    className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-red-500 hover:bg-red-50 transition-all"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">🏢</span>
-                      <h4 className="font-semibold text-gray-900">Level 3: Full Reset</h4>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Complete system reset. Only Settings, Roles, and Permissions remain.
-                    </p>
-                    <div className="text-xs text-gray-500">
-                      <p className="font-medium text-red-600">Deletes:</p>
-                      <p>+ Members, Users (except Super Admin)</p>
-                    </div>
-                  </button>
+                    {/* Level 3 - Organization Reset */}
+                    <button
+                      onClick={() => handleOpenResetWizard()}
+                      className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-red-500 hover:bg-red-50 transition-all"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">🏢</span>
+                        <h4 className="font-semibold text-gray-900">Level 3: Full Reset</h4>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Complete system reset. Only Settings, Roles, and Permissions remain.
+                      </p>
+                      <div className="text-xs text-gray-500">
+                        <p className="font-medium text-red-600">Deletes:</p>
+                        <p>+ Members, Users (except Super Admin)</p>
+                      </div>
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Quick Start Button */}
-              <div className="border-t pt-6">
-                <button
-                  onClick={handleOpenResetWizard}
-                  className="w-full px-6 py-4 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-xl hover:from-red-700 hover:to-red-800 transition-all flex items-center justify-center gap-2"
-                >
-                  <span>🔄</span>
-                  Open Database Reset Wizard
-                </button>
-                <p className="text-xs text-gray-500 text-center mt-2">
-                  Multi-step process with safety confirmations and backup verification
-                </p>
-              </div>
+                {/* Quick Start Button */}
+                <div className="border-t pt-6">
+                  <button
+                    onClick={handleOpenResetWizard}
+                    className="w-full px-6 py-4 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-xl hover:from-red-700 hover:to-red-800 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>🔄</span>
+                    Open Database Reset Wizard
+                  </button>
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    Multi-step process with safety confirmations and backup verification
+                  </p>
+                </div>
+                </>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">Sign in with a Super Administrator account to access reset options.</p>
+                </div>
+              )}
             </div>
           </div>
 
