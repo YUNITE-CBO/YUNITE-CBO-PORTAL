@@ -228,6 +228,7 @@ export class DatabaseResetService {
       reports,
       members,
       users,
+      roles,
     ] = await Promise.all([
       supabase.from('transactions').select('*', { count: 'exact', head: true }),
       supabase.from('loans').select('*', { count: 'exact', head: true }),
@@ -241,6 +242,7 @@ export class DatabaseResetService {
       supabase.from('reports').select('*', { count: 'exact', head: true }),
       supabase.from('members').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('*', { count: 'exact', head: true }),
+      supabase.from('roles').select('*', { count: 'exact', head: true }),
     ]);
 
     return {
@@ -256,6 +258,7 @@ export class DatabaseResetService {
       reports: reports.count || 0,
       members: members.count || 0,
       users: users.count || 0,
+      roles: roles.count || 0,
     };
   }
 
