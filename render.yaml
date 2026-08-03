@@ -37,3 +37,6 @@ services:
         value: "900000"
       - key: RATE_LIMIT_MAX_REQUESTS
         value: "100"
+
+# Auto-deploy hook - configure in GitHub Secrets as RENDER_DEPLOY_HOOK_URL
+# To get your deploy hook URL: Render Dashboard → Your Service → Settings → Deploy Hooks
