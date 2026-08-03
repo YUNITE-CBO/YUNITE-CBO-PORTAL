@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { transactionEngine } from '@/lib/services';
 
 // GET - Fetch all contributions from transactions table
 export async function GET() {
@@ -20,7 +21,7 @@ export async function GET() {
         metadata,
         posted_at,
         created_at,
-        members (
+        member:members (
           id,
           member_number,
           first_name,
@@ -28,6 +29,7 @@ export async function GET() {
         )
       `)
       .in('transaction_type', ['contribution_monthly', 'contribution_special', 'contribution_development'])
+      .eq('reversed', false)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -52,6 +54,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     
     const { member_id, campaign_id, amount, description, reference_number, payment_method } = body;
+    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
 
     if (!member_id || !amount) {
       return NextResponse.json(
@@ -60,14 +63,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Map campaign_id to transaction_type
-    // This maps the campaign UUID to one of the contribution transaction types
-    const transactionTypeMap: Record<string, string> = {
-      'monthly': 'contribution_monthly',
-      'special': 'contribution_special',
-      'development': 'contribution_development',
-    };
-    
     // Try to find the campaign to get its type
     let transactionType = 'contribution_monthly';
     if (campaign_id) {
@@ -85,111 +80,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get or create the member's contributions account
-    const { data: account } = await supabase
-      .from('accounts')
-      .select('id')
-      .eq('member_id', member_id)
-      .eq('account_type', 'contributions')
-      .single();
-
-    let accountId;
-    
-    if (account) {
-      accountId = account.id;
-    } else {
-      const { data: newAccount, error: createAccountError } = await supabase
-        .from('accounts')
-        .insert({ member_id, account_type: 'contributions' })
-        .select('id')
-        .single();
-      
-      if (createAccountError) throw createAccountError;
-      accountId = newAccount.id;
-    }
-
-    // Generate transaction reference
-    const transactionRef = `CTR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    // Insert the contribution as a transaction
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert({
-        transaction_ref: transactionRef,
-        member_id,
-        account_id: accountId,
-        transaction_type: transactionType,
-        amount: parseFloat(amount),
-        description: description || `${transactionType.replace('_', ' ')} contribution`,
-        reference_number: reference_number || null,
-        metadata: { 
-          payment_method: payment_method || 'cash',
-          campaign_id: campaign_id || null,
-        },
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+    // Execute through transaction engine for proper balance calculation
+    const result = await transactionEngine.execute({
+      member_id,
+      account_type: 'contributions',
+      transaction_type: transactionType as 'contribution_monthly' | 'contribution_special' | 'contribution_development',
+      amount: parseFloat(amount),
+      description: description || `${transactionType.replace('_', ' ')} contribution`,
+      reference_number: reference_number || undefined,
+      user_id: userId,
+      metadata: { 
+        payment_method: payment_method || 'cash',
+        campaign_id: campaign_id || null,
+      },
+    });
 
     // Update the campaign's collected_amount if campaign_id is provided
     if (campaign_id) {
-      // Get all campaigns and update their collected amounts based on transactions
-      const { data: allCampaigns } = await supabase
+      const { data: campaign } = await supabase
         .from('campaigns')
-        .select('id, campaign_name');
+        .select('*')
+        .eq('id', campaign_id)
+        .single();
       
-      // Get all contribution transactions
-      const { data: txns } = await supabase
-        .from('transactions')
-        .select('transaction_type, amount')
-        .in('transaction_type', ['contribution_monthly', 'contribution_special', 'contribution_development']);
-      
-      // Calculate totals
-      const totals: Record<string, { amount: number; count: number }> = {
-        'contribution_monthly': { amount: 0, count: 0 },
-        'contribution_special': { amount: 0, count: 0 },
-        'contribution_development': { amount: 0, count: 0 },
-      };
-      
-      txns?.forEach((t: any) => {
-        const type = t.transaction_type;
-        if (totals[type]) {
-          totals[type].amount += parseFloat(t.amount) || 0;
-          totals[type].count += 1;
-        }
-      });
-
-      // Update each campaign with the calculated totals
-      allCampaigns?.forEach(async (camp: any) => {
-        let collected = 0;
-        let count = 0;
-        const name = camp.campaign_name.toLowerCase();
+      if (campaign) {
+        // Calculate total for this campaign type
+        const { data: txns } = await supabase
+          .from('transactions')
+          .select('amount')
+          .eq('transaction_type', transactionType)
+          .eq('reversed', false);
         
-        if (name.includes('monthly')) {
-          collected = totals['contribution_monthly'].amount;
-          count = totals['contribution_monthly'].count;
-        } else if (name.includes('special')) {
-          collected = totals['contribution_special'].amount;
-          count = totals['contribution_special'].count;
-        } else if (name.includes('development')) {
-          collected = totals['contribution_development'].amount;
-          count = totals['contribution_development'].count;
-        }
+        const totalAmount = txns?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        const count = txns?.length || 0;
         
         await supabase
           .from('campaigns')
           .update({ 
-            collected_amount: collected,
+            collected_amount: totalAmount,
             contribution_count: count
           })
-          .eq('id', camp.id);
-      });
+          .eq('id', campaign_id);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      data,
+      data: result.transaction,
       message: 'Contribution recorded successfully',
     });
   } catch (error) {

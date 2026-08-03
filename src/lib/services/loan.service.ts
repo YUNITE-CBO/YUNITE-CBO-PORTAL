@@ -327,18 +327,46 @@ export class LoanService {
 
     if (error || !updatedLoan) throw new Error('Failed to record repayment');
 
+    // Get or create loans account for this member
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('member_id', loan.member_id)
+      .eq('account_type', 'loans')
+      .single();
+
+    let accountId;
+    if (account) {
+      accountId = account.id;
+    } else {
+      const { data: newAccount } = await supabase
+        .from('accounts')
+        .insert({ member_id: loan.member_id, account_type: 'loans' })
+        .select('id')
+        .single();
+      accountId = newAccount?.id;
+    }
+
+    // Calculate balance before from loan amount_due (loan balance is tracked separately)
+    const balanceBefore = loan.amount_due;
+    const balanceAfter = newAmountDue;
+
     // Create a single loan repayment transaction
-    const transactionRef = `LOAN-RPY-${Date.now()}`;
+    const transactionRef = `LOAN-RPY-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     
     await supabase.from('transactions').insert({
       id: uuidv4(),
       transaction_ref: transactionRef,
       member_id: loan.member_id,
-      account_id: loan.member_id, // Use member_id as reference
+      account_id: accountId,
       transaction_type: 'loan_repayment',
       amount: amount,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
       description: `Loan repayment - ${loan.loan_number} (${newStatus === 'completed' ? 'FULL' : 'PARTIAL'})`,
       reference_number: loan.loan_number,
+      posted_by: userId,
+      reversed: false,
       metadata: { loan_id: loan.id, loan_number: loan.loan_number, is_full_repayment: newStatus === 'completed' },
     });
 
