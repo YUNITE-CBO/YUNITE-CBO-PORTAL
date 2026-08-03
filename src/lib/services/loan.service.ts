@@ -288,6 +288,95 @@ export class LoanService {
   }
 
   /**
+   * Repay a loan (partial or full)
+   */
+  async repay(loanId: string, userId: string, amount: number) {
+    const supabase = await createServiceClient();
+    
+    // Get the loan details first
+    const { data: loan } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('id', loanId)
+      .in('status', ['disbursed', 'active'])
+      .single();
+
+    if (!loan) throw new Error('Loan not found or not active');
+
+    // Validate amount
+    const remainingAmount = loan.amount_due;
+    if (amount > remainingAmount) {
+      amount = remainingAmount; // Cap at remaining amount for full repayment
+    }
+
+    // Update loan amounts
+    const newAmountPaid = loan.amount_paid + amount;
+    const newAmountDue = loan.total_amount - newAmountPaid;
+    const newStatus = newAmountDue <= 0 ? 'completed' : 'active';
+
+    const { data: updatedLoan, error } = await supabase
+      .from('loans')
+      .update({ 
+        amount_paid: newAmountPaid,
+        amount_due: Math.max(0, newAmountDue),
+        status: newStatus,
+      })
+      .eq('id', loanId)
+      .select()
+      .single();
+
+    if (error || !updatedLoan) throw new Error('Failed to record repayment');
+
+    // Create a loan repayment transaction
+    const savingsAccount = await this.getOrCreateAccount(loan.member_id, 'savings');
+    const loansAccount = await this.getOrCreateAccount(loan.member_id, 'loans');
+    const transactionRef = `LOAN-RPY-${Date.now()}`;
+    
+    // Debit savings (money out of savings account to pay loan)
+    await supabase.from('transactions').insert({
+      id: uuidv4(),
+      transaction_ref: transactionRef,
+      member_id: loan.member_id,
+      account_id: savingsAccount.id,
+      transaction_type: 'loan_repayment',
+      amount: amount,
+      description: `Loan repayment - ${loan.loan_number} (${newStatus === 'completed' ? 'FULL' : 'PARTIAL'})`,
+      reference_number: loan.loan_number,
+      metadata: { loan_id: loan.id, loan_number: loan.loan_number, is_full_repayment: newStatus === 'completed' },
+    });
+
+    // Credit loans account
+    await supabase.from('transactions').insert({
+      id: uuidv4(),
+      transaction_ref: `${transactionRef}-C`,
+      member_id: loan.member_id,
+      account_id: loansAccount.id,
+      transaction_type: 'loan_repayment',
+      amount: amount,
+      description: `Loan repayment received - ${loan.loan_number}`,
+      reference_number: loan.loan_number,
+      metadata: { loan_id: loan.id, loan_number: loan.loan_number, is_full_repayment: newStatus === 'completed' },
+    });
+
+    // Audit
+    await supabase.from('audit_logs').insert({
+      id: uuidv4(),
+      action: 'loans.repay',
+      record_id: loan.id,
+      user_id: userId,
+      after_value: { 
+        amount_paid: newAmountPaid, 
+        amount_due: Math.max(0, newAmountDue),
+        status: newStatus,
+        repayment_amount: amount 
+      },
+      created_at: new Date().toISOString(),
+    });
+
+    return updatedLoan;
+  }
+
+  /**
    * Get or create account
    */
   private async getOrCreateAccount(memberId: string, accountType: string) {

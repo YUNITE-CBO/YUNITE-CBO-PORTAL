@@ -112,9 +112,23 @@ export async function PUT(request: NextRequest) {
         message: 'Loan disbursed successfully',
         data: result,
       });
+    } else if (action === 'repay') {
+      const repayAmount = parseFloat(body.amount);
+      if (isNaN(repayAmount) || repayAmount <= 0) {
+        return NextResponse.json(
+          { success: false, error: 'Valid repayment amount is required' },
+          { status: 400 }
+        );
+      }
+      result = await loanService.repay(loan_id, userId, repayAmount);
+      return NextResponse.json({
+        success: true,
+        message: 'Loan repayment recorded successfully',
+        data: result,
+      });
     } else {
       return NextResponse.json(
-        { success: false, error: 'Invalid action. Use: approve, reject, or disburse' },
+        { success: false, error: 'Invalid action. Use: approve, reject, disburse, or repay' },
         { status: 400 }
       );
     }

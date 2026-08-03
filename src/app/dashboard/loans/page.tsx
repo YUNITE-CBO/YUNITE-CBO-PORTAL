@@ -83,6 +83,9 @@ export default function LoansPage() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showRepayModal, setShowRepayModal] = useState(false);
+  const [repayAmount, setRepayAmount] = useState('');
+  const [repayType, setRepayType] = useState<'partial' | 'full'>('partial');
 
   useEffect(() => {
     fetchData();
@@ -257,6 +260,49 @@ export default function LoansPage() {
       }
     } catch {
       setError('Failed to disburse loan');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openRepayModal = (loan: Loan) => {
+    setSelectedLoan(loan);
+    setRepayAmount(loan.amount_due.toString());
+    setRepayType('full');
+    setShowRepayModal(true);
+  };
+
+  const handleRepayLoan = async () => {
+    if (!selectedLoan || !repayAmount) return;
+    
+    setActionLoading(selectedLoan.id);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/loans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_id: selectedLoan.id,
+          action: 'repay',
+          amount: repayType === 'full' ? selectedLoan.amount_due : parseFloat(repayAmount),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSubmitSuccess(true);
+        setShowRepayModal(false);
+        setRepayAmount('');
+        setSelectedLoan(null);
+        fetchData();
+        setTimeout(() => setSubmitSuccess(false), 3000);
+      } else {
+        setError(data.error || 'Failed to record repayment');
+      }
+    } catch {
+      setError('Failed to record repayment');
     } finally {
       setActionLoading(null);
     }
@@ -602,7 +648,7 @@ export default function LoansPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         {loan.status === 'pending' && (
                           <>
                             <button
@@ -638,6 +684,15 @@ export default function LoansPage() {
                             )}
                           </button>
                         )}
+                        {(loan.status === 'disbursed' || loan.status === 'active') && (
+                          <button
+                            onClick={() => openRepayModal(loan)}
+                            disabled={actionLoading === loan.id}
+                            className="px-3 py-1.5 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            💵 Repay
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -647,6 +702,145 @@ export default function LoansPage() {
           </table>
         </div>
       </div>
+
+      {/* Repay Loan Modal */}
+      {showRepayModal && selectedLoan && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Record Loan Repayment</h2>
+                <button
+                  onClick={() => setShowRepayModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-500">Loan:</span>
+                    <span className="ml-2 font-medium">{selectedLoan.loan_number}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Principal:</span>
+                    <span className="ml-2 font-medium">{formatCurrency(selectedLoan.principal_amount)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Total Amount:</span>
+                    <span className="ml-2 font-medium">{formatCurrency(selectedLoan.total_amount)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Amount Paid:</span>
+                    <span className="ml-2 font-medium text-green-600">{formatCurrency(selectedLoan.amount_paid)}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-500">Amount Due:</span>
+                    <span className="ml-2 font-bold text-red-600">{formatCurrency(selectedLoan.amount_due)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Repayment Type
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="repayType"
+                      checked={repayType === 'partial'}
+                      onChange={() => {
+                        setRepayType('partial');
+                        setRepayAmount('');
+                      }}
+                      className="w-4 h-4 text-indigo-600"
+                    />
+                    <span className="text-sm">Partial Payment</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="repayType"
+                      checked={repayType === 'full'}
+                      onChange={() => {
+                        setRepayType('full');
+                        setRepayAmount(selectedLoan.amount_due.toString());
+                      }}
+                      className="w-4 h-4 text-indigo-600"
+                    />
+                    <span className="text-sm">Full Payment</span>
+                  </label>
+                </div>
+              </div>
+
+              {repayType === 'partial' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Repayment Amount (KES)
+                  </label>
+                  <input
+                    type="number"
+                    value={repayAmount}
+                    onChange={(e) => setRepayAmount(e.target.value)}
+                    placeholder="Enter amount"
+                    min="1"
+                    max={selectedLoan.amount_due}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Maximum: {formatCurrency(selectedLoan.amount_due)}
+                  </p>
+                </div>
+              )}
+
+              {repayType === 'full' && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-800">
+                    <strong>Full Repayment:</strong> {formatCurrency(selectedLoan.amount_due)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t flex justify-end gap-3">
+              <button
+                onClick={() => setShowRepayModal(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRepayLoan}
+                disabled={actionLoading !== null || !repayAmount || parseFloat(repayAmount) <= 0}
+                className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {actionLoading ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    💵 Record Repayment
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
