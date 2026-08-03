@@ -235,7 +235,9 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Database reset failed';
     console.error('❌ Database reset failed:', error);
 
-    await supabase.from('audit_logs').insert({
+    // Log the failure - need to create supabase client here
+    const errorSupabase = await createServiceClient();
+    await errorSupabase.from('audit_logs').insert({
       id: uuidv4(),
       action: 'system.reset_failed',
       record_id: 'database',
