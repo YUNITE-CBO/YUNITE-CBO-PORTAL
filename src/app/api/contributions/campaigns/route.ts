@@ -1,21 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// GET - Fetch all contribution campaigns
+// GET - Fetch all contribution campaigns with aggregated totals
 export async function GET() {
   try {
     const supabase = await createClient();
     
-    const { data, error } = await supabase
+    // Fetch campaigns
+    const { data: campaigns, error } = await supabase
       .from('campaigns')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
+    // Fetch all contribution transactions
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('transaction_type, amount')
+      .in('transaction_type', ['contribution_monthly', 'contribution_special', 'contribution_development']);
+
+    // Calculate totals by type
+    const totals: Record<string, { amount: number; count: number }> = {
+      'contribution_monthly': { amount: 0, count: 0 },
+      'contribution_special': { amount: 0, count: 0 },
+      'contribution_development': { amount: 0, count: 0 },
+    };
+
+    transactions?.forEach(t => {
+      const type = t.transaction_type;
+      if (totals[type]) {
+        totals[type].amount += parseFloat(t.amount) || 0;
+        totals[type].count += 1;
+      }
+    });
+
+    // Map campaigns to their totals based on campaign name
+    const campaignsWithTotals = campaigns?.map(campaign => {
+      const name = campaign.campaign_name.toLowerCase();
+      let transactionType = 'contribution_monthly';
+      
+      if (name.includes('special')) transactionType = 'contribution_special';
+      else if (name.includes('development')) transactionType = 'contribution_development';
+      
+      return {
+        ...campaign,
+        collected_amount: totals[transactionType]?.amount || 0,
+        contribution_count: totals[transactionType]?.count || 0,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      data: data || [],
+      data: campaignsWithTotals || [],
     });
   } catch (error) {
     console.error('Error fetching campaigns:', error);

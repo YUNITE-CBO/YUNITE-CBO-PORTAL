@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const supabase = await createClient();
     
-    const { member_id, amount, contribution_type, description, reference_number, payment_method } = body;
+    const { member_id, campaign_id, amount, description, reference_number, payment_method } = body;
 
     if (!member_id || !amount) {
       return NextResponse.json(
@@ -60,11 +60,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Map contribution type to transaction type
-    const transactionType = contribution_type || 'contribution_monthly';
+    // Map campaign_id to transaction_type
+    // This maps the campaign UUID to one of the contribution transaction types
+    const transactionTypeMap: Record<string, string> = {
+      'monthly': 'contribution_monthly',
+      'special': 'contribution_special',
+      'development': 'contribution_development',
+    };
+    
+    // Try to find the campaign to get its type
+    let transactionType = 'contribution_monthly';
+    if (campaign_id) {
+      const { data: campaign } = await supabase
+        .from('campaigns')
+        .select('campaign_name')
+        .eq('id', campaign_id)
+        .single();
+      
+      if (campaign) {
+        const name = campaign.campaign_name.toLowerCase();
+        if (name.includes('monthly')) transactionType = 'contribution_monthly';
+        else if (name.includes('special')) transactionType = 'contribution_special';
+        else if (name.includes('development')) transactionType = 'contribution_development';
+      }
+    }
 
     // Get or create the member's contributions account
-    const { data: account, error: accountError } = await supabase
+    const { data: account } = await supabase
       .from('accounts')
       .select('id')
       .eq('member_id', member_id)
@@ -76,7 +98,6 @@ export async function POST(request: NextRequest) {
     if (account) {
       accountId = account.id;
     } else {
-      // Create the contributions account if it doesn't exist
       const { data: newAccount, error: createAccountError } = await supabase
         .from('accounts')
         .insert({ member_id, account_type: 'contributions' })
@@ -101,12 +122,65 @@ export async function POST(request: NextRequest) {
         amount: parseFloat(amount),
         description: description || `${transactionType.replace('_', ' ')} contribution`,
         reference_number: reference_number || null,
-        metadata: { payment_method: payment_method || 'cash' },
+        metadata: { 
+          payment_method: payment_method || 'cash',
+          campaign_id: campaign_id || null,
+        },
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    // Update the campaign's collected_amount if campaign_id is provided
+    if (campaign_id) {
+      // Calculate total collected for this campaign
+      const { data: txns } = await supabase
+        .from('transactions')
+        .select('amount')
+        .in('transaction_type', ['contribution_monthly', 'contribution_special', 'contribution_development']);
+      
+      // Get all transactions and calculate totals by mapping transaction types to campaigns
+      const totals: Record<string, number> = {
+        'contribution_monthly': 0,
+        'contribution_special': 0,
+        'contribution_development': 0,
+      };
+      
+      txns?.forEach(t => {
+        const type = t.transaction_type;
+        if (totals[type] !== undefined) {
+          totals[type] += parseFloat(t.amount) || 0;
+        }
+      });
+
+      // Get all campaigns and update their collected amounts
+      const { data: allCampaigns } = await supabase
+        .from('campaigns')
+        .select('id, campaign_name');
+      
+      allCampaigns?.forEach(async (camp) => {
+        let collected = 0;
+        const name = camp.campaign_name.toLowerCase();
+        if (name.includes('monthly')) collected = totals['contribution_monthly'];
+        else if (name.includes('special')) collected = totals['contribution_special'];
+        else if (name.includes('development')) collected = totals['contribution_development'];
+        
+        await supabase
+          .from('campaigns')
+          .update({ 
+            collected_amount: collected,
+            contribution_count: txns?.filter(t => {
+              const name = camp.campaign_name.toLowerCase();
+              if (name.includes('monthly')) return t.transaction_type === 'contribution_monthly';
+              if (name.includes('special')) return t.transaction_type === 'contribution_special';
+              if (name.includes('development')) return t.transaction_type === 'contribution_development';
+              return false;
+            }).length || 0
+          })
+          .eq('id', camp.id);
+      });
+    }
 
     return NextResponse.json({
       success: true,
