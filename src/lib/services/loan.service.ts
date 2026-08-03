@@ -128,6 +128,31 @@ export class LoanService {
   }
 
   /**
+   * Get all loans
+   */
+  async getAll() {
+    const supabase = await createServiceClient();
+    const { data } = await supabase
+      .from('loans')
+      .select('*, member:members(first_name, last_name, member_number, phone)')
+      .order('created_at', { ascending: false });
+    return data || [];
+  }
+
+  /**
+   * Get loans by status
+   */
+  async getByStatus(status: string) {
+    const supabase = await createServiceClient();
+    const { data } = await supabase
+      .from('loans')
+      .select('*, member:members(first_name, last_name, member_number, phone)')
+      .eq('status', status)
+      .order('created_at', { ascending: false });
+    return data || [];
+  }
+
+  /**
    * Get member loans
    */
   async getByMember(memberId: string) {
@@ -138,6 +163,152 @@ export class LoanService {
       .eq('member_id', memberId)
       .order('created_at', { ascending: false });
     return data || [];
+  }
+
+  /**
+   * Approve a loan
+   */
+  async approve(loanId: string, userId: string, disbursementDate?: string) {
+    const supabase = await createServiceClient();
+    
+    const { data: loan, error } = await supabase
+      .from('loans')
+      .update({ 
+        status: 'approved',
+        disbursement_date: disbursementDate || null,
+      })
+      .eq('id', loanId)
+      .eq('status', 'pending')
+      .select()
+      .single();
+
+    if (error || !loan) throw new Error('Failed to approve loan');
+
+    // Audit
+    await supabase.from('audit_logs').insert({
+      id: uuidv4(),
+      action: 'loans.approve',
+      record_id: loan.id,
+      user_id: userId,
+      after_value: { status: 'approved' },
+      created_at: new Date().toISOString(),
+    });
+
+    return loan;
+  }
+
+  /**
+   * Reject a loan
+   */
+  async reject(loanId: string, userId: string, reason?: string) {
+    const supabase = await createServiceClient();
+    
+    const { data: loan, error } = await supabase
+      .from('loans')
+      .update({ 
+        status: 'rejected',
+      })
+      .eq('id', loanId)
+      .eq('status', 'pending')
+      .select()
+      .single();
+
+    if (error || !loan) throw new Error('Failed to reject loan');
+
+    // Audit
+    await supabase.from('audit_logs').insert({
+      id: uuidv4(),
+      action: 'loans.reject',
+      record_id: loan.id,
+      user_id: userId,
+      after_value: { status: 'rejected', reason },
+      created_at: new Date().toISOString(),
+    });
+
+    return loan;
+  }
+
+  /**
+   * Disburse a loan
+   */
+  async disburse(loanId: string, userId: string, disbursementDate?: string) {
+    const supabase = await createServiceClient();
+    
+    // Get the loan details first
+    const { data: loan } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('id', loanId)
+      .eq('status', 'approved')
+      .single();
+
+    if (!loan) throw new Error('Loan not found or not approved');
+
+    // Update loan status
+    const { data: updatedLoan, error } = await supabase
+      .from('loans')
+      .update({ 
+        status: 'disbursed',
+        disbursement_date: disbursementDate || new Date().toISOString().split('T')[0],
+        disbursed_by: userId,
+      })
+      .eq('id', loanId)
+      .select()
+      .single();
+
+    if (error || !updatedLoan) throw new Error('Failed to disburse loan');
+
+    // Create a loan account transaction (debit - this is money out)
+    const loansAccount = await this.getOrCreateAccount(loan.member_id, 'loans');
+    const transactionRef = `LOAN-DISB-${Date.now()}`;
+    
+    await supabase.from('transactions').insert({
+      id: uuidv4(),
+      transaction_ref: transactionRef,
+      member_id: loan.member_id,
+      account_id: loansAccount.id,
+      transaction_type: 'loan_disbursement',
+      amount: loan.principal_amount,
+      description: `Loan disbursement - ${loan.loan_number}`,
+      reference_number: loan.loan_number,
+      metadata: { loan_id: loan.id },
+    });
+
+    // Audit
+    await supabase.from('audit_logs').insert({
+      id: uuidv4(),
+      action: 'loans.disburse',
+      record_id: loan.id,
+      user_id: userId,
+      after_value: { status: 'disbursed', amount: loan.principal_amount },
+      created_at: new Date().toISOString(),
+    });
+
+    return updatedLoan;
+  }
+
+  /**
+   * Get or create account
+   */
+  private async getOrCreateAccount(memberId: string, accountType: string) {
+    const supabase = await createServiceClient();
+    
+    const { data: existing } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('member_id', memberId)
+      .eq('account_type', accountType)
+      .single();
+
+    if (existing) return existing;
+
+    const { data: newAccount } = await supabase
+      .from('accounts')
+      .insert({ member_id: memberId, account_type: accountType })
+      .select()
+      .single();
+
+    return newAccount;
   }
 }
 

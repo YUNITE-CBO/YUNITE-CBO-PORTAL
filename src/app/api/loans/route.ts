@@ -10,18 +10,25 @@ const applicationSchema = z.object({
   purpose: z.string().optional(),
 });
 
-// GET /api/loans - Get pending loans or member loans
+// GET /api/loans - Get all loans or filter by status/member
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const memberId = searchParams.get('member_id');
+    const status = searchParams.get('status');
 
     if (memberId) {
       const loans = await loanService.getByMember(memberId);
       return NextResponse.json({ success: true, data: loans });
     }
 
-    const loans = await loanService.getPending();
+    if (status) {
+      const loans = await loanService.getByStatus(status);
+      return NextResponse.json({ success: true, data: loans });
+    }
+
+    // Get all loans for dashboard
+    const loans = await loanService.getAll();
     return NextResponse.json({ success: true, data: loans });
   } catch (error) {
     console.error('Loans error:', error);
@@ -61,6 +68,59 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Loan application failed';
     console.error('Loan application error:', error);
 
+    return NextResponse.json(
+      { success: false, error: errorMessage },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/loans - Approve or reject loan
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { loan_id, action, disbursement_date } = body;
+
+    if (!loan_id || !action) {
+      return NextResponse.json(
+        { success: false, error: 'loan_id and action are required' },
+        { status: 400 }
+      );
+    }
+
+    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
+
+    let result;
+    if (action === 'approve') {
+      result = await loanService.approve(loan_id, userId, disbursement_date);
+      return NextResponse.json({
+        success: true,
+        message: 'Loan approved successfully',
+        data: result,
+      });
+    } else if (action === 'reject') {
+      result = await loanService.reject(loan_id, userId, body.reason);
+      return NextResponse.json({
+        success: true,
+        message: 'Loan rejected',
+        data: result,
+      });
+    } else if (action === 'disburse') {
+      result = await loanService.disburse(loan_id, userId, disbursement_date);
+      return NextResponse.json({
+        success: true,
+        message: 'Loan disbursed successfully',
+        data: result,
+      });
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'Invalid action. Use: approve, reject, or disburse' },
+        { status: 400 }
+      );
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Loan operation failed';
+    console.error('Loan operation error:', error);
     return NextResponse.json(
       { success: false, error: errorMessage },
       { status: 500 }

@@ -81,6 +81,8 @@ export default function LoansPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -166,6 +168,97 @@ export default function LoansPage() {
       setError('Failed to submit application');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleApproveLoan = async (loan: Loan) => {
+    setActionLoading(loan.id);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/loans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_id: loan.id,
+          action: 'approve',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSubmitSuccess(true);
+        fetchData();
+        setTimeout(() => setSubmitSuccess(false), 3000);
+      } else {
+        setError(data.error || 'Failed to approve loan');
+      }
+    } catch {
+      setError('Failed to approve loan');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectLoan = async (loan: Loan) => {
+    setActionLoading(loan.id);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/loans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_id: loan.id,
+          action: 'reject',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSubmitSuccess(true);
+        fetchData();
+        setTimeout(() => setSubmitSuccess(false), 3000);
+      } else {
+        setError(data.error || 'Failed to reject loan');
+      }
+    } catch {
+      setError('Failed to reject loan');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDisburseLoan = async (loan: Loan) => {
+    setActionLoading(loan.id);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/loans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_id: loan.id,
+          action: 'disburse',
+          disbursement_date: new Date().toISOString().split('T')[0],
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSubmitSuccess(true);
+        fetchData();
+        setTimeout(() => setSubmitSuccess(false), 3000);
+      } else {
+        setError(data.error || 'Failed to disburse loan');
+      }
+    } catch {
+      setError('Failed to disburse loan');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -462,10 +555,10 @@ export default function LoansPage() {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Application Date
+                  Monthly Repayment
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Monthly Repayment
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -494,7 +587,7 @@ export default function LoansPage() {
                         {formatCurrency(loan.principal_amount)}
                       </div>
                       <div className="text-xs text-gray-500">
-                        Due: {formatCurrency(loan.amount_due)}
+                        Total: {formatCurrency(loan.total_amount)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -502,13 +595,49 @@ export default function LoansPage() {
                         {loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(loan.application_date)}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatCurrency(loan.monthly_repayment)}
                       <div className="text-xs text-gray-500">
                         {loan.repayment_period_months} months
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex gap-2">
+                        {loan.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleApproveLoan(loan)}
+                              disabled={actionLoading === loan.id}
+                              className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {actionLoading === loan.id ? (
+                                <span className="animate-spin">⏳</span>
+                              ) : (
+                                <>✓ Approve</>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleRejectLoan(loan)}
+                              disabled={actionLoading === loan.id}
+                              className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              ✗ Reject
+                            </button>
+                          </>
+                        )}
+                        {loan.status === 'approved' && (
+                          <button
+                            onClick={() => handleDisburseLoan(loan)}
+                            disabled={actionLoading === loan.id}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {actionLoading === loan.id ? (
+                              <span className="animate-spin">⏳</span>
+                            ) : (
+                              <>💰 Disburse</>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
