@@ -129,20 +129,33 @@ export class TransactionEngine {
   async reverse(transactionId: string, userId: string, reason: string) {
     const supabase = await createServiceClient();
 
-    const { data: original } = await supabase
+    // Get original transaction
+    const { data: original, error: fetchError } = await supabase
       .from('transactions')
       .select('*')
       .eq('id', transactionId)
       .single();
 
-    if (!original) throw new Error('Transaction not found');
+    if (fetchError || !original) {
+      console.error('Error fetching original transaction:', fetchError);
+      throw new Error('Transaction not found');
+    }
+    
+    console.log('Reversing transaction:', {
+      id: original.id,
+      type: original.transaction_type,
+      amount: original.amount,
+      metadata: original.metadata
+    });
+
     if (original.reversed) throw new Error('Already reversed');
 
     const reversalRef = `REV-${original.transaction_ref}`;
     const isDebitOriginal = this.isDebitTransaction(original.transaction_type as TransactionType);
     const balanceChange = isDebitOriginal ? Number(original.amount) : -Number(original.amount);
 
-    const { data: reversal, error } = await supabase
+    // Create reversal transaction
+    const { data: reversal, error: insertError } = await supabase
       .from('transactions')
       .insert({
         id: uuidv4(),
@@ -161,22 +174,35 @@ export class TransactionEngine {
       .select()
       .single();
 
-    if (error || !reversal) throw new Error('Reversal failed');
+    if (insertError || !reversal) {
+      console.error('Error creating reversal:', insertError);
+      throw new Error('Reversal failed');
+    }
+    
+    console.log('Reversal transaction created:', reversal.id);
 
     // Update original transaction as reversed
-    await supabase.from('transactions').update({
-      reversed: true,
-      reversed_at: new Date().toISOString(),
-      reversed_by: userId,
-      reversal_reason: reason,
-    }).eq('id', original.id);
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({
+        reversed: true,
+        reversed_at: new Date().toISOString(),
+        reversed_by: userId,
+        reversal_reason: reason,
+      })
+      .eq('id', original.id);
+
+    if (updateError) {
+      console.error('Error marking original as reversed:', updateError);
+    } else {
+      console.log('Original transaction marked as reversed');
+    }
 
     // SPECIAL HANDLING FOR LOAN REPAYMENTS
-    // Need to update the loan record to reverse the payment
     if (original.transaction_type === 'loan_repayment' && original.metadata?.loan_id) {
       const loanId = original.metadata.loan_id;
+      console.log('Reversing loan repayment for loan:', loanId);
       
-      // Get the current loan
       const { data: loan } = await supabase
         .from('loans')
         .select('*')
@@ -184,19 +210,28 @@ export class TransactionEngine {
         .single();
 
       if (loan) {
-        // Reverse the payment effect on loan
         const newAmountPaid = Number(loan.amount_paid) - Number(original.amount);
         const newAmountDue = Number(loan.total_amount) - newAmountPaid;
         const newStatus = newAmountPaid <= 0 ? 'disbursed' : 'active';
 
-        await supabase.from('loans').update({
-          amount_paid: Math.max(0, newAmountPaid),
-          amount_due: Math.max(0, newAmountDue),
-          status: newStatus,
-        }).eq('id', loanId);
+        const { error: loanUpdateError } = await supabase
+          .from('loans')
+          .update({
+            amount_paid: Math.max(0, newAmountPaid),
+            amount_due: Math.max(0, newAmountDue),
+            status: newStatus,
+          })
+          .eq('id', loanId);
+        
+        if (loanUpdateError) {
+          console.error('Error updating loan:', loanUpdateError);
+        } else {
+          console.log('Loan updated:', { newAmountPaid, newAmountDue, newStatus });
+        }
       }
     }
 
+    // Audit log
     await supabase.from('audit_logs').insert({
       id: uuidv4(),
       action: 'transactions.reverse',
@@ -206,7 +241,10 @@ export class TransactionEngine {
       created_at: new Date().toISOString(),
     });
 
+    // Calculate final balances
     const balances = await this.calculateAllBalances(original.member_id);
+    console.log('Final balances:', balances);
+    
     return { reversal, balances };
   }
 
@@ -250,6 +288,7 @@ export class TransactionEngine {
 
   /**
    * Calculate balance from ledger (NOT stored)
+   * Only includes non-reversed, non-reversal transactions
    */
   async calculateBalance(memberId: string, accountType: AccountType): Promise<number> {
     const supabase = await createServiceClient();
@@ -263,11 +302,14 @@ export class TransactionEngine {
 
     if (!account) return 0;
 
+    // Get all non-reversed transactions EXCLUDING reversal transactions
+    // Reversal transactions are excluded because they have their own balance_after recorded
     const { data: txns } = await supabase
       .from('transactions')
       .select('transaction_type, amount')
       .eq('account_id', account.id)
-      .eq('reversed', false);
+      .eq('reversed', false)
+      .neq('transaction_type', 'reversal');
 
     if (!txns) return 0;
 

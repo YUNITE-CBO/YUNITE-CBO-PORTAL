@@ -348,21 +348,30 @@ export default function TransactionsPage() {
             )}
 
             {submitSuccess && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-                Transaction posted successfully!
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
+                <p className="font-medium flex items-center gap-2">
+                  <span>✓</span> Transaction Reversed Successfully!
+                </p>
                 {memberBalances && (
-                  <div className="mt-2 pt-2 border-t border-green-200 text-xs">
-                    <p className="font-medium">Updated Balances:</p>
-                    <div className="grid grid-cols-3 gap-2 mt-1">
-                      {memberBalances.savings !== undefined && (
-                        <span>Savings: {formatCurrency(memberBalances.savings)}</span>
-                      )}
-                      {memberBalances.contributions !== undefined && (
-                        <span>Contributions: {formatCurrency(memberBalances.contributions)}</span>
-                      )}
-                      {memberBalances.loans !== undefined && (
-                        <span>Loans: {formatCurrency(memberBalances.loans)}</span>
-                      )}
+                  <div className="mt-3 pt-3 border-t border-green-200">
+                    <p className="text-xs font-medium mb-2">Member Updated Balances:</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-white/50 rounded p-2">
+                        <span className="text-gray-500">Savings:</span>
+                        <span className="font-medium ml-1">{formatCurrency(memberBalances.savings || 0)}</span>
+                      </div>
+                      <div className="bg-white/50 rounded p-2">
+                        <span className="text-gray-500">Shares:</span>
+                        <span className="font-medium ml-1">{memberBalances.shares || 0}</span>
+                      </div>
+                      <div className="bg-white/50 rounded p-2">
+                        <span className="text-gray-500">Contributions:</span>
+                        <span className="font-medium ml-1">{formatCurrency(memberBalances.contributions || 0)}</span>
+                      </div>
+                      <div className="bg-white/50 rounded p-2">
+                        <span className="text-gray-500">Loans Outstanding:</span>
+                        <span className="font-medium ml-1 text-red-600">{formatCurrency(memberBalances.loans || 0)}</span>
+                      </div>
                     </div>
                   </div>
                 )}
