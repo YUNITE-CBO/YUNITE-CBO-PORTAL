@@ -342,7 +342,8 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.success) {
         setImpactSummary(data.data.impact_summary);
-        setSelectedLevel(data.data.selected_level);
+        // Don't overwrite selectedLevel - keep the local object with preserved_tables
+        // Just update the impact summary from the API
       }
     } catch {
       console.error('Failed to fetch impact summary');
