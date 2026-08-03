@@ -28,15 +28,26 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const level = searchParams.get('level') as ResetLevel | null;
     
-    const [stats, systemState, resetLevels] = await Promise.all([
+    const [stats, systemState] = await Promise.all([
       databaseResetService.getDatabaseStats(),
       databaseResetService.getSystemState(),
-      Promise.resolve([
-        databaseResetService.getResetLevelConfig('level_1_financial'),
-        databaseResetService.getResetLevelConfig('level_2_operational'),
-        databaseResetService.getResetLevelConfig('level_3_organization'),
-      ]),
     ]);
+
+    // Build reset levels with correct IDs
+    const resetLevels = [
+      {
+        id: 'level_1_financial',
+        ...databaseResetService.getResetLevelConfig('level_1_financial'),
+      },
+      {
+        id: 'level_2_operational',
+        ...databaseResetService.getResetLevelConfig('level_2_operational'),
+      },
+      {
+        id: 'level_3_organization',
+        ...databaseResetService.getResetLevelConfig('level_3_organization'),
+      },
+    ];
 
     const response: any = {
       success: true,
@@ -44,9 +55,7 @@ export async function GET(request: NextRequest) {
         database_stats: stats,
         system_state: systemState,
         reset_levels: resetLevels.map(l => ({
-          id: Object.keys(databaseResetService.getResetLevelConfig('level_1_financial')).find(k => 
-            databaseResetService.getResetLevelConfig(k as ResetLevel) === l
-          ) || 'level_1_financial',
+          id: l.id,
           name: l.name,
           description: l.description,
           affected_tables: l.tables_to_delete,
@@ -59,6 +68,7 @@ export async function GET(request: NextRequest) {
     if (level) {
       const config = databaseResetService.getResetLevelConfig(level);
       response.data.selected_level = {
+        id: level,
         name: config.name,
         description: config.description,
       };

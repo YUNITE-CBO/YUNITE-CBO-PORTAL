@@ -102,7 +102,29 @@ export default function SettingsPage() {
   const [selectedLevel, setSelectedLevel] = useState<ResetLevel | null>(null);
   const [dataStats, setDataStats] = useState<DataStats | null>(null);
   const [systemState, setSystemState] = useState<SystemState | null>(null);
-  const [resetLevels, setResetLevels] = useState<ResetLevel[]>([]);
+  const [resetLevels, setResetLevels] = useState<ResetLevel[]>([
+    {
+      id: 'level_1_financial',
+      name: 'Financial Reset',
+      description: 'Resets all financial transactions and balances. Members and core structure remain intact.',
+      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts'],
+      preserved_tables: ['members', 'users', 'settings', 'documents'],
+    },
+    {
+      id: 'level_2_operational',
+      name: 'Operational Reset',
+      description: 'Resets all financial and operational records. Members and users remain.',
+      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts', 'documents', 'compliance_records'],
+      preserved_tables: ['members', 'users', 'settings', 'audit_logs'],
+    },
+    {
+      id: 'level_3_organization',
+      name: 'Organization Reset',
+      description: 'Complete system reset. Only Settings, Roles, and Permissions remain.',
+      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts', 'documents', 'compliance_records', 'members', 'users'],
+      preserved_tables: ['settings', 'roles', 'permissions', 'audit_logs'],
+    },
+  ]);
   const [impactSummary, setImpactSummary] = useState<any>(null);
   
   // Reset form state
@@ -280,13 +302,19 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/settings/database-reset');
       const data = await res.json();
-      if (data.success) {
+      
+      if (data.success && data.data) {
         setDataStats(data.data.database_stats);
         setSystemState(data.data.system_state);
-        setResetLevels(data.data.reset_levels);
+        setResetLevels(data.data.reset_levels || []);
+        console.log('Database reset info loaded:', data.data);
+      } else {
+        console.error('Failed to load database reset info:', data.error);
+        setError(data.error || 'Failed to load database reset information');
       }
-    } catch {
-      console.error('Failed to fetch database reset info');
+    } catch (err) {
+      console.error('Failed to fetch database reset info:', err);
+      setError('Failed to connect to database reset service');
     }
   }, []);
 
@@ -306,7 +334,6 @@ export default function SettingsPage() {
 
   // Open database reset wizard
   const handleOpenResetWizard = () => {
-    fetchDatabaseResetInfo();
     setShowResetWizard(true);
     setResetStep('select_level');
     setSelectedLevel(null);
@@ -316,6 +343,10 @@ export default function SettingsPage() {
     setCountdown(10);
     setResetProgress(null);
     setResetResult(null);
+    setError(null);
+    
+    // Fetch data in background
+    fetchDatabaseResetInfo();
   };
 
   // Proceed to review step
