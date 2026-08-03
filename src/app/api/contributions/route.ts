@@ -134,49 +134,54 @@ export async function POST(request: NextRequest) {
 
     // Update the campaign's collected_amount if campaign_id is provided
     if (campaign_id) {
-      // Calculate total collected for this campaign
-      const { data: txns } = await supabase
-        .from('transactions')
-        .select('amount')
-        .in('transaction_type', ['contribution_monthly', 'contribution_special', 'contribution_development']);
-      
-      // Get all transactions and calculate totals by mapping transaction types to campaigns
-      const totals: Record<string, number> = {
-        'contribution_monthly': 0,
-        'contribution_special': 0,
-        'contribution_development': 0,
-      };
-      
-      txns?.forEach(t => {
-        const type = t.transaction_type;
-        if (totals[type] !== undefined) {
-          totals[type] += parseFloat(t.amount) || 0;
-        }
-      });
-
-      // Get all campaigns and update their collected amounts
+      // Get all campaigns and update their collected amounts based on transactions
       const { data: allCampaigns } = await supabase
         .from('campaigns')
         .select('id, campaign_name');
       
-      allCampaigns?.forEach(async (camp) => {
+      // Get all contribution transactions
+      const { data: txns } = await supabase
+        .from('transactions')
+        .select('transaction_type, amount')
+        .in('transaction_type', ['contribution_monthly', 'contribution_special', 'contribution_development']);
+      
+      // Calculate totals
+      const totals: Record<string, { amount: number; count: number }> = {
+        'contribution_monthly': { amount: 0, count: 0 },
+        'contribution_special': { amount: 0, count: 0 },
+        'contribution_development': { amount: 0, count: 0 },
+      };
+      
+      txns?.forEach((t: any) => {
+        const type = t.transaction_type;
+        if (totals[type]) {
+          totals[type].amount += parseFloat(t.amount) || 0;
+          totals[type].count += 1;
+        }
+      });
+
+      // Update each campaign with the calculated totals
+      allCampaigns?.forEach(async (camp: any) => {
         let collected = 0;
+        let count = 0;
         const name = camp.campaign_name.toLowerCase();
-        if (name.includes('monthly')) collected = totals['contribution_monthly'];
-        else if (name.includes('special')) collected = totals['contribution_special'];
-        else if (name.includes('development')) collected = totals['contribution_development'];
+        
+        if (name.includes('monthly')) {
+          collected = totals['contribution_monthly'].amount;
+          count = totals['contribution_monthly'].count;
+        } else if (name.includes('special')) {
+          collected = totals['contribution_special'].amount;
+          count = totals['contribution_special'].count;
+        } else if (name.includes('development')) {
+          collected = totals['contribution_development'].amount;
+          count = totals['contribution_development'].count;
+        }
         
         await supabase
           .from('campaigns')
           .update({ 
             collected_amount: collected,
-            contribution_count: txns?.filter(t => {
-              const name = camp.campaign_name.toLowerCase();
-              if (name.includes('monthly')) return t.transaction_type === 'contribution_monthly';
-              if (name.includes('special')) return t.transaction_type === 'contribution_special';
-              if (name.includes('development')) return t.transaction_type === 'contribution_development';
-              return false;
-            }).length || 0
+            contribution_count: count
           })
           .eq('id', camp.id);
       });
