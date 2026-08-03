@@ -92,9 +92,14 @@ export async function GET(request: NextRequest) {
  * Execute database reset with comprehensive safety checks
  */
 export async function POST(request: NextRequest) {
+  let body: any;
+  let supabase: Awaited<ReturnType<typeof createServiceClient>>;
+  let userIdForAudit: string = 'unknown';
+
   try {
-    const body = await request.json();
-    const supabase = await createServiceClient();
+    body = await request.json();
+    supabase = await createServiceClient();
+    userIdForAudit = body.user_id || 'unknown';
 
     // =========================================================================
     // SAFETY VALIDATION
@@ -235,16 +240,20 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Database reset failed';
     console.error('❌ Database reset failed:', error);
 
-    // Log the failure - need to create supabase client here
-    const errorSupabase = await createServiceClient();
-    await errorSupabase.from('audit_logs').insert({
-      id: uuidv4(),
-      action: 'system.reset_failed',
-      record_id: 'database',
-      user_id: body?.user_id || 'unknown',
-      after_value: { error: errorMessage },
-      created_at: new Date().toISOString(),
-    });
+    // Log the failure
+    try {
+      const errorSupabase = await createServiceClient();
+      await errorSupabase.from('audit_logs').insert({
+        id: uuidv4(),
+        action: 'system.reset_failed',
+        record_id: 'database',
+        user_id: userIdForAudit,
+        after_value: { error: errorMessage },
+        created_at: new Date().toISOString(),
+      });
+    } catch (logError) {
+      console.error('Failed to log audit event:', logError);
+    }
 
     return NextResponse.json(
       { success: false, error: errorMessage },
