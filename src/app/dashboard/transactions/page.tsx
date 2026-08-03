@@ -22,6 +22,8 @@ interface Transaction {
   reference_number: string | null;
   posted_at: string;
   balance_after: number;
+  reversed: boolean;
+  reversed_at: string | null;
   member?: {
     first_name: string;
     last_name: string;
