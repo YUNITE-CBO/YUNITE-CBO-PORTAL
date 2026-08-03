@@ -114,7 +114,7 @@ export default function SettingsPage() {
 
     try {
       const res = await fetch('/api/settings', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category: 'organization',
@@ -144,7 +144,7 @@ export default function SettingsPage() {
 
     try {
       const res = await fetch('/api/settings', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category: 'financial',
@@ -174,7 +174,7 @@ export default function SettingsPage() {
 
     try {
       const res = await fetch('/api/settings', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category: 'membership',
