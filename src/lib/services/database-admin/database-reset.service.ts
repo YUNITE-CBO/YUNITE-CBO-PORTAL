@@ -498,7 +498,6 @@ export class DatabaseResetService {
 
       // Save report to database
       await supabase.from('reset_reports').insert({
-        id: reportId,
         ...this.resetReport,
       });
 
