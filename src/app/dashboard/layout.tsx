@@ -18,6 +18,7 @@ const navItems: NavItem[] = [
   { name: 'Loans', href: '/dashboard/loans', icon: '🏦' },
   { name: 'Fines', href: '/dashboard/fines', icon: '⚠️' },
   { name: 'Contributions', href: '/dashboard/contributions', icon: '🎯' },
+  { name: 'Notifications', href: '/dashboard/notifications', icon: '🔔' },
   { name: 'Audit Logs', href: '/dashboard/audit-logs', icon: '📋' },
   { name: 'Settings', href: '/dashboard/settings', icon: '⚙️' },
 ];
