@@ -1,0 +1,109 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { notificationService } from '@/lib/services/notifications';
+import { z } from 'zod';
+
+const sendNotificationSchema = z.object({
+  template_code: z.string().optional(),
+  category_code: z.string().optional(),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  channels: z.array(z.enum(['in_app', 'email', 'sms'])).optional(),
+  recipient_type: z.enum(['member', 'user', 'admin', 'all_admins', 'system']),
+  recipient_id: z.string().uuid().optional(),
+  recipient_email: z.string().email().optional(),
+  recipient_phone: z.string().optional(),
+  recipient_name: z.string().optional(),
+  source_module: z.string().optional(),
+  source_entity_type: z.string().optional(),
+  source_entity_id: z.string().uuid().optional(),
+  source_action: z.string().optional(),
+  scheduled_for: z.string().datetime().optional(),
+  variables: z.record(z.unknown()).optional(),
+  idempotency_key: z.string().optional(),
+  actor_id: z.string().uuid().optional(),
+  actor_type: z.string().optional(),
+  actor_name: z.string().optional(),
+});
+
+// GET /api/notifications - Get notifications
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const recipientId = searchParams.get('recipient_id');
+    const recipientType = searchParams.get('recipient_type') as 'member' | 'user' | null;
+    const status = searchParams.get('status') as any;
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
+    const unreadOnly = searchParams.get('unread_only') === 'true';
+
+    if (!recipientId || !recipientType) {
+      return NextResponse.json(
+        { success: false, error: 'recipient_id and recipient_type are required' },
+        { status: 400 }
+      );
+    }
+
+    const result = await notificationService.getForRecipient(recipientId, recipientType, {
+      status,
+      limit,
+      offset,
+      unreadOnly,
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: result.notifications,
+      pagination: {
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch notifications' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/notifications - Send notification
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const validated = sendNotificationSchema.parse(body);
+
+    const result = await notificationService.send({
+      ...validated,
+      scheduled_for: validated.scheduled_for ? new Date(validated.scheduled_for) : undefined,
+    });
+
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to send notification' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Notification sent successfully',
+      data: result,
+    }, { status: 201 });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Validation error', details: error.errors },
+        { status: 400 }
+      );
+    }
+
+    console.error('Error sending notification:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to send notification' },
+      { status: 500 }
+    );
+  }
+}

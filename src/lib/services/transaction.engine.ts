@@ -7,6 +7,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+import { notificationEventService } from './notifications';
 
 export type TransactionType =
   | 'savings_deposit'
@@ -116,6 +117,29 @@ export class TransactionEngine {
       after_value: { balance: newBalance, ref: transactionRef },
       created_at: new Date().toISOString(),
     });
+
+    // Emit notification event for deposits and withdrawals
+    try {
+      const { data: member } = await supabase
+        .from('members')
+        .select('id, first_name, last_name, email')
+        .eq('id', request.member_id)
+        .single();
+
+      if (member) {
+        if (request.transaction_type === 'savings_deposit') {
+          await notificationEventService.emitSavingsDeposit(
+            member.id,
+            `${member.first_name} ${member.last_name}`,
+            request.amount,
+            newBalance,
+            transactionRef
+          );
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to emit transaction notification:', notifError);
+    }
 
     // Calculate all balances
     const balances = await this.calculateAllBalances(request.member_id);

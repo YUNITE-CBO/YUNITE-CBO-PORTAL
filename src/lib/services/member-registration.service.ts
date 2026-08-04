@@ -6,6 +6,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+import { notificationEventService } from './notifications';
 
 export interface MemberRegistrationData {
   first_name: string;
@@ -103,6 +104,21 @@ export class MemberRegistrationService {
       description: `New member registered: ${memberNumber}`,
       created_at: new Date().toISOString(),
     });
+
+    // 5. Emit notification event
+    try {
+      await notificationEventService.emitMemberRegistered(member.id, {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        member_number: memberNumber,
+        phone: data.phone,
+        email: data.email,
+        registration_date: member.registration_date,
+      }, userId);
+    } catch (notifError) {
+      console.error('Failed to emit member registration notification:', notifError);
+      // Don't fail the registration if notification fails
+    }
 
     return { member, accounts };
   }

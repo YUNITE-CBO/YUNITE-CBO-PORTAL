@@ -8,6 +8,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { transactionEngine } from './transaction.engine';
 import { settingsService } from './settings.service';
+import { notificationEventService, notificationService } from './notifications';
 
 export interface LoanEligibility {
   savings_balance: number;
@@ -111,6 +112,21 @@ export class LoanService {
       created_at: new Date().toISOString(),
     });
 
+    // Emit notification event
+    try {
+      const { data: member } = await supabase
+        .from('members')
+        .select('id, first_name, last_name, email, phone')
+        .eq('id', application.member_id)
+        .single();
+
+      if (member) {
+        await notificationEventService.emitLoanApplication(loan.id, loan, member, application.user_id);
+      }
+    } catch (notifError) {
+      console.error('Failed to emit loan application notification:', notifError);
+    }
+
     return loan;
   }
 
@@ -194,6 +210,41 @@ export class LoanService {
       created_at: new Date().toISOString(),
     });
 
+    // Emit notification event
+    try {
+      const { data: member } = await supabase
+        .from('members')
+        .select('id, first_name, last_name, email, phone')
+        .eq('id', loan.member_id)
+        .single();
+
+      if (member) {
+        await notificationService.sendFromTemplate(
+          'loan.approved',
+          { id: member.id, type: 'member', email: member.email || undefined, phone: member.phone || undefined, name: `${member.first_name} ${member.last_name}` },
+          {
+            loan_id: loan.id,
+            loan_number: loan.loan_number,
+            member_name: `${member.first_name} ${member.last_name}`,
+            principal_amount: loan.principal_amount,
+            currency: 'KES',
+            interest_amount: loan.interest_amount,
+            total_amount: loan.total_amount,
+            monthly_repayment: loan.monthly_repayment,
+            approval_date: new Date().toISOString().split('T')[0],
+          },
+          {
+            source_module: 'loan-management',
+            source_entity_type: 'loan',
+            source_entity_id: loan.id,
+            source_action: 'loan.approved',
+          }
+        );
+      }
+    } catch (notifError) {
+      console.error('Failed to emit loan approval notification:', notifError);
+    }
+
     return loan;
   }
 
@@ -224,6 +275,37 @@ export class LoanService {
       after_value: { status: 'rejected', reason },
       created_at: new Date().toISOString(),
     });
+
+    // Emit notification event
+    try {
+      const { data: member } = await supabase
+        .from('members')
+        .select('id, first_name, last_name, email, phone')
+        .eq('id', loan.member_id)
+        .single();
+
+      if (member) {
+        await notificationService.sendFromTemplate(
+          'loan.rejected',
+          { id: member.id, type: 'member', email: member.email || undefined, phone: member.phone || undefined, name: `${member.first_name} ${member.last_name}` },
+          {
+            loan_id: loan.id,
+            loan_number: loan.loan_number,
+            member_name: `${member.first_name} ${member.last_name}`,
+            rejection_reason: reason || 'Application did not meet requirements',
+            rejection_date: new Date().toISOString().split('T')[0],
+          },
+          {
+            source_module: 'loan-management',
+            source_entity_type: 'loan',
+            source_entity_id: loan.id,
+            source_action: 'loan.rejected',
+          }
+        );
+      }
+    } catch (notifError) {
+      console.error('Failed to emit loan rejection notification:', notifError);
+    }
 
     return loan;
   }
@@ -293,6 +375,40 @@ export class LoanService {
       after_value: { status: 'disbursed', amount: loan.principal_amount },
       created_at: new Date().toISOString(),
     });
+
+    // Emit notification event
+    try {
+      const { data: member } = await supabase
+        .from('members')
+        .select('id, first_name, last_name, email, phone')
+        .eq('id', loan.member_id)
+        .single();
+
+      if (member) {
+        await notificationService.sendFromTemplate(
+          'loan.disbursed',
+          { id: member.id, type: 'member', email: member.email || undefined, phone: member.phone || undefined, name: `${member.first_name} ${member.last_name}` },
+          {
+            loan_id: loan.id,
+            loan_number: loan.loan_number,
+            member_name: `${member.first_name} ${member.last_name}`,
+            amount: loan.principal_amount,
+            currency: 'KES',
+            disbursement_date: updatedLoan.disbursement_date || new Date().toISOString().split('T')[0],
+            repayment_start_date: updatedLoan.repayment_start_date || updatedLoan.disbursement_date,
+            monthly_repayment: loan.monthly_repayment,
+          },
+          {
+            source_module: 'loan-management',
+            source_entity_type: 'loan',
+            source_entity_id: loan.id,
+            source_action: 'loan.disbursed',
+          }
+        );
+      }
+    } catch (notifError) {
+      console.error('Failed to emit loan disbursement notification:', notifError);
+    }
 
     return updatedLoan;
   }
@@ -394,6 +510,43 @@ export class LoanService {
       },
       created_at: new Date().toISOString(),
     });
+
+    // Emit notification event
+    try {
+      const { data: member } = await supabase
+        .from('members')
+        .select('id, first_name, last_name, email, phone')
+        .eq('id', loan.member_id)
+        .single();
+
+      if (member) {
+        // Send repayment confirmation
+        const templateCode = newStatus === 'completed' ? 'loan.repayment_complete' : 'savings.withdrawal';
+        
+        if (newStatus === 'completed') {
+          await notificationService.sendFromTemplate(
+            'loan.repayment_complete',
+            { id: member.id, type: 'member', email: member.email || undefined, phone: member.phone || undefined, name: `${member.first_name} ${member.last_name}` },
+            {
+              loan_id: loan.id,
+              loan_number: loan.loan_number,
+              member_name: `${member.first_name} ${member.last_name}`,
+              total_repaid: newAmountPaid,
+              currency: 'KES',
+              completion_date: new Date().toISOString().split('T')[0],
+            },
+            {
+              source_module: 'loan-management',
+              source_entity_type: 'loan',
+              source_entity_id: loan.id,
+              source_action: 'loan.repayment_complete',
+            }
+          );
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to emit loan repayment notification:', notifError);
+    }
 
     return updatedLoan;
   }
