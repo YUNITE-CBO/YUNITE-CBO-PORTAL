@@ -24,10 +24,14 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 
 -- Indexes for session management
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(user_id, is_active) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at) WHERE is_active = true;
+DROP INDEX IF EXISTS idx_user_sessions_user_id;
+CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
+DROP INDEX IF EXISTS idx_user_sessions_token;
+CREATE INDEX idx_user_sessions_token ON user_sessions(session_token);
+DROP INDEX IF EXISTS idx_user_sessions_active;
+CREATE INDEX idx_user_sessions_active ON user_sessions(user_id, is_active) WHERE is_active = true;
+DROP INDEX IF EXISTS idx_user_sessions_expires;
+CREATE INDEX idx_user_sessions_expires ON user_sessions(expires_at) WHERE is_active = true;
 
 -- ===================================================================
 -- 2. LOGIN ACTIVITY TABLE
@@ -64,11 +68,16 @@ CREATE TABLE IF NOT EXISTS login_activity (
 );
 
 -- Indexes for login activity queries
-CREATE INDEX IF NOT EXISTS idx_login_activity_user_id ON login_activity(user_id);
-CREATE INDEX IF NOT EXISTS idx_login_activity_email ON login_activity(email);
-CREATE INDEX IF NOT EXISTS idx_login_activity_event_type ON login_activity(event_type);
-CREATE INDEX IF NOT EXISTS idx_login_activity_created_at ON login_activity(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_login_activity_ip ON login_activity(ip_address);
+DROP INDEX IF EXISTS idx_login_activity_user_id;
+CREATE INDEX idx_login_activity_user_id ON login_activity(user_id);
+DROP INDEX IF EXISTS idx_login_activity_email;
+CREATE INDEX idx_login_activity_email ON login_activity(email);
+DROP INDEX IF EXISTS idx_login_activity_event_type;
+CREATE INDEX idx_login_activity_event_type ON login_activity(event_type);
+DROP INDEX IF EXISTS idx_login_activity_created_at;
+CREATE INDEX idx_login_activity_created_at ON login_activity(created_at DESC);
+DROP INDEX IF EXISTS idx_login_activity_ip;
+CREATE INDEX idx_login_activity_ip ON login_activity(ip_address);
 
 -- ===================================================================
 -- 3. UPDATE USERS TABLE
