@@ -223,13 +223,23 @@ CREATE TRIGGER trigger_notification_preferences_updated
 -- 9. SEED DATA
 -- ===================================================================
 
--- Insert default notification preferences for existing users
-INSERT INTO notification_preferences (user_id, notify_on_login, notify_on_logout, notify_on_password_change)
-SELECT id, true, true, true
-FROM users
-WHERE NOT EXISTS (
-    SELECT 1 FROM notification_preferences WHERE user_id = users.id
-);
+-- Insert default notification preferences for existing users (only if user_id column exists)
+DO $$
+BEGIN
+    -- Check if notification_preferences table has user_id column
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'notification_preferences' 
+        AND column_name = 'user_id'
+    ) THEN
+        INSERT INTO notification_preferences (user_id, notify_on_login, notify_on_logout, notify_on_password_change)
+        SELECT id, true, true, true
+        FROM users
+        WHERE NOT EXISTS (
+            SELECT 1 FROM notification_preferences WHERE user_id = users.id
+        );
+    END IF;
+END $$;
 
 -- ===================================================================
 -- 10. COMMENTS
