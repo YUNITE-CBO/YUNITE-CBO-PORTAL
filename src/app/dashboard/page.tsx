@@ -13,8 +13,10 @@ interface DashboardStats {
   total_welfare: number;
   total_fines_pending: number;
   total_loans_outstanding: number;
+  total_loan_repayments: number;
   total_loan_applications: number;
   pending_loan_applications: number;
+  active_loans: number;
 }
 
 interface Activity {
@@ -241,7 +243,7 @@ export default function DashboardPage() {
         />
         <MiniStatCard
           title="Active Loans"
-          value={(stats?.total_loan_applications || 0).toString()}
+          value={(stats?.active_loans || 0).toString()}
           icon="✅"
           color="emerald"
         />

@@ -16,6 +16,10 @@ export interface DashboardStats {
   total_fines_pending: number;
   total_loans_outstanding: number;
   total_loan_repayments: number;
+  // Loan counts
+  total_loan_applications: number;
+  pending_loan_applications: number;
+  active_loans: number;
 }
 
 export interface ActivityItem {
@@ -58,6 +62,13 @@ export class DashboardService {
       this.getLoanTotals(),
     ]);
 
+    // Get loan counts
+    const [totalLoans, pendingLoans, activeLoansCount] = await Promise.all([
+      this.count('loans'),
+      this.count('loans', { status: 'pending' }),
+      this.count('loans', { status: 'disbursed' }),
+    ]);
+
     // Get share value and calculate total shares
     const { data: shareValueSetting } = await supabase
       .from('settings')
@@ -78,6 +89,10 @@ export class DashboardService {
       total_fines_pending: fineTxns.balance,
       total_loans_outstanding: loanTxns.outstanding,
       total_loan_repayments: loanTxns.repayments,
+      // Loan counts
+      total_loan_applications: totalLoans,
+      pending_loan_applications: pendingLoans,
+      active_loans: activeLoansCount,
     };
   }
 
