@@ -329,9 +329,11 @@ export class LoanService {
     // Get or create loans account for this member
     const loansAccount = await this.getOrCreateAccount(loan.member_id, 'loans');
 
-    // Calculate current loan balance (from amount_due)
-    const balanceBefore = Number(loan.amount_due);
-    const balanceAfter = Number(loan.amount_due); // No change until repayment
+    // Calculate balance for the disbursement transaction
+    // balanceBefore = 0 (member has no prior loan balance in this account)
+    // balanceAfter = principal_amount (the amount disbursed - increases what member owes)
+    const balanceBefore = 0;
+    const balanceAfter = Number(loan.principal_amount);
 
     // Update loan status
     const { data: updatedLoan, error } = await supabase

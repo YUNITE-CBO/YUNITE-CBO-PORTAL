@@ -218,6 +218,37 @@ export class DashboardService {
     return count || 0;
   }
 
+  /**
+   * Get transaction types for each account type
+   * NOTE: Transaction type naming is NOT consistent with account type naming
+   * - contributions: uses 'contribution_' (not 'contributions_')
+   * - fines: uses 'fine_posting' (not 'fines_deposit')
+   */
+  private getTransactionTypes(accountType: string): { creditTypes: string[]; debitTypes: string[] } {
+    const typeMap: Record<string, { creditTypes: string[]; debitTypes: string[] }> = {
+      savings: {
+        creditTypes: ['savings_deposit', 'savings_monthly', 'savings_special', 'savings_development'],
+        debitTypes: ['savings_withdrawal', 'savings_disbursement'],
+      },
+      contributions: {
+        // Note: Uses 'contribution_' not 'contributions_'
+        creditTypes: ['contribution_monthly', 'contribution_special', 'contribution_development', 'contributions_deposit'],
+        debitTypes: ['contribution_withdrawal', 'contribution_disbursement', 'contributions_withdrawal'],
+      },
+      welfare: {
+        creditTypes: ['welfare_deposit', 'welfare_monthly', 'welfare_special', 'welfare_development'],
+        debitTypes: ['welfare_withdrawal', 'welfare_disbursement'],
+      },
+      fines: {
+        // Note: Uses 'fine_posting' not 'fines_deposit'
+        creditTypes: ['fine_posting', 'fines_deposit', 'fines_monthly', 'fines_special'],
+        debitTypes: ['fine_payment', 'fines_withdrawal', 'fines_disbursement'],
+      },
+    };
+
+    return typeMap[accountType] || { creditTypes: [], debitTypes: [] };
+  }
+
   private async getTransactionTotals(accountType: string) {
     const supabase = await createClient();
 
@@ -246,8 +277,8 @@ export class DashboardService {
     let totalWithdrawals = 0;
     let balance = 0;
 
-    const creditTypes = [`${accountType}_deposit`, `${accountType}_monthly`, `${accountType}_special`, `${accountType}_development`];
-    const debitTypes = [`${accountType}_withdrawal`, `${accountType}_disbursement`];
+    // Use explicit type mapping instead of dynamic generation
+    const { creditTypes, debitTypes } = this.getTransactionTypes(accountType);
 
     for (const txn of txns) {
       if (creditTypes.includes(txn.transaction_type)) {
