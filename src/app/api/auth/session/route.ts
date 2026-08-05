@@ -29,14 +29,12 @@ export async function GET(request: NextRequest) {
       
       // Get full user profile from database
       const supabase = await createServiceClient();
-      const { data: user } = await supabase
+      const userId = payload.user_id as string;
+      
+      const { data: user, error: userError } = await supabase
         .from('users')
-        .select(`
-          id, email, full_name, role, phone, avatar_url, address,
-          emergency_contact_name, emergency_contact_phone, date_joined,
-          last_login, is_active, must_change_password
-        `)
-        .eq('id', payload.user_id as string)
+        .select('id, email, full_name, role, phone, is_active, last_login, created_at')
+        .eq('id', userId)
         .single();
 
       if (!user) {
@@ -55,9 +53,8 @@ export async function GET(request: NextRequest) {
             full_name: user.full_name,
             role: user.role,
             phone: user.phone,
-            avatar_url: user.avatar_url,
             is_active: user.is_active,
-            must_change_password: user.must_change_password,
+            must_change_password: user.must_change_password || false,
           },
           isSuperAdmin: user.role === 'super_admin',
           isAdmin: ['super_admin', 'admin'].includes(user.role),
