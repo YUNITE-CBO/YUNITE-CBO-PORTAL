@@ -265,7 +265,7 @@ export class DashboardService {
   private async getLoanTotals() {
     const supabase = await createClient();
 
-    // Get disbursements from transactions
+    // Get disbursements from transactions (these INCREASE outstanding)
     const { data: disbursements } = await supabase
       .from('transactions')
       .select('amount')
@@ -281,6 +281,7 @@ export class DashboardService {
     const totalDisbursements = disbursements?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
     const totalRepayments = repayments?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
+    // Outstanding = disbursements - repayments (what members owe)
     return {
       disbursements: totalDisbursements,
       repayments: totalRepayments,

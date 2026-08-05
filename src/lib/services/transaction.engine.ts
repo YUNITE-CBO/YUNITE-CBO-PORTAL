@@ -534,9 +534,14 @@ export class TransactionEngine {
   }
 
   private isDebitTransaction(type: TransactionType): boolean {
+    // NOTE: loan_disbursement is NOT a debit - it INCREASES the outstanding loan balance
+    // The loans account balance represents money OWED by the member
+    // - loan_disbursement: increases (owes more)
+    // - loan_repayment: decreases (paying down debt)
     const debitTypes: TransactionType[] = [
       'savings_withdrawal', 'registration_fee', 'annual_fee',
-      'welfare_disbursement', 'fine_payment', 'loan_disbursement',
+      'welfare_disbursement', 'fine_payment',
+      // 'loan_disbursement' removed - it INCREASES the loans balance (what's owed)
     ];
     return debitTypes.includes(type);
   }
