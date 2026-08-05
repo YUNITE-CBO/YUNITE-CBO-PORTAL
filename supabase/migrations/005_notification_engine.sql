@@ -195,15 +195,93 @@ BEGIN
             BEFORE UPDATE ON notifications
             FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
     ELSE
-        -- Add missing columns if they don't exist
+        -- Add ALL missing columns if they don't exist
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'notification_ref') THEN
+            ALTER TABLE notifications ADD COLUMN notification_ref TEXT UNIQUE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'template_id') THEN
+            ALTER TABLE notifications ADD COLUMN template_id UUID;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'template_code') THEN
+            ALTER TABLE notifications ADD COLUMN template_code TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'category_id') THEN
+            ALTER TABLE notifications ADD COLUMN category_id UUID;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'rendered_variables') THEN
+            ALTER TABLE notifications ADD COLUMN rendered_variables JSONB DEFAULT '{}';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'priority') THEN
+            ALTER TABLE notifications ADD COLUMN priority TEXT DEFAULT 'normal';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'recipient_type') THEN
+            ALTER TABLE notifications ADD COLUMN recipient_type TEXT;
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'recipient_id') THEN
             ALTER TABLE notifications ADD COLUMN recipient_id UUID;
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'recipient_email') THEN
             ALTER TABLE notifications ADD COLUMN recipient_email TEXT;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'recipient_phone') THEN
+            ALTER TABLE notifications ADD COLUMN recipient_phone TEXT;
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'recipient_name') THEN
             ALTER TABLE notifications ADD COLUMN recipient_name TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'source_module') THEN
+            ALTER TABLE notifications ADD COLUMN source_module TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'source_entity_type') THEN
+            ALTER TABLE notifications ADD COLUMN source_entity_type TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'source_entity_id') THEN
+            ALTER TABLE notifications ADD COLUMN source_entity_id UUID;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'source_action') THEN
+            ALTER TABLE notifications ADD COLUMN source_action TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'status') THEN
+            ALTER TABLE notifications ADD COLUMN status TEXT DEFAULT 'pending';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'scheduled_for') THEN
+            ALTER TABLE notifications ADD COLUMN scheduled_for TIMESTAMPTZ;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'sent_at') THEN
+            ALTER TABLE notifications ADD COLUMN sent_at TIMESTAMPTZ;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'delivered_at') THEN
+            ALTER TABLE notifications ADD COLUMN delivered_at TIMESTAMPTZ;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'read_at') THEN
+            ALTER TABLE notifications ADD COLUMN read_at TIMESTAMPTZ;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'error_message') THEN
+            ALTER TABLE notifications ADD COLUMN error_message TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'retry_count') THEN
+            ALTER TABLE notifications ADD COLUMN retry_count INTEGER DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'max_retries') THEN
+            ALTER TABLE notifications ADD COLUMN max_retries INTEGER DEFAULT 3;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'idempotency_key') THEN
+            ALTER TABLE notifications ADD COLUMN idempotency_key TEXT UNIQUE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'actor_id') THEN
+            ALTER TABLE notifications ADD COLUMN actor_id UUID;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'actor_type') THEN
+            ALTER TABLE notifications ADD COLUMN actor_type TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'actor_name') THEN
+            ALTER TABLE notifications ADD COLUMN actor_name TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'created_by') THEN
+            ALTER TABLE notifications ADD COLUMN created_by UUID;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'updated_at') THEN
+            ALTER TABLE notifications ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
         END IF;
     END IF;
 END $$;
