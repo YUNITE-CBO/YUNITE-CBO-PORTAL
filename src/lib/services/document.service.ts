@@ -128,7 +128,7 @@ export class DocumentService {
     fileName: string,
     options: UploadOptions
   ): Promise<UploadResult> {
-    const supabase = createServiceClient();
+    const supabase = await createServiceClient();
     const bucket = options.bucket || 'documents';
     const storagePath = this.generateStoragePath(options.module, options.entityId, fileName);
     

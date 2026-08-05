@@ -28,9 +28,10 @@ export type ModuleType =
   | 'reports'           // Generated reports, statements
   | 'ai_center'         // AI analysis outputs
   | 'notifications'     // Notification attachments
+  | 'statements'        // Financial statements
+  | 'financial'         // Financial documents
   | 'settings'         // Configuration documents
-  | 'audit'             // Audit evidence
-  | 'financial';       // Financial statements, receipts
+  | 'audit';            // Audit evidence
 
 // =============================================================================
 // ENTITY TYPES PER MODULE
@@ -82,23 +83,23 @@ export interface DocumentCategoryConfig {
   code: string;
   name: string;
   description: string;
-  module: ModuleType;
+  module?: ModuleType;
   entityType?: string;
-  isRequired: boolean;
-  isActive: boolean;
-  sortOrder: number;
+  isRequired?: boolean;
+  isActive?: boolean;
+  sortOrder?: number;
   
   // File constraints
-  allowedMimeTypes: string[];
-  maxFileSizeMb: number;
+  allowedMimeTypes?: string[];
+  maxFileSizeMb?: number;
   minFileSizeKb?: number;
   
   // Validation
-  requireVerification: boolean;
+  requireVerification?: boolean;
   autoApproveWithCategory?: string[];  // Auto-approve if these categories are approved
   
   // Workflow
-  workflowRequired: boolean;
+  workflowRequired?: boolean;
   workflowStages?: WorkflowStage[];
   
   // Retention
@@ -107,6 +108,17 @@ export interface DocumentCategoryConfig {
   
   // Module-specific behavior
   behavior?: DocumentBehavior;
+  
+  // Additional properties used in configs
+  required?: boolean;
+  maxSizeMb?: number;
+  allowedTypes?: string[];
+  lifecycle?: string[];
+  autoApprove?: boolean;
+  presentation?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  expiryRequired?: boolean;
+  expiryYears?: number;
 }
 
 export interface WorkflowStage {
@@ -136,6 +148,7 @@ export interface DocumentBehavior {
   isComplianceDocument?: boolean;
   requiredForApproval?: boolean;
   calculateComplianceScore?: boolean;
+  requireVerification?: boolean;
   
   // Versioning behavior
   allowVersioning?: boolean;
@@ -353,6 +366,7 @@ export interface DocumentSearchOptions {
   uploadedBefore?: string;
   expiresAfter?: string;
   expiresBefore?: string;
+  expiryDate?: string;
   
   // Owner filters
   uploadedBy?: string;

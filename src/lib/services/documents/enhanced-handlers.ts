@@ -49,15 +49,15 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
 
     // Check file size
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxSizeMb * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxSizeMb}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 10}MB` };
     }
 
     // Check mime type
     const mimeType = options.file instanceof File ? options.file.type : '';
-    if (!category.allowedTypes.includes(mimeType)) {
-      return { valid: false, error: `File type not allowed. Allowed: ${category.allowedTypes.join(', ')}` };
+    if (!(category.allowedMimeTypes ?? []).includes(mimeType)) {
+      return { valid: false, error: `File type not allowed. Allowed: ${(category.allowedMimeTypes ?? []).join(', ')}` };
     }
 
     // Check for existing document
@@ -112,7 +112,7 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
 
     // Get required categories
     const requiredCategories = Object.values(this.config.categories)
-      .filter(c => c.required)
+      .filter(c => c.isRequired)
       .map(c => c.code);
 
     if (requiredCategories.length === 0) return 100;
@@ -156,7 +156,7 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
       return {
         categoryCode: cat.code,
         categoryName: cat.name,
-        isRequired: cat.required,
+        isRequired: cat.isRequired,
         documentId: doc?.id,
         status: doc?.status || 'missing',
         uploadedAt: doc?.uploaded_at,
@@ -215,13 +215,13 @@ export class LoanDocumentHandler implements ModuleDocumentHandler {
     }
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxSizeMb * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxSizeMb}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 10}MB` };
     }
 
     const mimeType = options.file instanceof File ? options.file.type : '';
-    if (!category.allowedTypes.includes(mimeType)) {
+    if (!(category.allowedMimeTypes ?? []).includes(mimeType)) {
       return { valid: false, error: `File type not allowed: ${mimeType}` };
     }
 
@@ -241,7 +241,7 @@ export class LoanDocumentHandler implements ModuleDocumentHandler {
     const supabase = await createServiceClient();
 
     const requiredCategories = Object.values(this.config.categories)
-      .filter(c => c.required)
+      .filter(c => c.isRequired)
       .map(c => c.code);
 
     if (requiredCategories.length === 0) return 100;
@@ -295,14 +295,14 @@ export class FinancialDocumentHandler implements ModuleDocumentHandler {
     }
 
     // Set retention period
-    const retentionYears = category.retentionYears || this.config.retention.default;
+    const retentionDays = category.retentionDays || this.config.retention?.default || 365;
     const expiryDate = new Date();
-    expiryDate.setFullYear(expiryDate.getFullYear() + retentionYears);
+    expiryDate.setDate(expiryDate.getDate() + retentionDays);
 
     options.metadata = {
       ...options.metadata,
       retention_until: expiryDate.toISOString(),
-      retention_years: retentionYears,
+      retention_days: retentionDays,
     };
 
     return { valid: true };
@@ -336,9 +336,9 @@ export class MeetingDocumentHandler implements ModuleDocumentHandler {
     }
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxSizeMb * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxSizeMb}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 10}MB` };
     }
 
     return { valid: true };
@@ -375,7 +375,7 @@ export class MeetingDocumentHandler implements ModuleDocumentHandler {
   async getAvailableActions(document: EnterpriseDocument, userRole: string): Promise<('approve' | 'reject' | 'request_changes')[]> {
     const category = this.config.categories[document.categoryCode as keyof typeof this.config.categories];
     
-    if (category?.requiresApproval && ['admin', 'super_admin'].includes(userRole)) {
+    if (category?.requireVerification && ['admin', 'super_admin'].includes(userRole)) {
       return ['approve', 'reject', 'request_changes'];
     }
     
@@ -403,13 +403,13 @@ export class OrganizationDocumentHandler implements ModuleDocumentHandler {
     }
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxSizeMb * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxSizeMb}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 10}MB` };
     }
 
     const mimeType = options.file instanceof File ? options.file.type : '';
-    if (!category.allowedTypes.includes(mimeType)) {
+    if (!(category.allowedMimeTypes ?? []).includes(mimeType)) {
       return { valid: false, error: `Invalid file type: ${mimeType}` };
     }
 
@@ -469,9 +469,9 @@ export class NotificationDocumentHandler implements ModuleDocumentHandler {
     }
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxSizeMb * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxSizeMb}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 10}MB` };
     }
 
     return { valid: true };
@@ -536,13 +536,13 @@ export class WelfareDocumentHandler implements ModuleDocumentHandler {
     }
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxSizeMb * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxSizeMb}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 10}MB` };
     }
 
-    // Mark sensitive documents
-    if (category.confidentialityLevel === 'high') {
+    // Mark sensitive documents based on visibility
+    if (category.behavior?.visibility === 'admin' || category.behavior?.visibility === 'owner') {
       options.metadata = {
         ...options.metadata,
         confidentiality: 'high',
@@ -601,14 +601,3 @@ export function registerAllModuleHandlers(): void {
   enterpriseDocumentService.registerModuleHandler(new StatementDocumentHandler());
   enterpriseDocumentService.registerModuleHandler(new WelfareDocumentHandler());
 }
-
-export {
-  MemberDocumentHandler,
-  LoanDocumentHandler,
-  FinancialDocumentHandler,
-  MeetingDocumentHandler,
-  OrganizationDocumentHandler,
-  NotificationDocumentHandler,
-  StatementDocumentHandler,
-  WelfareDocumentHandler,
-};

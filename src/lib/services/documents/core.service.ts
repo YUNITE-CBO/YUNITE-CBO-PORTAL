@@ -62,6 +62,7 @@ const DEFAULT_CONFIG: DocumentServiceConfig = {
     settings: 'settings-documents',
     audit: 'audit-evidence',
     financial: 'financial-documents',
+    statements: 'statements',
   },
   generateStoragePath: (module, entityId, fileName) => {
     const timestamp = Date.now();

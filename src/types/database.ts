@@ -251,32 +251,6 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['contribution_payments']['Insert']>;
       };
 
-      // ============ DOCUMENTS ============
-      documents: {
-        Row: {
-          id: string;
-          member_id: string;
-          document_type: string;
-          file_name: string;
-          file_path: string;
-          file_size: number;
-          mime_type: string;
-          uploaded_by: string;
-          uploaded_at: string;
-          verified: boolean;
-          verified_by: string | null;
-          verified_at: string | null;
-          expiry_date: string | null;
-          notes: string | null;
-          created_at: string;
-        };
-        Insert: Omit<Database['public']['Tables']['documents']['Row'], 'id' | 'created_at'> & {
-          id?: string;
-          created_at?: string;
-        };
-        Update: Partial<Database['public']['Tables']['documents']['Insert']>;
-      };
-
       // ============ COMPLIANCE ============
       compliance_records: {
         Row: {

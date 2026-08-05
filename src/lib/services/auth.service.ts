@@ -300,6 +300,15 @@ export class AuthService {
   }
 
   /**
+   * Get session from request (for API routes using cookies)
+   */
+  async getSession(): Promise<{ user?: { id: string; email: string; role: string; full_name: string } } | null> {
+    // This method is a placeholder - actual session handling is done by middleware
+    // API routes that need user info should use the middleware to extract user from JWT
+    return null;
+  }
+
+  /**
    * Update user profile (non-sensitive fields only)
    */
   async updateProfile(

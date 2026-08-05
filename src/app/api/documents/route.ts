@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
     // Get member compliance status
     if (memberId) {
       ensureHandlersRegistered();
-      const { MemberDocumentHandler } = await import('@/lib/services/documents/module-handlers');
+      const { MemberDocumentHandler } = await import('@/lib/services/documents/enhanced-handlers');
       const handler = new MemberDocumentHandler();
       const compliance = await handler.getComplianceRequirements(memberId);
       const score = await handler.calculateComplianceScore(memberId);
