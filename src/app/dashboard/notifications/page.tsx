@@ -102,6 +102,7 @@ export default function NotificationsPage() {
   const [selectedRecipients, setSelectedRecipients] = useState<SelectedRecipient[]>([]);
   const [memberSearch, setMemberSearch] = useState('');
   const [memberSearchResults, setMemberSearchResults] = useState<Member[]>([]);
+  const [userSearch, setUserSearch] = useState('');
   const [userSearchResults, setUserSearchResults] = useState<User[]>([]);
   const [searchingMembers, setSearchingMembers] = useState(false);
   const [searchingUsers, setSearchingUsers] = useState(false);
@@ -1074,7 +1075,11 @@ export default function NotificationsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-xl font-bold">Select User</h2>
-              <button onClick={() => setShowUserPicker(false)} className="text-gray-400 hover:text-gray-600 text-2xl">
+              <button onClick={() => {
+                setShowUserPicker(false);
+                setUserSearch('');
+                setUserSearchResults([]);
+              }} className="text-gray-400 hover:text-gray-600 text-2xl">
                 ×
               </button>
             </div>
@@ -1082,9 +1087,9 @@ export default function NotificationsPage() {
               <input
                 type="text"
                 placeholder="Search by name or email..."
-                value={memberSearch}
+                value={userSearch}
                 onChange={(e) => {
-                  setMemberSearch(e.target.value);
+                  setUserSearch(e.target.value);
                   searchUsers(e.target.value);
                 }}
                 className="w-full px-4 py-2 border rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500"
@@ -1094,7 +1099,7 @@ export default function NotificationsPage() {
                 {searchingUsers && (
                   <div className="text-center py-4 text-gray-500">Searching...</div>
                 )}
-                {!searchingUsers && userSearchResults.length === 0 && memberSearch.length >= 2 && (
+                {!searchingUsers && userSearchResults.length === 0 && userSearch.length >= 2 && (
                   <div className="text-center py-4 text-gray-500">No users found</div>
                 )}
                 {userSearchResults.map((user) => (
@@ -1103,9 +1108,13 @@ export default function NotificationsPage() {
                     onClick={() => addUserAsRecipient(user)}
                     className="w-full text-left p-4 border rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
                   >
-                    <p className="font-medium text-gray-900">{user.full_name}</p>
-                    <p className="text-sm text-gray-500">{user.email}</p>
-                    <p className="text-xs text-gray-400">{user.role}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">{user.full_name}</p>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                      </div>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs">{user.role}</span>
+                    </div>
                   </button>
                 ))}
               </div>
