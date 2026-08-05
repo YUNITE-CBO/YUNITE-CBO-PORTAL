@@ -7,9 +7,10 @@
  * Every setting always loads from the database.
  * No placeholder text when values exist.
  * Configuration status indicators for each section.
+ * Includes System Administration with Database Reset functionality.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 
 interface Setting {
@@ -61,7 +62,58 @@ interface ConfigurationStatus {
   configured_settings: number;
 }
 
-type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'history';
+interface DataStats {
+  transactions: number;
+  loans: number;
+  fines: number;
+  campaigns: number;
+  accounts: number;
+  documents: number;
+  compliance_records: number;
+  meetings: number;
+  notifications: number;
+  reports: number;
+  members: number;
+  users: number;
+  roles: number;
+}
+
+interface ResetLevel {
+  id: string;
+  name: string;
+  description: string;
+  affected_tables: string[];
+  preserved_tables: string[];
+}
+
+interface SystemState {
+  savings_balance: number;
+  contributions_balance: number;
+  loans_balance: number;
+  fines_balance: number;
+  welfare_balance: number;
+  accounts_count: number;
+}
+
+interface ResetProgress {
+  phase: string;
+  progress: number;
+  totalPhases: number;
+  currentPhase: number;
+  details?: string;
+}
+
+type ResetStep = 
+  | 'select_level'
+  | 'review_impact'
+  | 'security_verify'
+  | 'backup_confirm'
+  | 'countdown'
+  | 'executing'
+  | 'complete'
+  | 'failed';
+
+type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'system' | 'membership' | 'history';
 
 export default function EnhancedSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -73,6 +125,7 @@ export default function EnhancedSettingsPage() {
   // Current user state
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; role: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
   // Configuration data
   const [categories, setCategories] = useState<ConfigurationCategory[]>([]);
@@ -83,6 +136,25 @@ export default function EnhancedSettingsPage() {
   const [editedSettings, setEditedSettings] = useState<Record<string, string>>({});
   const [changeReason, setChangeReason] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  
+  // Database Reset state
+  const [showResetWizard, setShowResetWizard] = useState(false);
+  const [resetStep, setResetStep] = useState<ResetStep>('select_level');
+  const [selectedLevel, setSelectedLevel] = useState<ResetLevel | null>(null);
+  const [dataStats, setDataStats] = useState<DataStats | null>(null);
+  const [systemState, setSystemState] = useState<SystemState | null>(null);
+  const [impactSummary, setImpactSummary] = useState<any>(null);
+  
+  // Reset form state
+  const [confirmationPhrase, setConfirmationPhrase] = useState('');
+  const [backupVerified, setBackupVerified] = useState(false);
+  const [archiveInsteadOfDelete, setArchiveInsteadOfDelete] = useState(true);
+  const [deleteAuditLogs, setDeleteAuditLogs] = useState(false);
+  const [passwordVerified, setPasswordVerified] = useState(false);
+  const [countdown, setCountdown] = useState(10);
+  const [resetProgress, setResetProgress] = useState<ResetProgress | null>(null);
+  const [resetResult, setResetResult] = useState<any>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchSession();
@@ -96,11 +168,25 @@ export default function EnhancedSettingsPage() {
       if (data.success && data.data) {
         setCurrentUser(data.data.user);
         setIsAdmin(['super_admin', 'admin'].includes(data.data.user.role));
+        setIsSuperAdmin(data.data.user.role === 'super_admin');
       }
     } catch (err) {
       console.error('Failed to fetch session:', err);
     }
   };
+
+  const fetchDatabaseResetInfo = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/database-reset');
+      const data = await res.json();
+      if (data.success) {
+        setDataStats(data.data.stats);
+        setSystemState(data.data.systemState);
+      }
+    } catch (err) {
+      console.error('Failed to fetch database reset info:', err);
+    }
+  }, []);
 
   const fetchConfiguration = async () => {
     try {
@@ -145,6 +231,126 @@ export default function EnhancedSettingsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Reset level configurations
+  const resetLevels: ResetLevel[] = [
+    {
+      id: 'level_1_financial',
+      name: 'Financial Reset',
+      description: 'Resets all financial transactions and balances. Members and core structure remain intact.',
+      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts'],
+      preserved_tables: ['members', 'users', 'settings', 'documents'],
+    },
+    {
+      id: 'level_2_operational',
+      name: 'Operational Reset',
+      description: 'Resets all financial and operational records. Members and users remain.',
+      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts', 'documents', 'compliance_records'],
+      preserved_tables: ['members', 'users', 'settings', 'audit_logs'],
+    },
+    {
+      id: 'level_3_organization',
+      name: 'Organization Reset',
+      description: 'Complete system reset. Only Settings, Roles, and Permissions remain.',
+      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts', 'documents', 'compliance_records', 'members', 'users'],
+      preserved_tables: ['settings', 'roles', 'permissions', 'audit_logs'],
+    },
+  ];
+
+  const handleOpenResetWizard = (level?: ResetLevel) => {
+    setShowResetWizard(true);
+    setResetStep('select_level');
+    if (level) {
+      setSelectedLevel(level);
+    }
+    fetchDatabaseResetInfo();
+  };
+
+  const handleProceedToSecurity = async () => {
+    if (!selectedLevel) return;
+    
+    setResetStep('security_verify');
+  };
+
+  const handleProceedToBackup = async () => {
+    if (!passwordVerified) {
+      setError('Please confirm you are a Super Administrator');
+      return;
+    }
+    
+    setResetStep('backup_confirm');
+  };
+
+  const handleStartCountdown = async () => {
+    if (!backupVerified || confirmationPhrase !== 'RESET YUNITE DATABASE') {
+      setError('Please complete all verification steps');
+      return;
+    }
+    
+    setResetStep('countdown');
+    setCountdown(10);
+    
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          if (countdownRef.current) {
+            clearInterval(countdownRef.current);
+          }
+          executeReset();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const executeReset = async () => {
+    if (!selectedLevel) return;
+    
+    setResetStep('executing');
+    setResetProgress({ phase: 'Preparing...', progress: 0, totalPhases: 5, currentPhase: 0 });
+    
+    try {
+      const res = await fetch('/api/settings/database-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          level: selectedLevel.id,
+          archive: archiveInsteadOfDelete,
+          deleteAuditLogs: deleteAuditLogs,
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        setResetProgress({ phase: 'Complete', progress: 100, totalPhases: 5, currentPhase: 5 });
+        setResetResult(data.data);
+        setResetStep('complete');
+      } else {
+        setResetStep('failed');
+        setError(data.error || 'Reset failed');
+      }
+    } catch (err) {
+      setResetStep('failed');
+      setError('Failed to execute database reset');
+    }
+    
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+    }
+  };
+
+  const handleCloseWizard = () => {
+    setShowResetWizard(false);
+    setResetStep('select_level');
+    setSelectedLevel(null);
+    setConfirmationPhrase('');
+    setBackupVerified(false);
+    setPasswordVerified(false);
+    setError(null);
+    fetchDatabaseResetInfo();
   };
 
   const handleSettingChange = (key: string, value: string) => {
@@ -295,7 +501,9 @@ export default function EnhancedSettingsPage() {
                   {category.code === 'contributions' && '🎁'}
                   {category.code === 'compliance' && '📋'}
                   {category.code === 'branding' && '🎨'}
-                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding'].includes(category.code) && '⚙️'}
+                  {category.code === 'system' && '⚙️'}
+                  {category.code === 'membership' && '👥'}
+                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'system', 'membership'].includes(category.code) && '⚙️'}
                 </span>
               </div>
               {getStatusBadge(category.configuration_status)}
@@ -505,6 +713,568 @@ export default function EnhancedSettingsPage() {
     </div>
   );
 
+  const renderSystemSection = () => (
+    <div className="space-y-6">
+      {/* Permission Notice */}
+      {!isSuperAdmin && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🔒</span>
+            <div>
+              <h3 className="font-semibold text-yellow-900">Restricted Access</h3>
+              <p className="text-sm text-yellow-800 mt-1">
+                Database reset functionality is only available to Super Administrators.
+                {currentUser ? (
+                  <> Your current role is <span className="font-medium">{currentUser.role || 'user'}</span>.</>
+                ) : (
+                  <> You may need to log in with a Super Administrator account.</>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Database Reset & Initialization Card */}
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <span>🗄️</span>
+            Database Reset & Initialization
+          </h2>
+          <p className="text-red-100 text-sm mt-1">
+            Return the organization to a fresh operational state while preserving configuration
+          </p>
+        </div>
+        
+        <div className="p-6">
+          {/* Current System State */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Current Financial State</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Savings</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {systemState ? `KES ${(systemState.savings_balance || 0).toLocaleString()}` : '...'}
+                </p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Contributions</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {systemState ? `KES ${(systemState.contributions_balance || 0).toLocaleString()}` : '...'}
+                </p>
+              </div>
+              <div className="bg-orange-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Loans</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {systemState ? `KES ${(systemState.loans_balance || 0).toLocaleString()}` : '...'}
+                </p>
+              </div>
+              <div className="bg-red-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Fines</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {systemState ? `KES ${(systemState.fines_balance || 0).toLocaleString()}` : '...'}
+                </p>
+              </div>
+              <div className="bg-purple-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Welfare</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {systemState ? `KES ${(systemState.welfare_balance || 0).toLocaleString()}` : '...'}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Accounts</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {systemState?.accounts_count ?? '...'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Reset Levels - Only show for Super Admins */}
+          {isSuperAdmin ? (
+            <>
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Available Reset Options</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Level 1 - Financial Reset */}
+                <button
+                  onClick={() => handleOpenResetWizard(resetLevels[0])}
+                  className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:bg-blue-50 transition-all"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">💰</span>
+                    <h4 className="font-semibold text-gray-900">Level 1: Financial Reset</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Resets all financial transactions. Members and core structure remain intact.
+                  </p>
+                  <div className="text-xs text-gray-500">
+                    <p className="font-medium text-red-600">Deletes:</p>
+                    <p>Transactions, Loans, Fines, Campaigns, Accounts</p>
+                  </div>
+                </button>
+
+                {/* Level 2 - Operational Reset */}
+                <button
+                  onClick={() => handleOpenResetWizard(resetLevels[1])}
+                  className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-orange-500 hover:bg-orange-50 transition-all"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">⚙️</span>
+                    <h4 className="font-semibold text-gray-900">Level 2: Operational Reset</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Resets all financial and operational records. Members and users remain.
+                  </p>
+                  <div className="text-xs text-gray-500">
+                    <p className="font-medium text-red-600">Deletes:</p>
+                    <p>+ Meetings, Documents, Notifications, Reports</p>
+                  </div>
+                </button>
+
+                {/* Level 3 - Organization Reset */}
+                <button
+                  onClick={() => handleOpenResetWizard(resetLevels[2])}
+                  className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-red-500 hover:bg-red-50 transition-all"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">🏢</span>
+                    <h4 className="font-semibold text-gray-900">Level 3: Full Reset</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Complete system reset. Only Settings, Roles, and Permissions remain.
+                  </p>
+                  <div className="text-xs text-gray-500">
+                    <p className="font-medium text-red-600">Deletes:</p>
+                    <p>+ Members, Users (except Super Admin)</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Start Button */}
+            <div className="border-t pt-6">
+              <button
+                onClick={() => handleOpenResetWizard()}
+                className="w-full px-6 py-4 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-xl hover:from-red-700 hover:to-red-800 transition-all flex items-center justify-center gap-2"
+              >
+                <span>🔄</span>
+                Open Reset Wizard
+              </button>
+            </div>
+            </>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
+              <p className="text-gray-600">
+                Only Super Administrators can perform database reset operations.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* System Information */}
+      <div className="bg-gray-50 rounded-xl border p-6">
+        <h3 className="font-semibold text-gray-900 mb-4">System Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <span className="text-gray-500">Version</span>
+            <p className="font-medium text-gray-900">YUNITE Enterprise OS v1.1.0</p>
+          </div>
+          <div>
+            <span className="text-gray-500">Database</span>
+            <p className="font-medium text-gray-900">PostgreSQL (Supabase)</p>
+          </div>
+          <div>
+            <span className="text-gray-500">Last Updated</span>
+            <p className="font-medium text-gray-900">{new Date().toLocaleDateString('en-KE')}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Reset Wizard Modal */}
+      {showResetWizard && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Wizard Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {selectedLevel ? `${selectedLevel.name} Wizard` : 'Database Reset Wizard'}
+                </h2>
+                <button
+                  onClick={handleCloseWizard}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Step 1: Select Level */}
+              {resetStep === 'select_level' && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Reset Level</h3>
+                  <div className="space-y-3">
+                    {resetLevels.map((level) => (
+                      <button
+                        key={level.id}
+                        onClick={() => setSelectedLevel(level)}
+                        className={`w-full text-left border-2 rounded-xl p-4 transition-all ${
+                          selectedLevel?.id === level.id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{level.name}</h4>
+                            <p className="text-sm text-gray-600 mt-1">{level.description}</p>
+                          </div>
+                          {selectedLevel?.id === level.id && (
+                            <span className="text-2xl text-blue-500">✓</span>
+                          )}
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+                            Deletes: {level.affected_tables.length} tables
+                          </span>
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                            Preserves: {level.preserved_tables.length} tables
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex justify-end mt-6">
+                    <button
+                      onClick={handleProceedToSecurity}
+                      disabled={!selectedLevel}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Continue →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Security Verification */}
+              {resetStep === 'security_verify' && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Security Verification</h3>
+                  <p className="text-gray-600 mb-6">
+                    Super Admin authentication required.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xl">🔐</span>
+                        <span className="font-semibold text-yellow-900">Super Admin Verification</span>
+                      </div>
+                      <p className="text-sm text-yellow-800">
+                        Only users with Super Admin role can perform database reset operations.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="simulateVerify"
+                        checked={passwordVerified}
+                        onChange={(e) => setPasswordVerified(e.target.checked)}
+                        className="w-4 h-4 text-red-600"
+                      />
+                      <label htmlFor="simulateVerify" className="text-sm text-gray-700">
+                        I confirm I am a Super Administrator
+                      </label>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between mt-6">
+                    <button
+                      onClick={() => setResetStep('select_level')}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={handleProceedToBackup}
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    >
+                      Continue →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Backup Confirmation */}
+              {resetStep === 'backup_confirm' && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Backup & Final Confirmation</h3>
+                  <p className="text-gray-600 mb-6">
+                    Before proceeding, ensure you have created a backup of your data.
+                  </p>
+
+                  <div className="space-y-4">
+                    {/* Archive Option */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id="archiveOption"
+                            checked={archiveInsteadOfDelete}
+                            onChange={(e) => setArchiveInsteadOfDelete(e.target.checked)}
+                            className="w-5 h-5 text-blue-600"
+                          />
+                          <div>
+                            <label htmlFor="archiveOption" className="font-semibold text-blue-900">
+                              Archive Before Delete (Recommended)
+                            </label>
+                            <p className="text-sm text-blue-700">
+                              Create a backup archive before deleting records
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-2xl">📦</span>
+                      </div>
+                    </div>
+
+                    {/* Backup Verification */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <input
+                          type="checkbox"
+                          id="backupVerified"
+                          checked={backupVerified}
+                          onChange={(e) => setBackupVerified(e.target.checked)}
+                          className="w-5 h-5 text-red-600"
+                        />
+                        <label htmlFor="backupVerified" className="font-semibold text-yellow-900">
+                          I have created a database backup
+                        </label>
+                      </div>
+                      <p className="text-sm text-yellow-800">
+                        ⚠️ This action cannot be undone. A backup is essential for data recovery.
+                      </p>
+                    </div>
+
+                    {/* Audit Logs Option */}
+                    <div className="border border-gray-200 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id="deleteAuditLogs"
+                          checked={deleteAuditLogs}
+                          onChange={(e) => setDeleteAuditLogs(e.target.checked)}
+                          className="w-4 h-4 text-gray-600"
+                        />
+                        <div>
+                          <label htmlFor="deleteAuditLogs" className="font-medium text-gray-900">
+                            Also delete audit logs
+                          </label>
+                          <p className="text-sm text-gray-500">
+                            Not recommended - audit logs provide administrative history
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Confirmation Phrase */}
+                    <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4">
+                      <label className="block text-sm font-bold text-red-900 mb-2">
+                        Type exactly: <span className="font-mono text-lg">RESET YUNITE DATABASE</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={confirmationPhrase}
+                        onChange={(e) => setConfirmationPhrase(e.target.value)}
+                        placeholder="RESET YUNITE DATABASE"
+                        className={`w-full px-4 py-2 border-2 rounded-lg font-mono text-lg ${
+                          confirmationPhrase === 'RESET YUNITE DATABASE' 
+                            ? 'border-green-500 bg-green-50' 
+                            : 'border-red-300'
+                        }`}
+                      />
+                      {confirmationPhrase && confirmationPhrase !== 'RESET YUNITE DATABASE' && (
+                        <p className="text-red-600 text-sm mt-1">Must match exactly</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between mt-6">
+                    <button
+                      onClick={() => setResetStep('security_verify')}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={handleStartCountdown}
+                      disabled={!backupVerified || confirmationPhrase !== 'RESET YUNITE DATABASE'}
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Proceed to Countdown →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Countdown */}
+              {resetStep === 'countdown' && (
+                <div className="text-center py-8">
+                  <div className="text-8xl font-bold text-red-600 mb-4">{countdown}</div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    Reset Initiating...
+                  </h3>
+                  <p className="text-gray-600">
+                    Database reset will begin automatically when countdown reaches zero.
+                  </p>
+                  <p className="text-sm text-gray-500 mt-4">
+                    Press any button or close this dialog to cancel
+                  </p>
+                  <button
+                    onClick={() => setResetStep('backup_confirm')}
+                    className="mt-6 px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {/* Step 5: Executing */}
+              {resetStep === 'executing' && (
+                <div className="py-8">
+                  <div className="text-center mb-8">
+                    <div className="animate-spin text-6xl mb-4">⚙️</div>
+                    <h3 className="text-xl font-semibold text-gray-900">Executing Database Reset</h3>
+                    <p className="text-gray-600">Please wait while the reset operation completes...</p>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="bg-gray-100 rounded-full h-4 overflow-hidden mb-4">
+                    <div 
+                      className="bg-gradient-to-r from-red-500 to-red-600 h-full transition-all duration-500"
+                      style={{ width: `${resetProgress?.progress || 0}%` }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">
+                        {resetProgress?.phase || 'Preparing...'}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {resetProgress?.progress?.toFixed(0) || 0}%
+                      </span>
+                    </div>
+                    {resetProgress?.details && (
+                      <p className="text-xs text-gray-500">{resetProgress.details}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 6: Complete */}
+              {resetStep === 'complete' && resetResult && (
+                <div className="text-center py-8">
+                  <div className="text-6xl mb-4">✅</div>
+                  <h3 className="text-xl font-semibold text-green-900 mb-2">
+                    Database Reset Complete!
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    The system has been successfully reinitialized.
+                  </p>
+
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-left mb-6">
+                    <h4 className="font-semibold text-green-900 mb-2">Reset Report</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Status:</div>
+                      <div className="font-medium text-green-700">{resetResult.status}</div>
+                      <div>Reset Level:</div>
+                      <div className="font-medium">{resetResult.reset_level?.replace('_', ' ')}</div>
+                      <div>Validation:</div>
+                      <div className={`font-medium ${resetResult.validation_passed ? 'text-green-700' : 'text-red-700'}`}>
+                        {resetResult.validation_passed ? 'PASSED ✓' : 'FAILED ✗'}
+                      </div>
+                      {resetResult.archived && (
+                        <>
+                          <div>Archive ID:</div>
+                          <div className="font-mono text-xs">{resetResult.archive_id}</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleCloseWizard}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Close & Refresh
+                  </button>
+                </div>
+              )}
+
+              {/* Step 7: Failed */}
+              {resetStep === 'failed' && (
+                <div className="text-center py-8">
+                  <div className="text-6xl mb-4">❌</div>
+                  <h3 className="text-xl font-semibold text-red-900 mb-2">
+                    Reset Failed
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    {error || 'An error occurred during the reset process.'}
+                  </p>
+
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-left mb-6">
+                    <h4 className="font-semibold text-red-900 mb-2">Troubleshooting</h4>
+                    <ul className="text-sm text-red-700 space-y-1">
+                      <li>• Check database connectivity</li>
+                      <li>• Verify user permissions</li>
+                      <li>• Ensure no active transactions</li>
+                      <li>• Contact system administrator</li>
+                    </ul>
+                  </div>
+
+                  <div className="flex justify-center gap-4">
+                    <button
+                      onClick={handleCloseWizard}
+                      className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Close
+                    </button>
+                    <button
+                      onClick={() => {
+                        setResetStep('select_level');
+                        setError(null);
+                      }}
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -554,6 +1324,8 @@ export default function EnhancedSettingsPage() {
         renderHistory()
       ) : activeSection === 'overview' ? (
         renderOverview()
+      ) : activeSection === 'system' ? (
+        renderSystemSection()
       ) : currentCategory ? (
         renderSettingsForm(currentCategory)
       ) : (
