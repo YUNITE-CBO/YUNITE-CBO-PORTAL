@@ -24,13 +24,13 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS checksum TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS original_file_name TEXT;
 
 -- Add indexes for enhanced queries
-CREATE INDEX IF NOT EXISTS idx_documents_member_id ON documents(member_id);
-CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(document_type);
-CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
-CREATE INDEX IF NOT EXISTS idx_documents_storage_bucket ON documents(storage_bucket);
-CREATE INDEX IF NOT EXISTS idx_documents_archived ON documents(is_archived);
-CREATE INDEX IF NOT EXISTS idx_documents_version ON documents(version);
-CREATE INDEX IF NOT EXISTS idx_documents_parent ON documents(parent_document_id);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_documents_member_id ON documents(member_id);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_documents_type ON documents(document_type);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_documents_status ON documents(status);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_documents_storage_bucket ON documents(storage_bucket);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_documents_archived ON documents(is_archived);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_documents_version ON documents(version);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_documents_parent ON documents(parent_document_id);
 
 -- ===================================================================
 -- PART 2: DOCUMENT CATEGORIES TABLE
@@ -246,9 +246,9 @@ CREATE TABLE IF NOT EXISTS configuration_history (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_config_history_key ON configuration_history(setting_key);
-CREATE INDEX IF NOT EXISTS idx_config_history_by ON configuration_history(changed_by);
-CREATE INDEX IF NOT EXISTS idx_config_history_created ON configuration_history(created_at DESC);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_config_history_key ON configuration_history(setting_key);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_config_history_by ON configuration_history(changed_by);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_config_history_created ON configuration_history(created_at DESC);
 
 -- ===================================================================
 -- PART 6: MEMBER COMPLIANCE TRACKING TABLE
@@ -275,10 +275,10 @@ CREATE TABLE IF NOT EXISTS member_compliance (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_member_compliance_member ON member_compliance(member_id);
-CREATE INDEX IF NOT EXISTS idx_member_compliance_status ON member_compliance(status);
-CREATE INDEX IF NOT EXISTS idx_member_compliance_category ON member_compliance(document_category_code);
-CREATE INDEX IF NOT EXISTS idx_member_compliance_expiry ON member_compliance(expiry_date) WHERE expiry_date IS NOT NULL;
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_member_compliance_member ON member_compliance(member_id);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_member_compliance_status ON member_compliance(status);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_member_compliance_category ON member_compliance(document_category_code);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_member_compliance_expiry ON member_compliance(expiry_date) WHERE expiry_date IS NOT NULL;
 
 -- ===================================================================
 -- PART 7: MEMBER APPROVAL WORKFLOW TABLE
@@ -304,8 +304,8 @@ CREATE TABLE IF NOT EXISTS member_approval_workflow (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_approval_workflow_member ON member_approval_workflow(member_id);
-CREATE INDEX IF NOT EXISTS idx_approval_workflow_stage ON member_approval_workflow(current_stage);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_approval_workflow_member ON member_approval_workflow(member_id);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_approval_workflow_stage ON member_approval_workflow(current_stage);
 
 -- ===================================================================
 -- PART 8: FILE UPLOADS TABLE
@@ -338,11 +338,11 @@ CREATE TABLE IF NOT EXISTS file_uploads (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_file_uploads_entity ON file_uploads(module, entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_file_uploads_bucket ON file_uploads(storage_bucket);
-CREATE INDEX IF NOT EXISTS idx_file_uploads_uploaded_by ON file_uploads(uploaded_by);
-CREATE INDEX IF NOT EXISTS idx_file_uploads_status ON file_uploads(status);
-CREATE INDEX IF NOT EXISTS idx_file_uploads_created ON file_uploads(created_at DESC);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_file_uploads_entity ON file_uploads(module, entity_type, entity_id);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_file_uploads_bucket ON file_uploads(storage_bucket);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_file_uploads_uploaded_by ON file_uploads(uploaded_by);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_file_uploads_status ON file_uploads(status);
+DROP INDEX IF EXISTS idx_; CREATE INDEX idx_file_uploads_created ON file_uploads(created_at DESC);
 
 -- ===================================================================
 -- PART 9: NOTIFICATION TEMPLATES (Extended for Config Changes)
