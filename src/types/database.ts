@@ -410,23 +410,246 @@ export interface Database {
         Update: never;
       };
 
-      // ============ SETTINGS ============
+      // ============ SETTINGS (Enhanced) ============
       settings: {
         Row: {
           id: string;
           key: string;
           value: string;
           description: string | null;
-          category: 'organization' | 'financial' | 'membership' | 'loan' | 'system';
+          category: 'organization' | 'financial' | 'membership' | 'loan' | 'system' | 'security' | 'smtp' | 'welfare' | 'contributions';
           is_encrypted: boolean;
           updated_by: string | null;
           updated_at: string;
+          config_category_id: string | null;
+          data_type: 'string' | 'number' | 'boolean' | 'json' | 'password';
+          validation_pattern: string | null;
+          min_value: number | null;
+          max_value: number | null;
+          options: Json | null;
+          is_public: boolean;
+          display_order: number;
+          help_text: string | null;
         };
         Insert: Omit<Database['public']['Tables']['settings']['Row'], 'id' | 'updated_at'> & {
           id?: string;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['settings']['Insert']>;
+      };
+
+      // ============ CONFIGURATION CATEGORIES ============
+      configuration_categories: {
+        Row: {
+          id: string;
+          code: string;
+          name: string;
+          description: string | null;
+          icon: string | null;
+          color: string;
+          sort_order: number;
+          is_active: boolean;
+          parent_id: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['configuration_categories']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['configuration_categories']['Insert']>;
+      };
+
+      // ============ SETTINGS GROUPS ============
+      settings_groups: {
+        Row: {
+          id: string;
+          category_id: string | null;
+          code: string;
+          name: string;
+          description: string | null;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['settings_groups']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['settings_groups']['Insert']>;
+      };
+
+      // ============ CONFIGURATION HISTORY ============
+      configuration_history: {
+        Row: {
+          id: string;
+          setting_key: string;
+          old_value: string | null;
+          new_value: string | null;
+          old_value_masked: string | null;
+          new_value_masked: string | null;
+          changed_by: string | null;
+          changed_by_name: string | null;
+          reason: string | null;
+          ip_address: string | null;
+          user_agent: string | null;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['configuration_history']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: never;
+      };
+
+      // ============ DOCUMENT CATEGORIES ============
+      document_categories: {
+        Row: {
+          id: string;
+          code: string;
+          name: string;
+          description: string | null;
+          module: string;
+          is_required: boolean;
+          is_active: boolean;
+          sort_order: number;
+          allowed_mime_types: string[] | null;
+          max_file_size_mb: number;
+          retention_days: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['document_categories']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['document_categories']['Insert']>;
+      };
+
+      // ============ DOCUMENTS (Enhanced) ============
+      documents: {
+        Row: {
+          id: string;
+          member_id: string;
+          document_type: 'national_id' | 'passport' | 'photo' | 'kra_pin' | 'membership_form' | 'contract' | 'certificate' | 'other';
+          file_name: string;
+          file_path: string;
+          file_size: number | null;
+          mime_type: string | null;
+          storage_bucket: string;
+          storage_path: string | null;
+          expiry_date: string | null;
+          status: 'pending' | 'verified' | 'expired';
+          verified_by: string | null;
+          verified_at: string | null;
+          uploaded_by: string | null;
+          uploaded_at: string;
+          is_archived: boolean;
+          archived_at: string | null;
+          archived_by: string | null;
+          version: number;
+          parent_document_id: string | null;
+          metadata: Json | null;
+          checksum: string | null;
+          original_file_name: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['documents']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['documents']['Insert']>;
+      };
+
+      // ============ MEMBER COMPLIANCE ============
+      member_compliance: {
+        Row: {
+          id: string;
+          member_id: string;
+          document_category_id: string | null;
+          document_category_code: string;
+          document_id: string | null;
+          status: 'pending' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'expired' | 'not_required';
+          submitted_at: string | null;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          review_notes: string | null;
+          expiry_date: string | null;
+          next_review_date: string | null;
+          reminder_sent: boolean;
+          reminder_count: number;
+          last_reminder_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['member_compliance']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['member_compliance']['Insert']>;
+      };
+
+      // ============ MEMBER APPROVAL WORKFLOW ============
+      member_approval_workflow: {
+        Row: {
+          id: string;
+          member_id: string;
+          current_stage: 'documentation' | 'review' | 'approval' | 'completed' | 'rejected';
+          required_documents_complete: boolean;
+          compliance_score: number;
+          notes: string | null;
+          submitted_at: string | null;
+          submitted_by: string | null;
+          approved_at: string | null;
+          approved_by: string | null;
+          rejected_at: string | null;
+          rejected_by: string | null;
+          rejection_reason: string | null;
+          metadata: Json | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['member_approval_workflow']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['member_approval_workflow']['Insert']>;
+      };
+
+      // ============ FILE UPLOADS ============
+      file_uploads: {
+        Row: {
+          id: string;
+          file_name: string;
+          original_name: string;
+          file_path: string;
+          storage_bucket: string;
+          file_size: number;
+          mime_type: string;
+          checksum: string | null;
+          module: string;
+          entity_type: string;
+          entity_id: string;
+          document_category_id: string | null;
+          uploaded_by: string | null;
+          uploaded_by_name: string | null;
+          ip_address: string | null;
+          status: 'active' | 'archived' | 'deleted';
+          archived_at: string | null;
+          archived_by: string | null;
+          deleted_at: string | null;
+          deleted_by: string | null;
+          deletion_reason: string | null;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['file_uploads']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['file_uploads']['Insert']>;
       };
     };
     Views: Record<string, never>;
@@ -453,6 +676,15 @@ export type UserSession = Database['public']['Tables']['user_sessions']['Row'];
 export type LoginActivity = Database['public']['Tables']['login_activity']['Row'];
 export type NotificationPreference = Database['public']['Tables']['notification_preferences']['Row'];
 export type UserManagementAudit = Database['public']['Tables']['user_management_audit']['Row'];
+
+// Phase 4 type aliases
+export type ConfigurationCategory = Database['public']['Tables']['configuration_categories']['Row'];
+export type SettingsGroup = Database['public']['Tables']['settings_groups']['Row'];
+export type ConfigurationHistory = Database['public']['Tables']['configuration_history']['Row'];
+export type DocumentCategory = Database['public']['Tables']['document_categories']['Row'];
+export type MemberCompliance = Database['public']['Tables']['member_compliance']['Row'];
+export type MemberApprovalWorkflow = Database['public']['Tables']['member_approval_workflow']['Row'];
+export type FileUpload = Database['public']['Tables']['file_uploads']['Row'];
 
 // User role types
 export type UserRole = 'super_admin' | 'admin' | 'staff' | 'viewer';

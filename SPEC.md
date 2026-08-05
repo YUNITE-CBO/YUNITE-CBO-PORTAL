@@ -761,3 +761,358 @@ INSERT INTO settings (key, value, category) VALUES
 - Financial rules
 - Membership policies
 - Business rules management
+
+---
+
+## 14. Release 1.2.0 - Phase 4: Enterprise Configuration & Document Management
+
+### 14.1 Configuration Management Framework
+
+**Core Principle**: Every configuration page always loads values from the database. No placeholder text when values exist.
+
+#### Key Features:
+- **Database-Driven Configuration**: All settings are stored in PostgreSQL and loaded dynamically
+- **Configuration Status Indicators**: Each section shows configured/partial/unconfigured status
+- **Change History Tracking**: Full audit trail of all configuration changes
+- **Category-Based Organization**: Settings grouped by functional area (Organization, Financial, Security, etc.)
+- **Value Validation**: Settings have data types (string, number, boolean, password, json)
+- **Help Text**: Each setting includes descriptive help text
+- **Change Reason**: Optional reason field for tracking configuration changes
+
+#### Configuration Categories:
+| Category | Description | Key Settings |
+|----------|-------------|--------------|
+| Organization | Organization profile and branding | name, registration_number, email, phone, address, logo |
+| Financial | Financial rules and fees | share_value, registration_fee, annual_fee |
+| Loans | Loan products and terms | interest_rate, max_amount, max_period_months |
+| Security | Security settings | max_login_attempts, lockout_duration, session_hours |
+| SMTP | Email server configuration | host, port, username, password, from_email |
+| Notifications | Notification preferences | channels, templates |
+| Welfare | Welfare scheme settings | monthly_amount |
+| Contributions | Contribution settings | monthly_default |
+| Compliance | Document requirements | required_documents |
+
+#### API Endpoints:
+- `GET /api/configuration` - Get all settings by category
+- `GET /api/configuration?category=<code>` - Get settings for specific category
+- `GET /api/configuration?status=true` - Get configuration status summary
+- `GET /api/configuration?history=true` - Get configuration change history
+- `PUT /api/configuration` - Update settings (single or batch)
+
+#### Database Tables:
+- `configuration_categories` - Category definitions with icons and colors
+- `settings_groups` - Logical groupings within categories
+- `configuration_history` - Complete change history with before/after values
+
+### 14.2 Enterprise Document Management System
+
+**Core Principle**: Centralized document engine available across all modules.
+
+#### Key Features:
+- **Multi-Module Support**: Documents for members, loans, meetings, accounting, etc.
+- **Supabase Storage Integration**: Files stored in Supabase Storage buckets
+- **File Versioning**: Track document versions without losing history
+- **Configurable Categories**: Organizations define their own document requirements
+- **Upload Methods**: Drag-and-drop, file selection, bulk uploads
+- **Supported Formats**: Images, PDF, Microsoft Office, spreadsheets, text
+
+#### Document Categories (Members):
+| Category | Code | Required |
+|----------|------|----------|
+| National ID | member_national_id | Yes |
+| Passport Photo | member_passport_photo | Yes |
+| KRA PIN | member_kra_pin | Yes |
+| Proof of Residence | member_proof_residence | Yes |
+| Application Form | member_application_form | Yes |
+| Member Agreement | member_agreement | Yes |
+| Consent Form | member_consent_form | No |
+| Passport | member_passport | No |
+| Certificate | member_certificate | No |
+| Tax Document | member_tax_document | No |
+
+#### Compliance Workflow:
+1. **Documentation Stage**: Member uploads required documents
+2. **Review Stage**: Admin reviews submitted documents
+3. **Approval Stage**: Admin approves individual requirements
+4. **Completion**: All requirements met, member can be activated
+
+#### API Endpoints:
+- `GET /api/documents` - Get documents for entity
+- `POST /api/documents` - Upload document
+- `PUT /api/documents/[id]` - Verify/archive document
+- `DELETE /api/documents/[id]` - Delete document
+- `GET /api/compliance` - Get member compliance status
+- `POST /api/compliance` - Submit/review compliance
+- `GET /api/document-categories` - Get document categories
+- `POST /api/document-categories` - Create document category
+
+#### Database Tables:
+- `documents` - Enhanced with versioning, metadata, storage info
+- `document_categories` - Configurable categories per module
+- `member_compliance` - Per-member compliance tracking
+- `member_approval_workflow` - Formal approval workflow
+- `file_uploads` - Cross-module file tracking
+
+### 14.3 Migration
+
+Migration file: `supabase/migrations/007_document_management_system.sql`
+
+Includes:
+- Enhanced `documents` table with versioning and metadata
+- `document_categories` table with configurable requirements
+- `configuration_categories` table for organized settings
+- `settings_groups` for logical groupings
+- `configuration_history` for change tracking
+- `member_compliance` for compliance tracking
+- `member_approval_workflow` for formal approval
+- `file_uploads` for cross-module file tracking
+- RLS policies for all new tables
+- Database triggers for auto-compliance initialization
+
+### 14.4 Frontend Pages
+
+#### Enhanced Settings Page
+- `/dashboard/settings` - New database-driven settings interface
+- Overview with configuration status cards
+- Progress bar showing configuration completeness
+- Category cards with status indicators
+- Individual setting forms with current DB values
+- Change reason input for tracking
+- Configuration history view
+
+#### Member Documents Page
+- `/dashboard/members/documents` - Document management hub
+- Member selector
+- Compliance score and status
+- Document requirements checklist
+- Document upload interface
+- Document preview and verification
+
+### 14.5 Services
+
+#### ConfigurationService
+- `getAllByCategory()` - Get all settings grouped by category
+- `getByCategory(code)` - Get settings for specific category
+- `updateSetting(key, value, ...)` - Update with history tracking
+- `updateMany(updates, ...)` - Batch update
+- `getHistory(options)` - Get configuration change history
+- `getStatusSummary()` - Get configuration completeness
+
+#### DocumentService
+- `uploadFile(file, options)` - Upload to Supabase Storage
+- `getEntityDocuments(module, type, id)` - Get documents for entity
+- `getMemberComplianceStatus(memberId)` - Get compliance status
+- `verifyDocument(id, reviewer)` - Verify document
+- `reviewCompliance(...)` - Approve/reject compliance
+- `submitComplianceDocument(...)` - Submit for review
+
+---
+
+## 15. Enterprise Document & Media Service (Phase 5)
+
+### 15.1 Architecture Overview
+
+The **Enterprise Document & Media Service** is a centralized platform service that serves as the single source of truth for every uploaded file within the YUNITE Enterprise Operating System.
+
+**Core Principles:**
+1. **Single Source of Truth**: All document operations flow through one centralized service
+2. **Module-Specific Behavior**: Each module maintains its own business rules while using the same underlying engine
+3. **Full Integration**: Documents integrate with notifications, audit logs, workflows, and all platform modules
+4. **Enterprise-Grade**: Versioning, expiration, compliance tracking, and comprehensive search
+
+### 15.2 Module Types Supported
+
+| Module | Entity Types | Document Categories |
+|--------|-------------|-------------------|
+| members | member, compliance_record | KYC, photos, certificates |
+| users | user, session | Profile photos, ID documents |
+| organization | organization, branch | Certificates, branding |
+| loans | loan, guarantor, collateral | Agreements, collateral docs |
+| savings | savings_account | Certificates, statements |
+| contributions | campaign, payment | Receipts, certificates |
+| welfare | case, claim | Medical docs, evidence |
+| donations | donation, campaign | Receipts, agreements |
+| investments | investment, return | Proposals, contracts |
+| projects | project, milestone | Proposals, reports |
+| meetings | meeting, agenda | Minutes, resolutions |
+| procurement | purchase, order | POs, invoices, contracts |
+| inventory | item, transfer | Photos, appraisals |
+| assets | asset, maintenance | Titles, insurance |
+| events | event, attendee | Posters, reports |
+| reports | report, statement | Generated reports |
+| ai_center | analysis, model | AI outputs |
+| notifications | notification | Attachments |
+| settings | configuration | Backups, policies |
+| financial | transaction | Receipts, statements |
+
+### 15.3 Document Lifecycle
+
+```
+DRAFT → PENDING → UNDER_REVIEW → APPROVED/REJECTED
+                                    ↓
+                              EXPIRED ←────────── ARCHIVED
+```
+
+### 14.4 Document Categories by Module
+
+Each module has configurable document categories with:
+- Required/optional flags
+- MIME type restrictions
+- File size limits
+- Approval workflows
+- Retention policies
+
+### 15.5 Core Services
+
+#### EnterpriseDocumentService
+```typescript
+// Central service for all document operations
+const service = enterpriseDocumentService;
+
+// Upload document
+const result = await service.upload({
+  module: 'members',
+  entityType: 'member',
+  entityId: memberId,
+  categoryCode: 'member_national_id',
+  file: fileInput.files[0],
+  fileName: 'national_id.pdf',
+  userId: currentUser.id,
+});
+
+// Search documents
+const results = await service.search({
+  module: 'members',
+  entityId: memberId,
+  query: 'birth certificate',
+  status: 'approved',
+});
+
+// Workflow operations
+await service.approve(documentId, userId, notes);
+await service.reject(documentId, userId, reason);
+await service.archive(documentId, userId);
+
+// Versioning
+const versions = await service.getVersionHistory(documentId);
+const result = await service.replace(documentId, newFile, newFileName, userId);
+```
+
+#### DocumentSearchService
+```typescript
+// Full-text search
+const results = await searchService.search({
+  query: 'loan agreement',
+  module: 'loans',
+  status: 'approved',
+  page: 1,
+  pageSize: 20,
+});
+
+// Faceted search
+const facets = await searchService.getFacets({});
+
+// Statistics
+const stats = await searchService.getStatistics();
+```
+
+### 15.6 Module Handlers
+
+Module-specific handlers provide customized behaviors:
+
+| Handler | Special Behaviors |
+|---------|------------------|
+| MemberDocumentHandler | KYC compliance, profile photos, compliance score |
+| UserDocumentHandler | Avatar updates, profile photos |
+| LoanDocumentHandler | Required documents, guarantor verification |
+| OrganizationDocumentHandler | Branding updates, certificate linking |
+| FinancialDocumentHandler | Retention policies, transaction linking |
+| MeetingDocumentHandler | Minutes versioning, agenda linking |
+| WelfareDocumentHandler | Confidentiality handling, case updates |
+| ProjectDocumentHandler | Proposal/contract linking |
+| ReportDocumentHandler | Auto-approval, audit trail |
+
+### 15.7 Database Tables
+
+**documents** - Core document storage
+- id, document_ref (unique reference)
+- module, entity_type, entity_id (classification)
+- category_code (configurable categories)
+- storage_bucket, storage_path (Supabase Storage)
+- file_name, mime_type, file_size, checksum
+- status, is_verified, verification_notes
+- version, parent_document_id (versioning)
+- expiry_date, is_expired, reminder_sent
+- visibility (public/authenticated/admin/owner)
+- metadata (flexible JSON)
+
+**document_categories** - Configurable categories
+- code, name, module, is_required
+- allowed_mime_types, max_file_size_mb
+- retention_days, workflow_required
+
+**document_events** - Event tracking
+- event_type, document_id, actor_id
+- timestamp, previous_status, new_status
+
+**document_access_logs** - Access auditing
+- document_id, user_id, access_type
+- timestamp, success, failure_reason
+
+### 15.8 API Endpoints
+
+```
+GET  /api/documents                     - Search/list documents
+GET  /api/documents?action=search      - Full-text search
+GET  /api/documents?action=facets      - Search facets
+GET  /api/documents?action=stats        - Document statistics
+GET  /api/documents?action=expiring     - Expiring documents
+GET  /api/documents?module=X&entityId=Y - Get for entity
+GET  /api/documents?id=X                - Get by ID
+POST /api/documents                     - Upload document
+
+GET  /api/documents/[id]                - Get document details
+GET  /api/documents/[id]?action=download - Get download URL
+PUT  /api/documents/[id]                - Update (verify, approve, etc.)
+DELETE /api/documents/[id]              - Delete document
+```
+
+### 15.9 Reusable Components
+
+```tsx
+// Use DocumentManager across all modules
+import { DocumentManager } from '@/components/documents';
+
+// Basic usage
+<DocumentManager
+  module="members"
+  entityId={member.id}
+  entityType="member"
+  readOnly={false}
+  showComplianceStatus={true}
+/>
+
+// Compact view
+<DocumentManager
+  module="loans"
+  entityId={loan.id}
+  compact={true}
+/>
+```
+
+### 15.10 Event Integration
+
+Document operations trigger events for other services:
+
+| Event | Trigger | Response |
+|-------|---------|----------|
+| document.uploaded | New upload | Notification to admin |
+| document.approved | Approval | Update compliance score |
+| document.rejected | Rejection | Notify uploader |
+| document.expiring | 30 days before expiry | Send reminder |
+| document.expired | Past expiry date | Update status, notify |
+
+### 15.11 Migrations
+
+- `007_document_management_system.sql` - Initial document system
+- `008_document_service_integration.sql` - Full integration with all modules

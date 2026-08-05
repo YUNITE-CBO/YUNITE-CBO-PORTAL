@@ -1,0 +1,145 @@
+/**
+ * Compliance Management API
+ * Phase 4: Member compliance tracking and approval workflow
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { documentService } from '@/lib/services/document.service';
+import { authService } from '@/lib/services/auth.service';
+import { createServiceClient } from '@/lib/supabase/server';
+import { v4 as uuidv4 } from 'uuid';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const memberId = searchParams.get('memberId');
+
+    if (!memberId) {
+      return NextResponse.json({ success: false, error: 'memberId is required' }, { status: 400 });
+    }
+
+    const data = await documentService.getMemberComplianceStatus(memberId);
+    if (!data) {
+      return NextResponse.json({ success: false, error: 'Member compliance not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    console.error('Error fetching compliance:', error);
+    return NextResponse.json({ success: false, error: 'Failed to fetch compliance' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await authService.getSession();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { memberId, categoryCode, documentId, action, notes } = body;
+
+    // Submit document for compliance
+    if (memberId && categoryCode && documentId && !action) {
+      const result = await documentService.submitComplianceDocument(memberId, categoryCode, documentId);
+      if (!result.success) {
+        return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, message: 'Document submitted for review' });
+    }
+
+    // Review compliance (approve/reject)
+    if (memberId && categoryCode && action && ['approve', 'reject'].includes(action)) {
+      const result = await documentService.reviewCompliance(
+        memberId,
+        categoryCode,
+        session.user.id,
+        action,
+        notes
+      );
+      if (!result.success) {
+        return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, message: `Compliance ${action}ed successfully` });
+    }
+
+    // Approve member (complete workflow)
+    if (memberId && action === 'approve_member') {
+      const supabase = await createServiceClient();
+
+      // Check compliance score
+      const compliance = await documentService.getMemberComplianceStatus(memberId);
+      if (!compliance) {
+        return NextResponse.json({ success: false, error: 'Compliance not found' }, { status: 404 });
+      }
+
+      if (!compliance.required_documents_complete) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Cannot approve member. Compliance score: ${compliance.compliance_score}%. Missing required documents.` 
+        }, { status: 400 });
+      }
+
+      // Update workflow
+      await supabase
+        .from('member_approval_workflow')
+        .update({
+          current_stage: 'completed',
+          approved_at: new Date().toISOString(),
+          approved_by: session.user.id,
+        })
+        .eq('member_id', memberId);
+
+      // Update member status to active
+      await supabase
+        .from('members')
+        .update({ status: 'active' })
+        .eq('id', memberId);
+
+      // Log to audit
+      await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        user_id: session.user.id,
+        action: 'member.approved',
+        record_id: memberId,
+        description: `Member approved after compliance review`,
+        created_at: new Date().toISOString(),
+      });
+
+      return NextResponse.json({ success: true, message: 'Member approved successfully' });
+    }
+
+    // Reject member
+    if (memberId && action === 'reject_member') {
+      const supabase = await createServiceClient();
+
+      await supabase
+        .from('member_approval_workflow')
+        .update({
+          current_stage: 'rejected',
+          rejected_at: new Date().toISOString(),
+          rejected_by: session.user.id,
+          rejection_reason: notes || 'No reason provided',
+        })
+        .eq('member_id', memberId);
+
+      // Log to audit
+      await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        user_id: session.user.id,
+        action: 'member.rejected',
+        record_id: memberId,
+        description: `Member rejected: ${notes || 'No reason provided'}`,
+        created_at: new Date().toISOString(),
+      });
+
+      return NextResponse.json({ success: true, message: 'Member rejected' });
+    }
+
+    return NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 });
+  } catch (error) {
+    console.error('Error processing compliance:', error);
+    return NextResponse.json({ success: false, error: 'Failed to process compliance action' }, { status: 500 });
+  }
+}

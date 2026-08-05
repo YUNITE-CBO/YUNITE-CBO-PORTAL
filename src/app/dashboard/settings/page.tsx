@@ -1,1660 +1,566 @@
 'use client';
 
+/**
+ * Enhanced Settings Page - Phase 4
+ * Configuration Management Framework
+ * 
+ * Every setting always loads from the database.
+ * No placeholder text when values exist.
+ * Configuration status indicators for each section.
+ */
+
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 
-interface OrganizationSettings {
-  name: string;
-  registration_number: string;
-  email: string;
-  phone: string;
-  address: string;
-}
-
-interface FinancialSettings {
-  share_value: string;
-  registration_fee: string;
-  annual_fee: string;
-  loan_interest_rate: string;
-  maximum_loan_amount: string;
-  minimum_shares: string;
-  meeting_attendance_fine: string;
-}
-
-interface MembershipSettings {
-  minimum_age: string;
-  maximum_members: string;
-  require_guarantor: boolean;
-  grace_period_days: string;
-}
-
-interface SettingsData {
-  organization: OrganizationSettings;
-  financial: FinancialSettings;
-  membership: MembershipSettings;
-}
-
-interface DataStats {
-  transactions: number;
-  loans: number;
-  fines: number;
-  campaigns: number;
-  accounts: number;
-  documents: number;
-  compliance_records: number;
-  meetings: number;
-  notifications: number;
-  reports: number;
-  members: number;
-  users: number;
-  roles: number;
-}
-
-interface ResetLevel {
+interface Setting {
   id: string;
+  key: string;
+  value: string;
+  description: string | null;
+  category: string;
+  data_type: string;
+  is_encrypted: boolean;
+  is_public: boolean;
+  display_order: number;
+  help_text: string | null;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+interface ConfigurationCategory {
+  id: string;
+  code: string;
   name: string;
-  description: string;
-  affected_tables: string[];
-  preserved_tables: string[];
+  description: string | null;
+  icon: string | null;
+  color: string;
+  sort_order: number;
+  is_active: boolean;
+  settings: Setting[];
+  configuration_status: 'configured' | 'partial' | 'unconfigured';
+  configured_count: number;
+  total_count: number;
 }
 
-interface SystemState {
-  savings_balance: number;
-  contributions_balance: number;
-  loans_balance: number;
-  fines_balance: number;
-  welfare_balance: number;
-  accounts_count: number;
+interface ConfigurationHistory {
+  id: string;
+  setting_key: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by_name: string | null;
+  reason: string | null;
+  created_at: string;
 }
 
-interface ResetProgress {
-  phase: string;
-  progress: number;
-  totalPhases: number;
-  currentPhase: number;
-  details?: string;
+interface ConfigurationStatus {
+  total_categories: number;
+  configured_categories: number;
+  partial_categories: number;
+  unconfigured_categories: number;
+  total_settings: number;
+  configured_settings: number;
 }
 
-type ResetStep = 
-  | 'select_level'
-  | 'review_impact'
-  | 'security_verify'
-  | 'backup_confirm'
-  | 'countdown'
-  | 'executing'
-  | 'complete'
-  | 'failed';
+type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'history';
 
-export default function SettingsPage() {
+export default function EnhancedSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'organization' | 'financial' | 'membership' | 'system'>('organization');
+  const [activeSection, setActiveSection] = useState<ActiveSection>('overview');
   
   // Current user state
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; role: string } | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   
-  // Database Reset state
-  const [showResetWizard, setShowResetWizard] = useState(false);
-  const [resetStep, setResetStep] = useState<ResetStep>('select_level');
-  const [selectedLevel, setSelectedLevel] = useState<ResetLevel | null>(null);
-  const [dataStats, setDataStats] = useState<DataStats | null>(null);
-  const [systemState, setSystemState] = useState<SystemState | null>(null);
-  const [resetLevels, setResetLevels] = useState<ResetLevel[]>([
-    {
-      id: 'level_1_financial',
-      name: 'Financial Reset',
-      description: 'Resets all financial transactions and balances. Members and core structure remain intact.',
-      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts'],
-      preserved_tables: ['members', 'users', 'settings', 'documents'],
-    },
-    {
-      id: 'level_2_operational',
-      name: 'Operational Reset',
-      description: 'Resets all financial and operational records. Members and users remain.',
-      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts', 'documents', 'compliance_records'],
-      preserved_tables: ['members', 'users', 'settings', 'audit_logs'],
-    },
-    {
-      id: 'level_3_organization',
-      name: 'Organization Reset',
-      description: 'Complete system reset. Only Settings, Roles, and Permissions remain.',
-      affected_tables: ['transactions', 'loans', 'fines', 'campaigns', 'accounts', 'documents', 'compliance_records', 'members', 'users'],
-      preserved_tables: ['settings', 'roles', 'permissions', 'audit_logs'],
-    },
-  ]);
-  const [impactSummary, setImpactSummary] = useState<any>(null);
+  // Configuration data
+  const [categories, setCategories] = useState<ConfigurationCategory[]>([]);
+  const [status, setStatus] = useState<ConfigurationStatus | null>(null);
+  const [history, setHistory] = useState<ConfigurationHistory[]>([]);
   
-  // Reset form state
-  const [confirmationPhrase, setConfirmationPhrase] = useState('');
-  const [backupVerified, setBackupVerified] = useState(false);
-  const [archiveInsteadOfDelete, setArchiveInsteadOfDelete] = useState(true);
-  const [deleteAuditLogs, setDeleteAuditLogs] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [passwordVerified, setPasswordVerified] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [countdown, setCountdown] = useState(10);
-  const [resetProgress, setResetProgress] = useState<ResetProgress | null>(null);
-  const [resetResult, setResetResult] = useState<any>(null);
-  const [settings, setSettings] = useState<SettingsData>({
-    organization: {
-      name: '',
-      registration_number: '',
-      email: '',
-      phone: '',
-      address: '',
-    },
-    financial: {
-      share_value: '100',
-      registration_fee: '1000',
-      annual_fee: '500',
-      loan_interest_rate: '10',
-      maximum_loan_amount: '100000',
-      minimum_shares: '10',
-      meeting_attendance_fine: '200',
-    },
-    membership: {
-      minimum_age: '18',
-      maximum_members: '500',
-      require_guarantor: true,
-      grace_period_days: '30',
-    },
-  });
+  // Edit mode
+  const [editedSettings, setEditedSettings] = useState<Record<string, string>>({});
+  const [changeReason, setChangeReason] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     fetchSession();
-    fetchSettings();
-    fetchDatabaseResetInfo();
+    fetchConfiguration();
   }, []);
 
   const fetchSession = async () => {
     try {
       const res = await fetch('/api/auth/session');
       const data = await res.json();
-
       if (data.success && data.data) {
         setCurrentUser(data.data.user);
-        setIsSuperAdmin(data.data.isSuperAdmin);
-        setSessionError(null);
-      } else {
-        setCurrentUser(null);
-        setIsSuperAdmin(false);
-        setSessionError(data.error || 'Not authenticated');
+        setIsAdmin(['super_admin', 'admin'].includes(data.data.user.role));
       }
-    } catch {
-      setCurrentUser(null);
-      setIsSuperAdmin(false);
-      setSessionError('Failed to fetch session');
+    } catch (err) {
+      console.error('Failed to fetch session:', err);
+    }
+  };
+
+  const fetchConfiguration = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all categories with settings
+      const [configRes, statusRes, historyRes] = await Promise.all([
+        fetch('/api/configuration'),
+        fetch('/api/configuration?status=true'),
+        fetch('/api/configuration?history=true&limit=20')
+      ]);
+
+      const [configData, statusData, historyData] = await Promise.all([
+        configRes.json(),
+        statusRes.json(),
+        historyRes.json()
+      ]);
+
+      if (configData.success) {
+        setCategories(configData.data);
+        
+        // Initialize edited values with current DB values
+        const initialEdits: Record<string, string> = {};
+        for (const cat of configData.data) {
+          for (const setting of cat.settings) {
+            initialEdits[setting.key] = setting.value || '';
+          }
+        }
+        setEditedSettings(initialEdits);
+      }
+
+      if (statusData.success) {
+        setStatus(statusData.data);
+      }
+
+      if (historyData.success) {
+        setHistory(historyData.data.history);
+      }
+    } catch (err) {
+      console.error('Failed to fetch configuration:', err);
+      setError('Failed to load configuration');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchSettings = async () => {
-    try {
-      const res = await fetch('/api/settings');
-      const data = await res.json();
-
-      if (data.success && data.data) {
-        const settingsData = data.data;
-        setSettings({
-          organization: {
-            name: settingsData.organization?.name || '',
-            registration_number: settingsData.organization?.registration_number || '',
-            email: settingsData.organization?.email || '',
-            phone: settingsData.organization?.phone || '',
-            address: settingsData.organization?.address || '',
-          },
-          financial: {
-            share_value: settingsData.financial?.share_value || '100',
-            registration_fee: settingsData.financial?.registration_fee || '1000',
-            annual_fee: settingsData.financial?.annual_fee || '500',
-            loan_interest_rate: settingsData.financial?.loan_interest_rate || '10',
-            maximum_loan_amount: settingsData.financial?.maximum_loan_amount || '100000',
-            minimum_shares: settingsData.financial?.minimum_shares || '10',
-            meeting_attendance_fine: settingsData.financial?.meeting_attendance_fine || '200',
-          },
-          membership: {
-            minimum_age: settingsData.membership?.minimum_age || '18',
-            maximum_members: settingsData.membership?.maximum_members || '500',
-            require_guarantor: settingsData.membership?.require_guarantor ?? true,
-            grace_period_days: settingsData.membership?.grace_period_days || '30',
-          },
-        });
-      }
-    } catch {
-      setError('Failed to load settings');
-    }
+  const handleSettingChange = (key: string, value: string) => {
+    setEditedSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
-  const handleSaveOrganization = async () => {
+  const handleSaveSection = async (categoryCode: string) => {
+    if (!isAdmin) {
+      setError('You do not have permission to modify settings');
+      return;
+    }
+
+    const category = categories.find(c => c.code === categoryCode);
+    if (!category) return;
+
+    // Find changed settings
+    const changes: Record<string, string> = {};
+    for (const setting of category.settings) {
+      if (editedSettings[setting.key] !== setting.value) {
+        changes[setting.key] = editedSettings[setting.key];
+      }
+    }
+
+    if (Object.keys(changes).length === 0) {
+      setSuccess('No changes to save');
+      setTimeout(() => setSuccess(null), 3000);
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch('/api/configuration', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category: 'organization',
-          settings: settings.organization,
-        }),
+          settings: changes,
+          reason: changeReason || 'Configuration update'
+        })
       });
 
       const data = await res.json();
 
       if (data.success) {
-        setSuccess('Organization settings saved successfully!');
-        setTimeout(() => setSuccess(null), 3000);
+        setSuccess(`${Object.keys(changes).length} setting(s) updated successfully`);
+        setChangeReason('');
+        // Refresh configuration
+        await fetchConfiguration();
       } else {
         setError(data.error || 'Failed to save settings');
-      }
-    } catch {
-      setError('Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveFinancial = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: 'financial',
-          settings: settings.financial,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setSuccess('Financial settings saved successfully!');
-        setTimeout(() => setSuccess(null), 3000);
-      } else {
-        setError(data.error || 'Failed to save settings');
-      }
-    } catch {
-      setError('Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveMembership = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: 'membership',
-          settings: settings.membership,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setSuccess('Membership settings saved successfully!');
-        setTimeout(() => setSuccess(null), 3000);
-      } else {
-        setError(data.error || 'Failed to save settings');
-      }
-    } catch {
-      setError('Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Fetch database reset information
-  const fetchDatabaseResetInfo = useCallback(async () => {
-    try {
-      const res = await fetch('/api/settings/database-reset');
-      const data = await res.json();
-      
-      if (data.success && data.data) {
-        setDataStats(data.data.database_stats);
-        setSystemState(data.data.system_state);
-        console.log('Database reset info loaded:', data.data);
       }
     } catch (err) {
-      console.error('Failed to fetch database reset info:', err);
-    }
-  }, []);
-
-  // Fetch impact summary for selected level
-  const fetchImpactSummary = useCallback(async (level: string) => {
-    try {
-      const res = await fetch(`/api/settings/database-reset?level=${level}`);
-      const data = await res.json();
-      if (data.success) {
-        setImpactSummary(data.data.impact_summary);
-        // Don't overwrite selectedLevel - keep the local object with preserved_tables
-        // Just update the impact summary from the API
-      }
-    } catch {
-      console.error('Failed to fetch impact summary');
-    }
-  }, []);
-
-  // Open database reset wizard
-  const handleOpenResetWizard = useCallback(() => {
-    setShowResetWizard(true);
-    setResetStep('select_level');
-    setSelectedLevel(null);
-    setConfirmationPhrase('');
-    setBackupVerified(false);
-    setPasswordVerified(false);
-    setCountdown(10);
-    setResetProgress(null);
-    setResetResult(null);
-    setError(null);
-  }, []);
-
-  // Proceed to review step
-  const handleProceedToReview = (level: ResetLevel) => {
-    setSelectedLevel(level);
-    fetchImpactSummary(level.id);
-    setResetStep('review_impact');
-  };
-
-  // Proceed to security verification
-  const handleProceedToSecurity = () => {
-    setResetStep('security_verify');
-  };
-
-  // Proceed to backup confirmation
-  const handleProceedToBackup = () => {
-    if (selectedLevel?.id === 'level_3_organization' && !passwordVerified) {
-      setError('Password verification is required for Organization Reset');
-      return;
-    }
-    setResetStep('backup_confirm');
-  };
-
-  // Start countdown
-  const handleStartCountdown = () => {
-    if (!backupVerified) {
-      setError('You must confirm that a backup has been created');
-      return;
-    }
-    if (confirmationPhrase !== 'RESET YUNITE DATABASE') {
-      setError('Please type "RESET YUNITE DATABASE" exactly to continue');
-      return;
-    }
-    setResetStep('countdown');
-    setCountdown(10);
-  };
-
-  // Countdown effect
-  useEffect(() => {
-    if (resetStep === 'countdown' && countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (resetStep === 'countdown' && countdown === 0) {
-      handleExecuteReset();
-    }
-  }, [resetStep, countdown]);
-
-  // Execute database reset
-  const handleExecuteReset = async () => {
-    // Check if user is a super admin
-    if (!isSuperAdmin || !currentUser) {
-      setError('Only Super Administrators can perform database reset');
-      setResetStep('failed');
-      return;
-    }
-
-    setResetting(true);
-    setResetStep('executing');
-    setResetProgress({
-      phase: 'Initiating',
-      progress: 0,
-      totalPhases: 7,
-      currentPhase: 0,
-      details: 'Preparing database reset...',
-    });
-
-    try {
-      const res = await fetch('/api/settings/database-reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          level: selectedLevel?.id,
-          user_id: currentUser.id,
-          confirmation_phrase: confirmationPhrase,
-          backup_verified: backupVerified,
-          archive_instead_of_delete: archiveInsteadOfDelete,
-          delete_audit_logs: deleteAuditLogs,
-          password_verified: passwordVerified,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setResetResult(data.data);
-        setResetStep('complete');
-      } else {
-        setError(data.error || 'Database reset failed');
-        setResetStep('failed');
-      }
-    } catch {
-      setError('Database reset failed');
-      setResetStep('failed');
+      setError('Failed to save settings');
     } finally {
-      setResetting(false);
+      setSaving(false);
     }
   };
 
-  // Close wizard and refresh
-  const handleCloseWizard = () => {
-    setShowResetWizard(false);
-    fetchDatabaseResetInfo();
-    if (resetResult?.status === 'completed') {
-      setSuccess('Database reset completed successfully! All financial records have been reset.');
-    }
+  const getStatusBadge = (status: 'configured' | 'partial' | 'unconfigured') => {
+    const badges = {
+      configured: { bg: 'bg-green-100', text: 'text-green-800', label: 'Configured' },
+      partial: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Partial' },
+      unconfigured: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Not Set' }
+    };
+    const badge = badges[status];
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>
+        {badge.label}
+      </span>
+    );
   };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('en-KE', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const renderOverview = () => (
+    <div className="space-y-6">
+      {/* Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border p-6">
+          <div className="text-3xl font-bold text-gray-900">{status?.total_categories || 0}</div>
+          <div className="text-sm text-gray-500 mt-1">Total Categories</div>
+        </div>
+        <div className="bg-white rounded-xl border p-6">
+          <div className="text-3xl font-bold text-green-600">{status?.configured_categories || 0}</div>
+          <div className="text-sm text-gray-500 mt-1">Fully Configured</div>
+        </div>
+        <div className="bg-white rounded-xl border p-6">
+          <div className="text-3xl font-bold text-yellow-600">{status?.partial_categories || 0}</div>
+          <div className="text-sm text-gray-500 mt-1">Partially Configured</div>
+        </div>
+        <div className="bg-white rounded-xl border p-6">
+          <div className="text-3xl font-bold text-gray-400">{status?.unconfigured_categories || 0}</div>
+          <div className="text-sm text-gray-500 mt-1">Not Configured</div>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="bg-white rounded-xl border p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Configuration Progress</h3>
+        <div className="w-full bg-gray-200 rounded-full h-3">
+          <div 
+            className="bg-green-500 h-3 rounded-full transition-all duration-500"
+            style={{ 
+              width: `${status ? Math.round((status.configured_settings / status.total_settings) * 100) : 0}%` 
+            }}
+          />
+        </div>
+        <p className="text-sm text-gray-600 mt-2">
+          {status?.configured_settings || 0} of {status?.total_settings || 0} settings configured 
+          ({status ? Math.round((status.configured_settings / status.total_settings) * 100) : 0}%)
+        </p>
+      </div>
+
+      {/* Category Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {categories.map(category => (
+          <button
+            key={category.id}
+            onClick={() => setActiveSection(category.code as ActiveSection)}
+            className="bg-white rounded-xl border p-6 text-left hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div 
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: `${category.color}20` }}
+              >
+                <span className="text-xl" role="img" aria-label={category.name}>
+                  {category.code === 'organization' && '🏢'}
+                  {category.code === 'financial' && '💰'}
+                  {category.code === 'loan' && '💳'}
+                  {category.code === 'security' && '🔒'}
+                  {category.code === 'smtp' && '📧'}
+                  {category.code === 'notifications' && '🔔'}
+                  {category.code === 'welfare' && '❤️'}
+                  {category.code === 'contributions' && '🎁'}
+                  {category.code === 'compliance' && '📋'}
+                  {category.code === 'branding' && '🎨'}
+                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding'].includes(category.code) && '⚙️'}
+                </span>
+              </div>
+              {getStatusBadge(category.configuration_status)}
+            </div>
+            <h4 className="font-semibold text-gray-900">{category.name}</h4>
+            <p className="text-sm text-gray-500 mt-1">{category.description}</p>
+            <div className="text-xs text-gray-400 mt-3">
+              {category.configured_count}/{category.total_count} settings
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderSettingsForm = (category: ConfigurationCategory) => {
+    const hasChanges = category.settings.some(s => editedSettings[s.key] !== s.value);
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button 
+              onClick={() => setActiveSection('overview')}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ← Back
+            </button>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">{category.name}</h2>
+              <p className="text-sm text-gray-500">{category.description}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {getStatusBadge(category.configuration_status)}
+            {isAdmin && hasChanges && (
+              <button
+                onClick={() => handleSaveSection(category.code)}
+                disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Change Reason */}
+        {hasChanges && isAdmin && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <label className="block text-sm font-medium text-yellow-800 mb-2">
+              Reason for change (optional)
+            </label>
+            <input
+              type="text"
+              value={changeReason}
+              onChange={(e) => setChangeReason(e.target.value)}
+              placeholder="Explain why you're making this change..."
+              className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-yellow-500 focus:border-yellow-500"
+            />
+          </div>
+        )}
+
+        {/* Settings List */}
+        <div className="bg-white rounded-xl border divide-y">
+          {category.settings.map(setting => (
+            <div key={setting.id} className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 mr-4">
+                  <label className="block text-sm font-medium text-gray-900 mb-1">
+                    {setting.key.split('.').pop()?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">{setting.help_text || setting.description}</p>
+                  {setting.updated_at && (
+                    <p className="text-xs text-gray-400">
+                      Last updated: {formatDate(setting.updated_at)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {/* Current Value from DB */}
+              <div className="mt-2">
+                {setting.data_type === 'password' ? (
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={editedSettings[setting.key] || ''}
+                      onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+                      disabled={!isAdmin}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                      placeholder={setting.help_text || `Enter ${setting.key.split('.').pop()}`}
+                    />
+                    {setting.value && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                        ●●●●●●●●
+                      </span>
+                    )}
+                  </div>
+                ) : setting.data_type === 'boolean' ? (
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={editedSettings[setting.key] === 'true'}
+                      onChange={(e) => handleSettingChange(setting.key, e.target.checked ? 'true' : 'false')}
+                      disabled={!isAdmin}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+                    />
+                    <span className="ml-2 text-sm text-gray-600">
+                      {editedSettings[setting.key] === 'true' ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </label>
+                ) : (
+                  <input
+                    type={setting.data_type === 'number' ? 'number' : 'text'}
+                    value={editedSettings[setting.key] || ''}
+                    onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+                    disabled={!isAdmin}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                    placeholder={setting.help_text || `Enter value`}
+                  />
+                )}
+              </div>
+
+              {/* Show if changed */}
+              {editedSettings[setting.key] !== setting.value && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Original:</span>
+                  <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
+                    {setting.value || '(empty)'}
+                  </span>
+                  <span className="text-xs text-blue-600">→</span>
+                  <span className="text-xs font-mono bg-blue-50 px-2 py-1 rounded text-blue-700">
+                    {editedSettings[setting.key] || '(empty)'}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderHistory = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-900">Configuration History</h2>
+        <button
+          onClick={() => setShowHistory(false)}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          ← Back to Overview
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Setting</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Changed By</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {history.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                  No configuration changes recorded yet
+                </td>
+              </tr>
+            ) : (
+              history.map(entry => (
+                <tr key={entry.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="font-mono text-sm text-gray-900">{entry.setting_key}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 line-through">
+                        {entry.old_value || '(empty)'}
+                      </span>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-xs text-gray-900">
+                        {entry.new_value || '(empty)'}
+                      </span>
+                    </div>
+                    {entry.reason && (
+                      <p className="text-xs text-gray-400 mt-1">{entry.reason}</p>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {entry.changed_by_name || 'System'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {formatDate(entry.created_at)}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-96 bg-gray-200 rounded-lg"></div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
+  const currentCategory = categories.find(c => c.code === activeSection);
+
   return (
-    <div className="p-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500 mt-1">Configure organization and system settings</p>
+        <h1 className="text-2xl font-bold text-gray-900">System Configuration</h1>
+        <p className="text-gray-600 mt-1">
+          Configure your organization's settings. All values are loaded directly from the database.
+        </p>
       </div>
 
-      {/* Notifications */}
+      {/* Alerts */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
-
       {success && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
+        <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
           {success}
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border mb-6">
-        <div className="flex border-b">
+      {/* Navigation Tabs */}
+      {activeSection === 'overview' && (
+        <div className="mb-6 flex gap-2">
           <button
-            onClick={() => setActiveTab('organization')}
-            className={`px-6 py-4 text-sm font-medium transition-colors ${
-              activeTab === 'organization'
-                ? 'text-indigo-600 border-b-2 border-indigo-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            onClick={() => setShowHistory(true)}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
           >
-            🏢 Organization
-          </button>
-          <button
-            onClick={() => setActiveTab('financial')}
-            className={`px-6 py-4 text-sm font-medium transition-colors ${
-              activeTab === 'financial'
-                ? 'text-indigo-600 border-b-2 border-indigo-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            💰 Financial
-          </button>
-          <button
-            onClick={() => setActiveTab('membership')}
-            className={`px-6 py-4 text-sm font-medium transition-colors ${
-              activeTab === 'membership'
-                ? 'text-indigo-600 border-b-2 border-indigo-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            👥 Membership
-          </button>
-          <button
-            onClick={() => setActiveTab('system')}
-            className={`px-6 py-4 text-sm font-medium transition-colors ${
-              activeTab === 'system'
-                ? 'text-red-600 border-b-2 border-red-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            ⚙️ System
+            View History
           </button>
         </div>
-      </div>
-
-      {/* Organization Settings */}
-      {activeTab === 'organization' && (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Organization Information</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Organization Name *
-              </label>
-              <input
-                type="text"
-                value={settings.organization.name}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    organization: { ...prev.organization, name: e.target.value },
-                  }))
-                }
-                placeholder="YUNITE CBO"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Registration Number
-              </label>
-              <input
-                type="text"
-                value={settings.organization.registration_number}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    organization: { ...prev.organization, registration_number: e.target.value },
-                  }))
-                }
-                placeholder="CBO/R/12345"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={settings.organization.email}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    organization: { ...prev.organization, email: e.target.value },
-                  }))
-                }
-                placeholder="info@example.org"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                value={settings.organization.phone}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    organization: { ...prev.organization, phone: e.target.value },
-                  }))
-                }
-                placeholder="+254 700 000 000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Physical Address
-              </label>
-              <textarea
-                value={settings.organization.address}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    organization: { ...prev.organization, address: e.target.value },
-                  }))
-                }
-                placeholder="Organization address..."
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t flex justify-end">
-            <button
-              onClick={handleSaveOrganization}
-              disabled={saving || !settings.organization.name}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <span>💾</span>
-                  Save Organization Settings
-                </>
-              )}
-            </button>
-          </div>
-        </div>
       )}
 
-      {/* Financial Settings */}
-      {activeTab === 'financial' && (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Financial Configuration</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Share Value (KES per share) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">KES</span>
-                <input
-                  type="number"
-                  value={settings.financial.share_value}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      financial: { ...prev.financial, share_value: e.target.value },
-                    }))
-                  }
-                  placeholder="100"
-                  min="0"
-                  className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Registration Fee (KES) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">KES</span>
-                <input
-                  type="number"
-                  value={settings.financial.registration_fee}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      financial: { ...prev.financial, registration_fee: e.target.value },
-                    }))
-                  }
-                  placeholder="1000"
-                  min="0"
-                  className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Annual Fee (KES) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">KES</span>
-                <input
-                  type="number"
-                  value={settings.financial.annual_fee}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      financial: { ...prev.financial, annual_fee: e.target.value },
-                    }))
-                  }
-                  placeholder="500"
-                  min="0"
-                  className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Loan Interest Rate (%) *
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  value={settings.financial.loan_interest_rate}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      financial: { ...prev.financial, loan_interest_rate: e.target.value },
-                    }))
-                  }
-                  placeholder="10"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Maximum Loan Amount (KES)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">KES</span>
-                <input
-                  type="number"
-                  value={settings.financial.maximum_loan_amount}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      financial: { ...prev.financial, maximum_loan_amount: e.target.value },
-                    }))
-                  }
-                  placeholder="100000"
-                  min="0"
-                  className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Minimum Shares Required
-              </label>
-              <input
-                type="number"
-                value={settings.financial.minimum_shares}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    financial: { ...prev.financial, minimum_shares: e.target.value },
-                  }))
-                }
-                placeholder="10"
-                min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Meeting Attendance Fine (KES)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">KES</span>
-                <input
-                  type="number"
-                  value={settings.financial.meeting_attendance_fine}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      financial: { ...prev.financial, meeting_attendance_fine: e.target.value },
-                    }))
-                  }
-                  placeholder="200"
-                  min="0"
-                  className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t flex justify-end">
-            <button
-              onClick={handleSaveFinancial}
-              disabled={saving}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <span>💾</span>
-                  Save Financial Settings
-                </>
-              )}
-            </button>
-          </div>
+      {/* Content */}
+      {showHistory ? (
+        renderHistory()
+      ) : activeSection === 'overview' ? (
+        renderOverview()
+      ) : currentCategory ? (
+        renderSettingsForm(currentCategory)
+      ) : (
+        <div className="text-center py-12 text-gray-500">
+          Category not found
         </div>
       )}
-
-      {/* Membership Settings */}
-      {activeTab === 'membership' && (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Membership Rules</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Minimum Age (years) *
-              </label>
-              <input
-                type="number"
-                value={settings.membership.minimum_age}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    membership: { ...prev.membership, minimum_age: e.target.value },
-                  }))
-                }
-                placeholder="18"
-                min="0"
-                max="100"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Maximum Members
-              </label>
-              <input
-                type="number"
-                value={settings.membership.maximum_members}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    membership: { ...prev.membership, maximum_members: e.target.value },
-                  }))
-                }
-                placeholder="500"
-                min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Grace Period (days)
-              </label>
-              <input
-                type="number"
-                value={settings.membership.grace_period_days}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    membership: { ...prev.membership, grace_period_days: e.target.value },
-                  }))
-                }
-                placeholder="30"
-                min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div className="flex items-center pt-6">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.membership.require_guarantor}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      membership: { ...prev.membership, require_guarantor: e.target.checked },
-                    }))
-                  }
-                  className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  Require guarantor for loan applications
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t flex justify-end">
-            <button
-              onClick={handleSaveMembership}
-              disabled={saving}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <span>💾</span>
-                  Save Membership Settings
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* System Settings */}
-      {activeTab === 'system' && (
-        <div className="space-y-6">
-          {/* Permission Notice */}
-          {!isSuperAdmin && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">🔒</span>
-                <div>
-                  <h3 className="font-semibold text-yellow-900">Restricted Access</h3>
-                  <p className="text-sm text-yellow-800 mt-1">
-                    Database reset functionality is only available to Super Administrators. 
-                    {currentUser ? (
-                      <> Your current role is <span className="font-medium">{currentUser.role || 'user'}</span>.</>
-                    ) : (
-                      <> You may need to log in with a Super Administrator account.</>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Database Reset & Initialization Card */}
-          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-            <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <span>🗄️</span>
-                Database Reset & Initialization
-              </h2>
-              <p className="text-red-100 text-sm mt-1">
-                Return the organization to a fresh operational state while preserving configuration
-              </p>
-            </div>
-            
-            <div className="p-6">
-              {/* Current System State */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">Current Financial State</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <div className="bg-blue-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500">Savings</p>
-                    <p className="text-lg font-bold text-gray-900">
-                      {systemState ? `KES ${systemState.savings_balance.toLocaleString()}` : '...'}
-                    </p>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500">Contributions</p>
-                    <p className="text-lg font-bold text-gray-900">
-                      {systemState ? `KES ${systemState.contributions_balance.toLocaleString()}` : '...'}
-                    </p>
-                  </div>
-                  <div className="bg-orange-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500">Loans</p>
-                    <p className="text-lg font-bold text-gray-900">
-                      {systemState ? `KES ${systemState.loans_balance.toLocaleString()}` : '...'}
-                    </p>
-                  </div>
-                  <div className="bg-red-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500">Fines</p>
-                    <p className="text-lg font-bold text-gray-900">
-                      {systemState ? `KES ${systemState.fines_balance.toLocaleString()}` : '...'}
-                    </p>
-                  </div>
-                  <div className="bg-purple-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500">Welfare</p>
-                    <p className="text-lg font-bold text-gray-900">
-                      {systemState ? `KES ${systemState.welfare_balance.toLocaleString()}` : '...'}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500">Accounts</p>
-                    <p className="text-lg font-bold text-gray-900">
-                      {systemState?.accounts_count ?? '...'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Reset Levels - Only show for Super Admins */}
-              {isSuperAdmin ? (
-                <>
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Available Reset Options</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Level 1 - Financial Reset */}
-                    <button
-                      onClick={() => handleOpenResetWizard()}
-                      className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:bg-blue-50 transition-all"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl">💰</span>
-                        <h4 className="font-semibold text-gray-900">Level 1: Financial Reset</h4>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Resets all financial transactions. Members and core structure remain intact.
-                      </p>
-                      <div className="text-xs text-gray-500">
-                        <p className="font-medium text-red-600">Deletes:</p>
-                        <p>Transactions, Loans, Fines, Campaigns, Accounts</p>
-                      </div>
-                    </button>
-
-                    {/* Level 2 - Operational Reset */}
-                    <button
-                      onClick={() => handleOpenResetWizard()}
-                      className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-orange-500 hover:bg-orange-50 transition-all"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl">⚙️</span>
-                        <h4 className="font-semibold text-gray-900">Level 2: Operational Reset</h4>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Resets all financial and operational records. Members and users remain.
-                      </p>
-                      <div className="text-xs text-gray-500">
-                        <p className="font-medium text-red-600">Deletes:</p>
-                        <p>+ Meetings, Documents, Notifications, Reports</p>
-                      </div>
-                    </button>
-
-                    {/* Level 3 - Organization Reset */}
-                    <button
-                      onClick={() => handleOpenResetWizard()}
-                      className="text-left border-2 border-gray-200 rounded-xl p-4 hover:border-red-500 hover:bg-red-50 transition-all"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl">🏢</span>
-                        <h4 className="font-semibold text-gray-900">Level 3: Full Reset</h4>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Complete system reset. Only Settings, Roles, and Permissions remain.
-                      </p>
-                      <div className="text-xs text-gray-500">
-                        <p className="font-medium text-red-600">Deletes:</p>
-                        <p>+ Members, Users (except Super Admin)</p>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Start Button */}
-                <div className="border-t pt-6">
-                  <button
-                    onClick={handleOpenResetWizard}
-                    className="w-full px-6 py-4 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-xl hover:from-red-700 hover:to-red-800 transition-all flex items-center justify-center gap-2"
-                  >
-                    <span>🔄</span>
-                    Open Database Reset Wizard
-                  </button>
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    Multi-step process with safety confirmations and backup verification
-                  </p>
-                </div>
-                </>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <p className="text-sm">Sign in with a Super Administrator account to access reset options.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* System Information Card */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">System Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Version</span>
-                <p className="font-medium text-gray-900">YUNITE Enterprise OS v1.0.0</p>
-              </div>
-              <div>
-                <span className="text-gray-500">Database</span>
-                <p className="font-medium text-gray-900">PostgreSQL (Supabase)</p>
-              </div>
-              <div>
-                <span className="text-gray-500">Last Updated</span>
-                <p className="font-medium text-gray-900">{new Date().toLocaleDateString('en-KE')}</p>
-              </div>
-              <div>
-                <span className="text-gray-500">Total Records</span>
-                <p className="font-medium text-gray-900">
-                  {dataStats 
-                    ? Object.values(dataStats).reduce((a, b) => a + (b || 0), 0)
-                    : '...'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Database Reset Wizard Modal */}
-      {showResetWizard && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Wizard Header */}
-            <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-white">🔄 Database Reset & Initialization</h2>
-                  <p className="text-red-100 text-sm">Enterprise-grade data reset with safety protections</p>
-                </div>
-                {resetStep !== 'executing' && (
-                  <button
-                    onClick={handleCloseWizard}
-                    className="text-white/80 hover:text-white text-2xl"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-              
-              {/* Progress Steps */}
-              {resetStep !== 'executing' && resetStep !== 'complete' && resetStep !== 'failed' && (
-                <div className="flex items-center gap-2 mt-4">
-                  {['Select', 'Review', 'Security', 'Backup', 'Execute'].map((step, idx) => {
-                    const steps = ['select_level', 'review_impact', 'security_verify', 'backup_confirm', 'countdown'];
-                    const currentIdx = steps.indexOf(resetStep);
-                    const isActive = idx === currentIdx;
-                    const isComplete = idx < currentIdx;
-                    
-                    return (
-                      <div key={step} className="flex items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                          isComplete ? 'bg-green-500 text-white' : 
-                          isActive ? 'bg-white text-red-600' : 
-                          'bg-red-400 text-white/60'
-                        }`}>
-                          {isComplete ? '✓' : idx + 1}
-                        </div>
-                        {idx < 4 && (
-                          <div className={`w-8 h-0.5 ${isComplete ? 'bg-green-500' : 'bg-red-400/40'}`} />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Wizard Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {/* Step 1: Select Level */}
-              {resetStep === 'select_level' && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Reset Level</h3>
-                  <p className="text-gray-600 mb-6">
-                    Choose the appropriate reset level for your needs. Each level has different implications.
-                  </p>
-                  
-                  <div className="space-y-4">
-                    {resetLevels.map((level) => (
-                      <button
-                        key={level.id}
-                        onClick={() => handleProceedToReview(level)}
-                        className={`w-full text-left border-2 rounded-xl p-4 transition-all ${
-                          selectedLevel?.id === level.id 
-                            ? 'border-red-500 bg-red-50' 
-                            : 'border-gray-200 hover:border-red-300'
-                        }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
-                            level.id === 'level_1_financial' ? 'bg-blue-100' :
-                            level.id === 'level_2_operational' ? 'bg-orange-100' :
-                            'bg-red-100'
-                          }`}>
-                            {level.id === 'level_1_financial' ? '💰' :
-                             level.id === 'level_2_operational' ? '⚙️' : '🏢'}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">{level.name}</h4>
-                            <p className="text-sm text-gray-600 mt-1">{level.description}</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
-                                Deletes: {level.affected_tables.length} tables
-                              </span>
-                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                                Preserves: {level.preserved_tables.length} tables
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Step 2: Review Impact */}
-              {resetStep === 'review_impact' && selectedLevel && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Review: {selectedLevel.name}
-                  </h3>
-                  <p className="text-gray-600 mb-6">{selectedLevel.description}</p>
-                  
-                  {/* Impact Summary */}
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-                    <h4 className="font-semibold text-red-900 mb-3">⚠️ Records That Will Be Deleted</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {impactSummary?.will_be_deleted?.map((item: any) => (
-                        <div key={item.table} className="bg-white rounded-lg p-3">
-                          <p className="text-2xl font-bold text-gray-900">{item.count.toLocaleString()}</p>
-                          <p className="text-xs text-gray-500 capitalize">{item.table.replace('_', ' ')}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-4 text-sm text-red-800 font-medium">
-                      Total: {impactSummary?.total_records_affected?.toLocaleString() || 0} records will be affected
-                    </p>
-                  </div>
-
-                  {/* Preserved */}
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-                    <h4 className="font-semibold text-green-900 mb-3">✅ Records That Will Be Preserved</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedLevel.preserved_tables.map((table) => (
-                        <span key={table} className="bg-white px-3 py-1 rounded-full text-sm text-gray-700 capitalize border">
-                          {table.replace('_', ' ')}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex justify-between">
-                    <button
-                      onClick={() => setResetStep('select_level')}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      ← Back
-                    </button>
-                    <button
-                      onClick={handleProceedToSecurity}
-                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                    >
-                      I Understand, Continue →
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Security Verification */}
-              {resetStep === 'security_verify' && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Security Verification</h3>
-                  <p className="text-gray-600 mb-6">
-                    {selectedLevel?.id === 'level_3_organization' 
-                      ? 'Organization Reset requires password verification.'
-                      : 'Super Admin authentication required.'}
-                  </p>
-
-                  <div className="space-y-4">
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xl">🔐</span>
-                        <span className="font-semibold text-yellow-900">Super Admin Verification</span>
-                      </div>
-                      <p className="text-sm text-yellow-800">
-                        Only users with Super Admin role can perform database reset operations.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Super Admin Password
-                      </label>
-                      <input
-                        type="password"
-                        value={passwordInput}
-                        onChange={(e) => setPasswordInput(e.target.value)}
-                        placeholder="Enter your password"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        For demo purposes, password verification is simulated
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="simulateVerify"
-                        checked={passwordVerified}
-                        onChange={(e) => setPasswordVerified(e.target.checked)}
-                        className="w-4 h-4 text-red-600"
-                      />
-                      <label htmlFor="simulateVerify" className="text-sm text-gray-700">
-                        I confirm I am a Super Administrator
-                      </label>
-                    </div>
-                  </div>
-
-                  {error && (
-                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                      {error}
-                    </div>
-                  )}
-
-                  <div className="flex justify-between mt-6">
-                    <button
-                      onClick={() => setResetStep('review_impact')}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      ← Back
-                    </button>
-                    <button
-                      onClick={handleProceedToBackup}
-                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                    >
-                      Continue →
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 4: Backup Confirmation */}
-              {resetStep === 'backup_confirm' && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Backup & Final Confirmation</h3>
-                  <p className="text-gray-600 mb-6">
-                    Before proceeding, ensure you have created a backup of your data.
-                  </p>
-
-                  <div className="space-y-4">
-                    {/* Archive Option */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            id="archiveOption"
-                            checked={archiveInsteadOfDelete}
-                            onChange={(e) => setArchiveInsteadOfDelete(e.target.checked)}
-                            className="w-5 h-5 text-blue-600"
-                          />
-                          <div>
-                            <label htmlFor="archiveOption" className="font-semibold text-blue-900">
-                              Archive Before Delete (Recommended)
-                            </label>
-                            <p className="text-sm text-blue-700">
-                              Create a backup archive before deleting records
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-2xl">📦</span>
-                      </div>
-                    </div>
-
-                    {/* Backup Verification */}
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                      <div className="flex items-center gap-3 mb-3">
-                        <input
-                          type="checkbox"
-                          id="backupVerified"
-                          checked={backupVerified}
-                          onChange={(e) => setBackupVerified(e.target.checked)}
-                          className="w-5 h-5 text-red-600"
-                        />
-                        <label htmlFor="backupVerified" className="font-semibold text-yellow-900">
-                          I have created a database backup
-                        </label>
-                      </div>
-                      <p className="text-sm text-yellow-800">
-                        ⚠️ This action cannot be undone. A backup is essential for data recovery.
-                      </p>
-                    </div>
-
-                    {/* Audit Logs Option */}
-                    <div className="border border-gray-200 rounded-xl p-4">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          id="deleteAuditLogs"
-                          checked={deleteAuditLogs}
-                          onChange={(e) => setDeleteAuditLogs(e.target.checked)}
-                          className="w-4 h-4 text-gray-600"
-                        />
-                        <div>
-                          <label htmlFor="deleteAuditLogs" className="font-medium text-gray-900">
-                            Also delete audit logs
-                          </label>
-                          <p className="text-sm text-gray-500">
-                            Not recommended - audit logs provide administrative history
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Confirmation Phrase */}
-                    <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4">
-                      <label className="block text-sm font-bold text-red-900 mb-2">
-                        Type exactly: <span className="font-mono text-lg">RESET YUNITE DATABASE</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={confirmationPhrase}
-                        onChange={(e) => setConfirmationPhrase(e.target.value)}
-                        placeholder="RESET YUNITE DATABASE"
-                        className={`w-full px-4 py-2 border-2 rounded-lg font-mono text-lg ${
-                          confirmationPhrase === 'RESET YUNITE DATABASE' 
-                            ? 'border-green-500 bg-green-50' 
-                            : 'border-red-300'
-                        }`}
-                      />
-                      {confirmationPhrase && confirmationPhrase !== 'RESET YUNITE DATABASE' && (
-                        <p className="text-red-600 text-sm mt-1">Must match exactly</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {error && (
-                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                      {error}
-                    </div>
-                  )}
-
-                  <div className="flex justify-between mt-6">
-                    <button
-                      onClick={() => setResetStep('security_verify')}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      ← Back
-                    </button>
-                    <button
-                      onClick={handleStartCountdown}
-                      disabled={!backupVerified || confirmationPhrase !== 'RESET YUNITE DATABASE'}
-                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Proceed to Countdown →
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 5: Countdown */}
-              {resetStep === 'countdown' && (
-                <div className="text-center py-8">
-                  <div className="text-8xl font-bold text-red-600 mb-4">{countdown}</div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Reset Initiating...
-                  </h3>
-                  <p className="text-gray-600">
-                    Database reset will begin automatically when countdown reaches zero.
-                  </p>
-                  <p className="text-sm text-gray-500 mt-4">
-                    Press any button or close this dialog to cancel
-                  </p>
-                  <button
-                    onClick={() => setResetStep('backup_confirm')}
-                    className="mt-6 px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-
-              {/* Step 6: Executing */}
-              {resetStep === 'executing' && (
-                <div className="py-8">
-                  <div className="text-center mb-8">
-                    <div className="animate-spin text-6xl mb-4">⚙️</div>
-                    <h3 className="text-xl font-semibold text-gray-900">Executing Database Reset</h3>
-                    <p className="text-gray-600">Please wait while the reset operation completes...</p>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="bg-gray-100 rounded-full h-4 overflow-hidden mb-4">
-                    <div 
-                      className="bg-gradient-to-r from-red-500 to-red-600 h-full transition-all duration-500"
-                      style={{ width: `${resetProgress?.progress || 0}%` }}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">
-                        {resetProgress?.phase || 'Preparing...'}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {resetProgress?.progress?.toFixed(0) || 0}%
-                      </span>
-                    </div>
-                    {resetProgress?.details && (
-                      <p className="text-xs text-gray-500">{resetProgress.details}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Step 7: Complete */}
-              {resetStep === 'complete' && resetResult && (
-                <div className="text-center py-8">
-                  <div className="text-6xl mb-4">✅</div>
-                  <h3 className="text-xl font-semibold text-green-900 mb-2">
-                    Database Reset Complete!
-                  </h3>
-                  <p className="text-gray-600 mb-6">
-                    The system has been successfully reinitialized.
-                  </p>
-
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-left mb-6">
-                    <h4 className="font-semibold text-green-900 mb-2">Reset Report</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>Status:</div>
-                      <div className="font-medium text-green-700">{resetResult.status}</div>
-                      <div>Reset Level:</div>
-                      <div className="font-medium">{resetResult.reset_level?.replace('_', ' ')}</div>
-                      <div>Validation:</div>
-                      <div className={`font-medium ${resetResult.validation_passed ? 'text-green-700' : 'text-red-700'}`}>
-                        {resetResult.validation_passed ? 'PASSED ✓' : 'FAILED ✗'}
-                      </div>
-                      {resetResult.archived && (
-                        <>
-                          <div>Archive ID:</div>
-                          <div className="font-mono text-xs">{resetResult.archive_id}</div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleCloseWizard}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    Close & Refresh
-                  </button>
-                </div>
-              )}
-
-              {/* Step 8: Failed */}
-              {resetStep === 'failed' && (
-                <div className="text-center py-8">
-                  <div className="text-6xl mb-4">❌</div>
-                  <h3 className="text-xl font-semibold text-red-900 mb-2">
-                    Reset Failed
-                  </h3>
-                  <p className="text-gray-600 mb-6">
-                    {error || 'An error occurred during the reset process.'}
-                  </p>
-
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-left mb-6">
-                    <h4 className="font-semibold text-red-900 mb-2">Troubleshooting</h4>
-                    <ul className="text-sm text-red-700 space-y-1">
-                      <li>• Check database connectivity</li>
-                      <li>• Verify user permissions</li>
-                      <li>• Ensure no active transactions</li>
-                      <li>• Contact system administrator</li>
-                    </ul>
-                  </div>
-
-                  <div className="flex justify-center gap-4">
-                    <button
-                      onClick={handleCloseWizard}
-                      className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Close
-                    </button>
-                    <button
-                      onClick={() => {
-                        setResetStep('select_level');
-                        setError(null);
-                      }}
-                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                    >
-                      Try Again
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* System Info */}
-      <div className="mt-8 bg-gray-50 rounded-xl border p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">System Information</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <span className="text-gray-500">Version</span>
-            <p className="font-medium text-gray-900">YUNITE Enterprise OS v1.0.0</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Database</span>
-            <p className="font-medium text-gray-900">PostgreSQL (Supabase)</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Last Updated</span>
-            <p className="font-medium text-gray-900">{new Date().toLocaleDateString('en-KE')}</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
