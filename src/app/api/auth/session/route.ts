@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import { createServiceClient } from '@/lib/supabase/server';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
@@ -26,15 +27,40 @@ export async function GET(request: NextRequest) {
     try {
       const { payload } = await jwtVerify(token, JWT_SECRET);
       
+      // Get full user profile from database
+      const supabase = await createServiceClient();
+      const { data: user } = await supabase
+        .from('users')
+        .select(`
+          id, email, full_name, role, phone, avatar_url, address,
+          emergency_contact_name, emergency_contact_phone, date_joined,
+          last_login, is_active, must_change_password
+        `)
+        .eq('id', payload.user_id as string)
+        .single();
+
+      if (!user) {
+        return NextResponse.json(
+          { success: false, error: 'User not found' },
+          { status: 404 }
+        );
+      }
+
       return NextResponse.json({
         success: true,
         data: {
           user: {
-            id: payload.user_id,
-            email: payload.email,
-            role: payload.role,
+            id: user.id,
+            email: user.email,
+            full_name: user.full_name,
+            role: user.role,
+            phone: user.phone,
+            avatar_url: user.avatar_url,
+            is_active: user.is_active,
+            must_change_password: user.must_change_password,
           },
-          isSuperAdmin: payload.role === 'super_admin',
+          isSuperAdmin: user.role === 'super_admin',
+          isAdmin: ['super_admin', 'admin'].includes(user.role),
         },
       });
     } catch {

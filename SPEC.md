@@ -1,4 +1,4 @@
-# YUNITE Enterprise Operating System - Release 1.0.1
+# YUNITE Enterprise Operating System - Release 1.1.0
 
 ## Architecture Specification
 
@@ -7,12 +7,161 @@
 
 ---
 
-## Release 1.0.1 Summary
-- Added Member Lookup workspace for verification
-- Added functional Quick Actions on Member Detail (savings, contributions, fines)
-- Added Transaction reversal with audit trail
-- Added Audit Log viewer for compliance
-- Improved navigation with all workspaces accessible
+## Release 1.1.0 Summary
+- Added comprehensive authentication system with login/logout
+- Added user profile management with role-based access
+- Added banking-grade login UI with security features
+- Added login/logout notifications for users and super admins
+- Added Super Admin user management capabilities
+- Added account lockout after failed login attempts
+- Added session tracking and management
+- Added audit logging for all authentication events
+- Added password strength validation
+- Improved dashboard with user info in navigation
+
+---
+
+## Authentication System (Release 1.1.0)
+
+### Overview
+The authentication system provides enterprise-grade security with the following features:
+
+1. **Secure Login**
+   - JWT-based authentication with 24-hour token expiry
+   - Password hashing using bcrypt (12 rounds)
+   - Account lockout after 5 failed attempts (30-minute lockout)
+   - IP address and device tracking
+   - Login notifications sent to user
+
+2. **User Roles**
+   - **Super Admin**: Full system access, user management, cannot be modified
+   - **Admin**: Administrative access, cannot modify super admin
+   - **Staff**: Standard operational access
+   - **Viewer**: Read-only access
+
+3. **Profile Management**
+   - Users can update: full name, phone, address, emergency contact
+   - Users CANNOT update: email, role (locked fields)
+   - Password change with current password verification
+
+4. **Notifications**
+   - Login notification sent to user via email and in-app
+   - Logout notification sent to user
+   - Super Admin receives notifications for all user login/logout events
+   - Notifications include: user name, time, device info, IP address
+
+5. **Security Features**
+   - Session tracking with IP and device info
+   - Failed login attempt tracking
+   - Account lockout mechanism
+   - Password strength validation
+   - Audit logging for all auth events
+   - Session invalidation on password change
+
+### Database Schema Changes
+
+```
+users (enhanced)
+├── avatar_url
+├── address
+├── emergency_contact_name
+├── emergency_contact_phone
+├── date_joined
+├── failed_login_attempts
+├── locked_until
+├── password_changed_at
+├── must_change_password
+
+user_sessions
+├── id (UUID, PK)
+├── user_id (FK → users)
+├── session_token
+├── ip_address
+├── user_agent
+├── device_info (JSONB)
+├── location_info (JSONB)
+├── is_active
+├── created_at
+├── last_activity_at
+├── expires_at
+├── terminated_at
+├── termination_reason
+
+login_activity
+├── id (UUID, PK)
+├── user_id (FK → users)
+├── email
+├── event_type
+├── ip_address
+├── user_agent
+├── device_info (JSONB)
+├── metadata (JSONB)
+├── success
+├── failure_reason
+├── created_at
+
+notification_preferences
+├── id (UUID, PK)
+├── user_id (FK → users)
+├── notify_on_login
+├── notify_on_logout
+├── notify_on_password_change
+├── notify_on_profile_update
+├── email_notifications
+├── in_app_notifications
+
+user_management_audit
+├── id (UUID, PK)
+├── admin_user_id (FK → users)
+├── target_user_id (FK → users)
+├── action
+├── old_values (JSONB)
+├── new_values (JSONB)
+├── reason
+├── ip_address
+├── created_at
+```
+
+### API Endpoints
+
+**Authentication APIs:**
+- `POST /api/auth/login` - User login with notifications
+- `POST /api/auth/logout` - User logout with notifications
+- `GET /api/auth/session` - Get current user session
+- `GET /api/auth/profile` - Get user profile
+- `PUT /api/auth/profile` - Update user profile
+- `POST /api/auth/password` - Change password
+- `GET /api/auth/token` - Get raw JWT token
+
+**Admin APIs (Super Admin only):**
+- `GET /api/admin/users` - List all users
+- `POST /api/admin/users` - Create new user
+- `GET /api/admin/users/[id]` - Get user details
+- `PUT /api/admin/users/[id]` - Update user
+- `DELETE /api/admin/users/[id]` - Deactivate user
+- `GET /api/admin/login-activity` - View login activity
+
+### Frontend Pages
+
+**Login Page** (`/login`)
+- Modern banking-grade UI with branding panel
+- Show/hide password toggle
+- Error handling with attempts remaining
+- Security badges (SSL, Encrypted)
+
+**Profile Page** (`/profile`)
+- User info display with avatar
+- Editable fields: name, phone, address, emergency contact
+- Locked fields: email, role (with explanation)
+- Password change modal
+- Logout button
+
+**User Management** (`/dashboard/admin/users`)
+- Super Admin only access
+- User list with search and filters
+- Create/Edit/Deactivate users
+- Role assignment
+- Password reset capability
 
 ---
 

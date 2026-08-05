@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { SignJWT } from 'jose';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
+import { authService, DeviceInfo, parseDeviceInfo } from '@/lib/services/auth.service';
+import { authNotificationService } from '@/lib/services/notifications/auth-notification.service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,76 +13,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    // Extract client information
+    const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                      request.headers.get('x-real-ip') || 
+                      'unknown';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    const deviceInfo: DeviceInfo = parseDeviceInfo(userAgent);
 
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Supabase credentials not configured');
+    // Attempt login
+    const result = await authService.login(email, password, ipAddress, userAgent, deviceInfo);
+
+    if (!result.success) {
       return NextResponse.json(
-        { success: false, error: 'Authentication service not configured' },
-        { status: 503 }
+        { success: false, error: result.error },
+        { status: result.error_code === 'ACCOUNT_LOCKED' ? 423 : 401 }
       );
     }
-
-    const supabase = await createClient();
-
-    // Find user by email
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase())
-      .single();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid credentials' },
-        { status: 401 }
-      );
-    }
-
-    // Verify password
-    const bcrypt = await import('bcryptjs');
-    const isValid = await bcrypt.compare(password, user.password_hash);
-
-    if (!isValid) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid credentials' },
-        { status: 401 }
-      );
-    }
-
-    // Generate JWT token
-    const token = await new SignJWT({
-      user_id: user.id,
-      email: user.email,
-      role: user.role || 'user',
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime('24h')
-      .sign(JWT_SECRET);
 
     const response = NextResponse.json({
       success: true,
       message: 'Login successful',
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-        },
+        user: result.user,
       },
+      token: result.token,
     });
 
     // Set auth cookie
-    response.cookies.set('auth_token', token, {
+    response.cookies.set('auth_token', result.token!, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24, // 24 hours
       path: '/',
     });
+
+    // Send notifications asynchronously (don't block response)
+    const timestamp = new Date();
+    
+    // Notify the user
+    authNotificationService.notifyUserLogin({
+      userId: result.user!.id,
+      userEmail: result.user!.email,
+      userName: result.user!.full_name,
+      userRole: result.user!.role,
+      eventType: 'login',
+      ipAddress,
+      deviceInfo,
+      timestamp,
+    }).catch(err => console.error('Failed to send login notification to user:', err));
+
+    // Notify super admins
+    authNotificationService.notifySuperAdminLogin({
+      userId: result.user!.id,
+      userEmail: result.user!.email,
+      userName: result.user!.full_name,
+      userRole: result.user!.role,
+      eventType: 'login',
+      ipAddress,
+      deviceInfo,
+      timestamp,
+    }).catch(err => console.error('Failed to notify super admins:', err));
 
     return response;
   } catch (error) {

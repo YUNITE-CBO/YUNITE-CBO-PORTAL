@@ -320,6 +320,96 @@ export interface Database {
         Update: never;
       };
 
+      // ============ USER SESSIONS ============
+      user_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          session_token: string;
+          ip_address: string | null;
+          user_agent: string | null;
+          device_info: Json | null;
+          location_info: Json | null;
+          is_active: boolean;
+          created_at: string;
+          last_activity_at: string;
+          expires_at: string | null;
+          terminated_at: string | null;
+          termination_reason: string | null;
+        };
+        Insert: Omit<Database['public']['Tables']['user_sessions']['Row'], 'id' | 'created_at' | 'last_activity_at'> & {
+          id?: string;
+          created_at?: string;
+          last_activity_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['user_sessions']['Insert']>;
+      };
+
+      // ============ LOGIN ACTIVITY ============
+      login_activity: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          email: string | null;
+          event_type: 'login_success' | 'login_failed' | 'logout' | 'password_changed' | 'password_reset_requested' | 'password_reset_completed' | 'session_expired' | 'session_terminated' | 'account_locked' | 'account_unlocked' | 'mfa_enabled' | 'mfa_disabled' | 'role_changed' | 'email_changed';
+          ip_address: string | null;
+          user_agent: string | null;
+          device_info: Json | null;
+          location_info: Json | null;
+          metadata: Json | null;
+          success: boolean;
+          failure_reason: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['login_activity']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: never;
+      };
+
+      // ============ NOTIFICATION PREFERENCES ============
+      notification_preferences: {
+        Row: {
+          id: string;
+          user_id: string;
+          notify_on_login: boolean;
+          notify_on_logout: boolean;
+          notify_on_password_change: boolean;
+          notify_on_profile_update: boolean;
+          email_notifications: boolean;
+          in_app_notifications: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['notification_preferences']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['notification_preferences']['Insert']>;
+      };
+
+      // ============ USER MANAGEMENT AUDIT ============
+      user_management_audit: {
+        Row: {
+          id: string;
+          admin_user_id: string;
+          target_user_id: string;
+          action: 'user_created' | 'user_updated' | 'user_deleted' | 'role_changed' | 'status_changed' | 'password_reset' | 'account_locked' | 'account_unlocked' | 'email_changed';
+          old_values: Json | null;
+          new_values: Json | null;
+          reason: string | null;
+          ip_address: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['user_management_audit']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: never;
+      };
+
       // ============ SETTINGS ============
       settings: {
         Row: {
@@ -359,3 +449,23 @@ export type Document = Database['public']['Tables']['documents']['Row'];
 export type ComplianceRecord = Database['public']['Tables']['compliance_records']['Row'];
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 export type Setting = Database['public']['Tables']['settings']['Row'];
+export type UserSession = Database['public']['Tables']['user_sessions']['Row'];
+export type LoginActivity = Database['public']['Tables']['login_activity']['Row'];
+export type NotificationPreference = Database['public']['Tables']['notification_preferences']['Row'];
+export type UserManagementAudit = Database['public']['Tables']['user_management_audit']['Row'];
+
+// User role types
+export type UserRole = 'super_admin' | 'admin' | 'staff' | 'viewer';
+
+// Extended user type with profile fields
+export interface UserProfile extends User {
+  avatar_url?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  date_joined?: string | null;
+  failed_login_attempts?: number;
+  locked_until?: string | null;
+  password_changed_at?: string | null;
+  must_change_password?: boolean;
+}

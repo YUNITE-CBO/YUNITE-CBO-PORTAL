@@ -222,6 +222,33 @@ export interface AuthSession {
   expires_at: number;
 }
 
+export interface LoginResponse {
+  success: boolean;
+  user: AuthUser;
+  token: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: 'super_admin' | 'admin' | 'staff' | 'viewer';
+  avatar_url?: string | null;
+  phone?: string | null;
+  is_active: boolean;
+}
+
+export interface CurrentUser extends AuthUser {
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  date_joined?: string | null;
+  last_login?: string | null;
+  must_change_password?: boolean;
+  isSuperAdmin: boolean;
+  isAdmin: boolean;
+}
+
 // ===========================================
 // User Management Types
 // ===========================================
@@ -240,4 +267,40 @@ export interface UserUpdate {
   role?: User['role'];
   is_active?: boolean;
   password?: string;
+}
+
+export interface UserProfileUpdate {
+  full_name?: string;
+  phone?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  avatar_url?: string;
+}
+
+export interface PasswordChange {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+export interface LoginActivityLog {
+  id: string;
+  user_id: string | null;
+  email: string | null;
+  event_type: string;
+  ip_address: string | null;
+  device_info: Record<string, unknown> | null;
+  success: boolean;
+  failure_reason: string | null;
+  created_at: string;
+}
+
+export interface SessionInfo {
+  id: string;
+  device_info: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+  last_activity_at: string;
+  is_current: boolean;
 }
