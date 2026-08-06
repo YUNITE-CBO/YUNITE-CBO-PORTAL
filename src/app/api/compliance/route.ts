@@ -148,8 +148,8 @@ export async function POST(request: NextRequest) {
         .eq('member_id', memberId)
         .select('*', { count: 'exact' });
 
-      // If not found in old system, try member_compliance (new system)
-      if (oldError) {
+      // If actual error and no rows updated, try new system; if error with rows updated, return error
+      if (oldError && (oldCount === null || oldCount === 0)) {
         return NextResponse.json({ 
           success: false, 
           error: 'Failed to update compliance record in old system' 
@@ -157,9 +157,10 @@ export async function POST(request: NextRequest) {
       }
 
       let newError = null;
-      if (oldCount === 0) {
+      let updatedInNewSystem = false;
+      if (oldCount === null || oldCount === 0) {
         // Try member_compliance (new system)
-        const { error } = await supabase
+        const { error, count: newCount } = await supabase
           .from('member_compliance')
           .update({ 
             status, 
@@ -171,6 +172,7 @@ export async function POST(request: NextRequest) {
           .eq('member_id', memberId);
 
         newError = error;
+        updatedInNewSystem = newCount !== null && newCount > 0;
 
         if (newError) {
           return NextResponse.json({ 
@@ -180,19 +182,22 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Log the action
-      await supabase.from('audit_logs').insert({
-        id: uuidv4(),
-        user_id: session.user.id,
-        action: `compliance.${status}`,
-        record_id: complianceId,
-        description: `Compliance ${status} for member ${memberId}`,
-        created_at: new Date().toISOString(),
-      });
+      // Only log audit if a record was actually updated
+      const wasUpdated = (oldCount !== null && oldCount > 0) || updatedInNewSystem;
+      if (wasUpdated) {
+        await supabase.from('audit_logs').insert({
+          id: uuidv4(),
+          user_id: session.user.id,
+          action: `compliance.${status}`,
+          record_id: complianceId,
+          description: `Compliance ${status} for member ${memberId}`,
+          created_at: new Date().toISOString(),
+        });
+      }
 
       return NextResponse.json({ 
         success: true, 
-        message: `Compliance marked as ${status}` 
+        message: wasUpdated ? `Compliance marked as ${status}` : `No compliance record found for ${complianceId}`
       });
     }
 
