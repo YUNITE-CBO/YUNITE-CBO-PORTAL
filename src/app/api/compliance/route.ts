@@ -145,20 +145,14 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString()
         })
         .eq('id', complianceId)
-        .eq('member_id', memberId);
+        .eq('member_id', memberId)
+        .select('*', { count: 'exact' });
 
       let updatedInOldSystem = !oldError && oldCount !== null && oldCount > 0;
       let updatedInNewSystem = false;
 
-      // If not found or error in old system, try member_compliance (new system)
-      if (oldError || oldCount === 0) {
-        if (oldError) {
-          return NextResponse.json({ 
-            success: false, 
-            error: 'Failed to update compliance record in old system' 
-          }, { status: 500 });
-        }
-
+      // If not found in old system, try member_compliance (new system)
+      if (oldCount === 0) {
         // Record not found in old system, try new system
         const { error: newError, count: newCount } = await supabase
           .from('member_compliance')
@@ -169,7 +163,8 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString()
           })
           .eq('id', complianceId)
-          .eq('member_id', memberId);
+          .eq('member_id', memberId)
+          .select('*', { count: 'exact' });
 
         if (newError) {
           return NextResponse.json({ 
