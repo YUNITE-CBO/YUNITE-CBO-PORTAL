@@ -147,8 +147,8 @@ export async function POST(request: NextRequest) {
         .eq('id', complianceId)
         .eq('member_id', memberId);
 
-      // If not found in old system, try member_compliance (new system)
-      if (oldError) {
+      // If actual error and no rows updated, try new system; if error with rows updated, return error
+      if (oldError && (oldCount === null || oldCount === 0)) {
         return NextResponse.json({ 
           success: false, 
           error: 'Failed to update compliance record in old system' 
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
 
       let newError = null;
       let updatedInNewSystem = false;
-      if (oldCount === 0) {
+      if (oldCount === null || oldCount === 0) {
         // Try member_compliance (new system)
         const { error, count: newCount } = await supabase
           .from('member_compliance')
