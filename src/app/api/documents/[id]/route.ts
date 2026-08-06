@@ -91,14 +91,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               'member_passport_photo': 'photo',
             };
             
-            const complianceType = complianceTypeMap[doc.category_code] || doc.category_code;
+            const complianceType = complianceTypeMap[doc.categoryCode] || doc.categoryCode;
             
             await supabase
               .from('compliance_records')
               .update({ 
                 status: 'complete', 
                 completed_date: new Date().toISOString(),
-                notes: `Auto-completed from verified document: ${doc.title || doc.file_name}`
+                notes: `Auto-completed from verified document: ${doc.title || doc.fileName}`
               })
               .eq('member_id', doc.entityId)
               .eq('compliance_type', complianceType);
@@ -108,10 +108,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               .update({ 
                 status: 'approved', 
                 reviewed_at: new Date().toISOString(),
-                review_notes: `Auto-completed from verified document: ${doc.title || doc.file_name}`
+                review_notes: `Auto-completed from verified document: ${doc.title || doc.fileName}`
               })
               .eq('member_id', doc.entityId)
-              .eq('document_category_code', doc.category_code);
+              .eq('document_category_code', doc.categoryCode);
           } catch (err) {
             console.error('Failed to auto-update compliance:', err);
           }
@@ -143,7 +143,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               'member_passport_photo': 'photo',
             };
             
-            const complianceType = complianceTypeMap[doc.category_code] || doc.category_code;
+            const complianceType = complianceTypeMap[doc.categoryCode] || doc.categoryCode;
             
             // Update compliance_records
             await supabase
@@ -151,7 +151,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               .update({ 
                 status: 'complete', 
                 completed_date: new Date().toISOString(),
-                notes: `Auto-completed from approved document: ${doc.title || doc.file_name}`
+                notes: `Auto-completed from approved document: ${doc.title || doc.fileName}`
               })
               .eq('member_id', doc.entityId)
               .eq('compliance_type', complianceType);
@@ -162,10 +162,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               .update({ 
                 status: 'approved', 
                 reviewed_at: new Date().toISOString(),
-                review_notes: `Auto-completed from approved document: ${doc.title || doc.file_name}`
+                review_notes: `Auto-completed from approved document: ${doc.title || doc.fileName}`
               })
               .eq('member_id', doc.entityId)
-              .eq('document_category_code', doc.category_code);
+              .eq('document_category_code', doc.categoryCode);
           } catch (err) {
             console.error('Failed to auto-update compliance:', err);
           }
