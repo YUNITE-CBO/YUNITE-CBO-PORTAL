@@ -230,15 +230,27 @@ export async function PUT(
       // Emit notification events
       try {
         if (body.status === 'active') {
-          await notificationEventService.emitMemberApproved(id, {
-            member_name: `${currentMember.first_name} ${currentMember.last_name}`,
-            member_number: currentMember.member_number,
-          }, user.id);
+          await notificationEventService.emit({
+            event_type: 'member',
+            event_action: 'approved',
+            entity_id: id,
+            entity_data: {
+              member_name: `${currentMember.first_name} ${currentMember.last_name}`,
+              member_number: currentMember.member_number,
+            },
+            actor_id: user.id,
+          });
         } else if (body.status === 'suspended') {
-          await notificationEventService.emitMemberSuspended(id, {
-            member_name: `${currentMember.first_name} ${currentMember.last_name}`,
-            reason: body.suspension_reason,
-          }, user.id);
+          await notificationEventService.emit({
+            event_type: 'member',
+            event_action: 'suspended',
+            entity_id: id,
+            entity_data: {
+              member_name: `${currentMember.first_name} ${currentMember.last_name}`,
+              reason: body.suspension_reason,
+            },
+            actor_id: user.id,
+          });
         }
       } catch (notifError) {
         console.error('Failed to emit notification:', notifError);
