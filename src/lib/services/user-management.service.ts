@@ -82,6 +82,7 @@ export interface UserWithDetails {
   department: string | null;
   jobTitle: string | null;
   employeeId: string | null;
+  adminNotes: string | null;
   createdAt: string;
   dateJoined: string | null;
   lastLogin: string | null;
@@ -359,9 +360,7 @@ export class UserManagementService {
     }
 
     if (data.adminNotes !== undefined) {
-      // Access admin_notes from the raw user object
-      const rawUser = await this.getUserById(userId);
-      oldValues.admin_notes = rawUser?.admin_notes;
+      oldValues.admin_notes = currentUser.adminNotes;
       newValues.admin_notes = data.adminNotes || null;
       updates.admin_notes = data.adminNotes || null;
     }
@@ -1089,6 +1088,7 @@ export class UserManagementService {
       department: user.department as string | null,
       jobTitle: user.job_title as string | null,
       employeeId: user.employee_id as string | null,
+      adminNotes: user.admin_notes as string | null,
       createdAt: user.created_at as string,
       dateJoined: user.date_joined as string | null,
       lastLogin: user.last_login as string | null,
