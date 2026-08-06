@@ -7,19 +7,19 @@ import Link from 'next/link';
 interface User {
   id: string;
   email: string;
-  full_name: string;
+  fullName: string;
   role: string;
   phone: string | null;
-  avatar_url: string | null;
-  is_active: boolean;
-  last_login: string | null;
-  created_at: string;
-  date_joined: string | null;
-  must_change_password: boolean;
+  avatarUrl: string | null;
+  isActive: boolean;
+  lastLogin: string | null;
+  createdAt: string;
+  dateJoined: string | null;
+  mustChangePassword: boolean;
   department?: string | null;
-  job_title?: string | null;
-  total_logins?: number;
-  is_protected?: boolean;
+  jobTitle?: string | null;
+  totalLogins?: number;
+  isProtected?: boolean;
 }
 
 interface UserWithDetails extends User {
@@ -45,13 +45,13 @@ interface BootstrapStatus {
 
 interface AuditEntry {
   id: string;
-  admin_user_id: string;
-  target_user_id: string;
+  adminUserId: string;
+  targetUserId: string;
   action: string;
-  old_values: Record<string, unknown>;
-  new_values: Record<string, unknown>;
+  oldValues: Record<string, unknown>;
+  newValues: Record<string, unknown>;
   reason?: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export default function UserManagementPage() {
@@ -80,21 +80,21 @@ export default function UserManagementPage() {
   const [createForm, setCreateForm] = useState({
     email: '',
     password: '',
-    full_name: '',
+    fullName: '',
     phone: '',
     role: 'staff',
     department: '',
-    job_title: '',
+    jobTitle: '',
   });
   const [editForm, setEditForm] = useState({
-    full_name: '',
+    fullName: '',
     phone: '',
     email: '',
     role: '',
-    is_active: true,
+    isActive: true,
     password: '',
     department: '',
-    job_title: '',
+    jobTitle: '',
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
@@ -206,11 +206,11 @@ export default function UserManagementPage() {
         body: JSON.stringify({
           email: createForm.email,
           password: createForm.password,
-          full_name: createForm.full_name,
+          full_name: createForm.fullName,
           phone: createForm.phone || undefined,
           role: createForm.role,
           department: createForm.department || undefined,
-          job_title: createForm.job_title || undefined,
+          job_title: createForm.jobTitle || undefined,
           send_welcome_email: true,
         }),
       });
@@ -221,7 +221,7 @@ export default function UserManagementPage() {
         setFormError(data.error || 'Failed to create user');
       } else {
         setFormSuccess('User created successfully');
-        setCreateForm({ email: '', password: '', full_name: '', phone: '', role: 'staff', department: '', job_title: '' });
+        setCreateForm({ email: '', password: '', fullName: '', phone: '', role: 'staff', department: '', jobTitle: '' });
         setTimeout(() => {
           setShowCreateModal(false);
           setFormSuccess(null);
@@ -243,16 +243,16 @@ export default function UserManagementPage() {
 
     try {
       const updateData: Record<string, unknown> = {
-        full_name: editForm.full_name,
+        full_name: editForm.fullName,
         phone: editForm.phone || undefined,
       };
 
       if (selectedUser?.role !== 'super_admin') {
         updateData.email = editForm.email;
         updateData.role = editForm.role;
-        updateData.is_active = editForm.is_active;
+        updateData.is_active = editForm.isActive;
         updateData.department = editForm.department || undefined;
-        updateData.job_title = editForm.job_title || undefined;
+        updateData.job_title = editForm.jobTitle || undefined;
       }
 
       if (editForm.password) {
@@ -275,7 +275,7 @@ export default function UserManagementPage() {
           setShowEditModal(false);
           setSelectedUser(null);
           setFormSuccess(null);
-          setEditForm({ full_name: '', phone: '', email: '', role: '', is_active: true, password: '', department: '', job_title: '' });
+          setEditForm({ fullName: '', phone: '', email: '', role: '', isActive: true, password: '', department: '', jobTitle: '' });
           fetchUsers();
         }, 1500);
       }
@@ -318,14 +318,14 @@ export default function UserManagementPage() {
   const openEditModal = (user: User) => {
     setSelectedUser(user as UserWithDetails);
     setEditForm({
-      full_name: user.full_name,
+      fullName: user.fullName,
       phone: user.phone || '',
       email: user.email,
       role: user.role,
-      is_active: user.is_active,
+      isActive: user.isActive,
       password: '',
       department: user.department || '',
-      job_title: user.job_title || '',
+      jobTitle: user.jobTitle || '',
     });
     setShowEditModal(true);
   };
@@ -526,12 +526,12 @@ export default function UserManagementPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
                           <span className="text-indigo-700 font-medium">
-                            {user.full_name.charAt(0).toUpperCase()}
+                            {user.fullName.charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">{user.full_name}</span>
+                            <span className="font-medium text-gray-900">{user.fullName}</span>
                             {user.role === 'super_admin' && (
                               <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-red-50 text-red-600 border border-red-100">
                                 ENV
@@ -548,15 +548,15 @@ export default function UserManagementPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(user.is_active)}`}>
-                        {user.is_active ? 'Active' : 'Inactive'}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(user.isActive)}`}>
+                        {user.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {user.department || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {user.last_login ? new Date(user.last_login).toLocaleDateString('en-KE', {
+                      {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('en-KE', {
                         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                       }) : 'Never'}
                     </td>
@@ -661,8 +661,8 @@ export default function UserManagementPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
                   <input
                     type="text"
-                    value={createForm.full_name}
-                    onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
+                    value={createForm.fullName}
+                    onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })}
                     required
                     className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
@@ -725,8 +725,8 @@ export default function UserManagementPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
                   <input
                     type="text"
-                    value={createForm.job_title}
-                    onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })}
+                    value={createForm.jobTitle}
+                    onChange={(e) => setCreateForm({ ...createForm, jobTitle: e.target.value })}
                     placeholder="e.g., Accountant"
                     className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
@@ -779,8 +779,8 @@ export default function UserManagementPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
                   <input
                     type="text"
-                    value={editForm.full_name}
-                    onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                    value={editForm.fullName}
+                    onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
                     required
                     className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
@@ -835,8 +835,8 @@ export default function UserManagementPage() {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
-                          checked={editForm.is_active}
-                          onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })}
+                          checked={editForm.isActive}
+                          onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
                           className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                         />
                         <span className="text-sm font-medium text-gray-700">Active Account</span>
@@ -878,7 +878,7 @@ export default function UserManagementPage() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setShowEditModal(false); setSelectedUser(null); setFormError(null); setFormSuccess(null); setEditForm({ full_name: '', phone: '', email: '', role: '', is_active: true, password: '', department: '', job_title: '' }); }}
+                  onClick={() => { setShowEditModal(false); setSelectedUser(null); setFormError(null); setFormSuccess(null); setEditForm({ fullName: '', phone: '', email: '', role: '', isActive: true, password: '', department: '', jobTitle: '' }); }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
                   Cancel
@@ -908,7 +908,7 @@ export default function UserManagementPage() {
               </div>
               <h3 className="text-lg font-semibold text-center text-gray-900">Deactivate User</h3>
               <p className="mt-2 text-center text-gray-500">
-                Are you sure you want to deactivate <strong>{selectedUser.full_name}</strong>? They will no longer be able to access the system.
+                Are you sure you want to deactivate <strong>{selectedUser.fullName}</strong>? They will no longer be able to access the system.
               </p>
               {formError && (
                 <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -957,12 +957,12 @@ export default function UserManagementPage() {
               <div className="flex items-start gap-4 mb-6">
                 <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
                   <span className="text-2xl font-medium text-indigo-700">
-                    {selectedUser.full_name.charAt(0).toUpperCase()}
+                    {selectedUser.fullName.charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h4 className="text-xl font-semibold text-gray-900">{selectedUser.full_name}</h4>
+                    <h4 className="text-xl font-semibold text-gray-900">{selectedUser.fullName}</h4>
                     {selectedUser.role === 'super_admin' && (
                       <span className="px-2 py-0.5 text-xs font-medium rounded bg-red-50 text-red-600 border border-red-100">
                         ENV MANAGED
@@ -974,8 +974,8 @@ export default function UserManagementPage() {
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(selectedUser.role)}`}>
                       {formatRole(selectedUser.role)}
                     </span>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(selectedUser.is_active)}`}>
-                      {selectedUser.is_active ? 'Active' : 'Inactive'}
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(selectedUser.isActive)}`}>
+                      {selectedUser.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                 </div>
@@ -995,11 +995,11 @@ export default function UserManagementPage() {
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-gray-500">Job Title</dt>
-                      <dd className="text-gray-900">{selectedUser.job_title || '-'}</dd>
+                      <dd className="text-gray-900">{selectedUser.jobTitle || '-'}</dd>
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-gray-500">Total Logins</dt>
-                      <dd className="text-gray-900">{selectedUser.total_logins || 0}</dd>
+                      <dd className="text-gray-900">{selectedUser.totalLogins || 0}</dd>
                     </div>
                   </dl>
                 </div>
@@ -1009,23 +1009,23 @@ export default function UserManagementPage() {
                     <div className="flex justify-between">
                       <dt className="text-gray-500">Last Login</dt>
                       <dd className="text-gray-900">
-                        {selectedUser.last_login 
-                          ? new Date(selectedUser.last_login).toLocaleString('en-KE')
+                        {selectedUser.lastLogin 
+                          ? new Date(selectedUser.lastLogin).toLocaleString('en-KE')
                           : 'Never'}
                       </dd>
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-gray-500">Date Joined</dt>
                       <dd className="text-gray-900">
-                        {selectedUser.date_joined 
-                          ? new Date(selectedUser.date_joined).toLocaleDateString('en-KE')
-                          : new Date(selectedUser.created_at).toLocaleDateString('en-KE')}
+                        {selectedUser.dateJoined 
+                          ? new Date(selectedUser.dateJoined).toLocaleDateString('en-KE')
+                          : new Date(selectedUser.createdAt).toLocaleDateString('en-KE')}
                       </dd>
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-gray-500">Password Change</dt>
                       <dd className="text-gray-900">
-                        {selectedUser.must_change_password ? 'Required' : 'Not Required'}
+                        {selectedUser.mustChangePassword ? 'Required' : 'Not Required'}
                       </dd>
                     </div>
                   </dl>
@@ -1060,7 +1060,7 @@ export default function UserManagementPage() {
             <div className="p-6 border-b flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Audit History</h3>
-                <p className="text-sm text-gray-500">{selectedUser?.full_name}</p>
+                <p className="text-sm text-gray-500">{selectedUser?.fullName}</p>
               </div>
               <button
                 onClick={() => { setShowAuditModal(false); setSelectedUser(null); setAuditHistory([]); }}
@@ -1085,7 +1085,7 @@ export default function UserManagementPage() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium text-gray-900">{formatAction(entry.action)}</span>
                         <span className="text-sm text-gray-500">
-                          {new Date(entry.created_at).toLocaleString('en-KE')}
+                          {new Date(entry.createdAt).toLocaleString('en-KE')}
                         </span>
                       </div>
                       {entry.reason && (
