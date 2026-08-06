@@ -248,7 +248,7 @@ CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status);
 CREATE INDEX IF NOT EXISTS idx_email_queue_notification ON email_queue(notification_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_history_notification ON notification_delivery_history(notification_id);
 CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON notification_schedules(next_run_at) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_event_logs_processed ON notification_event_logs(processed) WHERE processed = false;
+CREATE INDEX IF NOT EXISTS idx_event_logs_unprocessed ON notification_event_logs(processed) WHERE processed = false;
 
 -- Enable RLS
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
