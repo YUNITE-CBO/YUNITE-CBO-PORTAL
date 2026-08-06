@@ -803,8 +803,27 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
         {/* COMPLIANCE SECTION */}
         {section === 'compliance' && (
           <div className="space-y-6">
+            {/* Compliance Requirements from compliance_records */}
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Compliance Checklist</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">Compliance Requirements</h2>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Mark all requirements as complete?')) {
+                        fetch(`/api/compliance`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ memberId: id, action: 'batch_update', status: 'complete', notes: 'Marked complete by admin' })
+                        }).then(() => fetchMember());
+                      }
+                    }}
+                    className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Mark All Complete
+                  </button>
+                )}
+              </div>
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">Overall Compliance</span>
@@ -817,24 +836,105 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
               <div className="space-y-3">
                 {documentCategories.filter(c => c.is_required).map(category => {
                   const doc = documents.find(d => d.category_code === category.code);
+                  const isComplete = doc?.status === 'verified' || doc?.status === 'approved';
                   return (
                     <div key={category.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
-                        {doc?.status === 'verified' || doc?.status === 'approved' ? <span className="text-green-500 text-xl">✓</span> : doc ? <span className="text-yellow-500 text-xl">⏳</span> : <span className="text-red-500 text-xl">✗</span>}
+                        {isComplete ? (
+                          <span className="text-green-500 text-xl">✓</span>
+                        ) : doc ? (
+                          <span className="text-yellow-500 text-xl">⏳</span>
+                        ) : (
+                          <span className="text-red-500 text-xl">✗</span>
+                        )}
                         <div>
                           <h3 className="font-medium text-gray-900">{category.name}</h3>
-                          <p className="text-xs text-gray-500">{doc ? `${doc.document_name} • Uploaded ${formatDate(doc.created_at)}` : 'Not uploaded'}</p>
+                          <p className="text-xs text-gray-500">{doc ? `${doc.document_name || 'Document'} • Uploaded ${formatDate(doc.created_at)}` : 'Not uploaded'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         {doc && <span className={`px-3 py-1 text-xs rounded-full ${getDocumentStatusColor(doc.status)}`}>{doc.status}</span>}
-                        {isAdmin && <button onClick={() => { setSelectedCategory(category); setActionModal('upload_document'); }} className="text-sm text-indigo-600 hover:text-indigo-800">{doc ? 'Replace' : 'Upload'}</button>}
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              setSelectedCategory(category);
+                              setActionModal('upload_document');
+                            }}
+                            className="text-sm text-indigo-600 hover:text-indigo-800"
+                          >
+                            {doc ? 'Replace' : 'Upload'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            {/* Quick Compliance Actions - Link requirements to documents */}
+            {isAdmin && (
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Manual Compliance Actions</h2>
+                <p className="text-sm text-gray-500 mb-4">Use these to manually mark requirements as complete when documents have been verified manually.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={async () => {
+                      if (confirm('Mark all requirements as COMPLETE?')) {
+                        const res = await fetch(`/api/compliance`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ memberId: id, action: 'batch_update', status: 'complete', notes: 'Manually marked complete' })
+                        });
+                        if (res.ok) {
+                          alert('All requirements marked as complete!');
+                          fetchMember();
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
+                  >
+                    ✓ Mark All Complete
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm('Mark all requirements as PENDING?')) {
+                        const res = await fetch(`/api/compliance`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ memberId: id, action: 'batch_update', status: 'pending', notes: 'Reset to pending' })
+                        });
+                        if (res.ok) {
+                          alert('All requirements marked as pending!');
+                          fetchMember();
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm font-medium"
+                  >
+                    ⏳ Mark All Pending
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm('Mark all requirements as MISSING?')) {
+                        const res = await fetch(`/api/compliance`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ memberId: id, action: 'batch_update', status: 'missing', notes: 'Marked as missing' })
+                        });
+                        if (res.ok) {
+                          alert('All requirements marked as missing!');
+                          fetchMember();
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
+                  >
+                    ✗ Mark All Missing
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -120,7 +120,109 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { memberId, categoryCode, documentId, action, notes } = body;
+    const { memberId, categoryCode, documentId, action, notes, complianceId, status } = body;
+    const supabase = await createServiceClient();
+
+    // Update compliance record status directly (mark as complete/pending)
+    if (action === 'update_compliance' && complianceId && memberId) {
+      const validStatuses = ['pending', 'complete', 'missing', 'expired'];
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+        }, { status: 400 });
+      }
+
+      const completedDate = status === 'complete' ? new Date().toISOString() : null;
+
+      // Try to update in compliance_records first (old system)
+      const { error: oldError } = await supabase
+        .from('compliance_records')
+        .update({ 
+          status, 
+          completed_date: completedDate,
+          notes: notes || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', complianceId)
+        .eq('member_id', memberId);
+
+      // If not found, try member_compliance (new system)
+      if (oldError) {
+        const { error: newError } = await supabase
+          .from('member_compliance')
+          .update({ 
+            status, 
+            reviewed_at: completedDate,
+            review_notes: notes || null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', complianceId)
+          .eq('member_id', memberId);
+
+        if (newError) {
+          return NextResponse.json({ 
+            success: false, 
+            error: 'Failed to update compliance record' 
+          }, { status: 500 });
+        }
+      }
+
+      // Log the action
+      await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        user_id: session.user.id,
+        action: `compliance.${status}`,
+        record_id: complianceId,
+        description: `Compliance ${status} for member ${memberId}`,
+        created_at: new Date().toISOString(),
+      });
+
+      return NextResponse.json({ 
+        success: true, 
+        message: `Compliance marked as ${status}` 
+      });
+    }
+
+    // Batch update compliance for a member
+    if (action === 'batch_update' && memberId && status) {
+      const validStatuses = ['pending', 'complete', 'missing', 'expired'];
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+        }, { status: 400 });
+      }
+
+      const completedDate = status === 'complete' ? new Date().toISOString() : null;
+
+      // Update all compliance_records for this member
+      await supabase
+        .from('compliance_records')
+        .update({ 
+          status, 
+          completed_date: completedDate,
+          notes: notes || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('member_id', memberId);
+
+      // Update all member_compliance for this member
+      await supabase
+        .from('member_compliance')
+        .update({ 
+          status, 
+          reviewed_at: completedDate,
+          review_notes: notes || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('member_id', memberId);
+
+      return NextResponse.json({ 
+        success: true, 
+        message: `All compliance records marked as ${status}` 
+      });
+    }
 
     // Submit document for compliance
     if (memberId && categoryCode && documentId && !action) {
