@@ -72,6 +72,39 @@ export async function GET(request: NextRequest) {
 // POST /api/notifications - Send notification
 export async function POST(request: NextRequest) {
   try {
+    // Verify auth token from cookie
+    const cookies = request.headers.get('cookie') || '';
+    const authTokenMatch = cookies.match(/auth_token=([^;]+)/);
+    
+    if (!authTokenMatch) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authTokenMatch[1];
+    
+    // Verify JWT token
+    try {
+      const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars');
+      const { jwtVerify } = await import('jose');
+      const { payload } = await jwtVerify(token, secret);
+      
+      if (!payload.user_id) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid token payload' },
+          { status: 401 }
+        );
+      }
+    } catch (jwtError) {
+      console.error('JWT verification failed:', jwtError);
+      return NextResponse.json(
+        { success: false, error: 'Invalid or expired token' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const validated = sendNotificationSchema.parse(body);
 
