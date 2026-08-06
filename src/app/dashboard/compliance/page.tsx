@@ -405,7 +405,7 @@ export default function CompliancePage() {
               {(() => {
                 const records = complianceData[selectedMember.id] || [];
                 const score = calculateComplianceScore(records);
-                const status = getMemberComplianceStatus(records, member);
+                const status = getMemberComplianceStatus(records, selectedMember);
                 
                 return (
                   <>
