@@ -416,7 +416,7 @@ export class UserManagementService {
     return {
       success: true,
       message: 'No changes made',
-      data: this.mapUserToResponse(currentUser),
+      data: currentUser,
     };
   }
 
