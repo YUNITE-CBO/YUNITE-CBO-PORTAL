@@ -196,8 +196,11 @@ export async function POST(request: NextRequest) {
 
       const completedDate = status === 'complete' ? new Date().toISOString() : null;
 
-      // Update all compliance_records for this member
-      await supabase
+      let updatedOldSystem = false;
+      let updatedNewSystem = false;
+
+      // Try updating old system first
+      const { error: oldError, count: oldCount } = await supabase
         .from('compliance_records')
         .update({ 
           status, 
@@ -207,8 +210,17 @@ export async function POST(request: NextRequest) {
         })
         .eq('member_id', memberId);
 
-      // Update all member_compliance for this member
-      await supabase
+      if (oldError) {
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to update compliance records in old system'
+        }, { status: 500 });
+      }
+      
+      updatedOldSystem = oldCount !== null && oldCount > 0;
+
+      // Also update new system (may have different records)
+      const { error: newError, count: newCount } = await supabase
         .from('member_compliance')
         .update({ 
           status, 
@@ -218,9 +230,33 @@ export async function POST(request: NextRequest) {
         })
         .eq('member_id', memberId);
 
+      if (newError) {
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to update compliance records in new system'
+        }, { status: 500 });
+      }
+
+      updatedNewSystem = newCount !== null && newCount > 0;
+
+      // Only log if at least one system had records
+      if (updatedOldSystem || updatedNewSystem) {
+        await supabase.from('audit_logs').insert({
+          id: uuidv4(),
+          user_id: session.user.id,
+          action: `compliance.batch_${status}`,
+          record_id: memberId,
+          description: `Batch compliance ${status} for member ${memberId}`,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      const totalUpdated = (oldCount || 0) + (newCount || 0);
       return NextResponse.json({ 
         success: true, 
-        message: `All compliance records marked as ${status}` 
+        message: totalUpdated > 0 
+          ? `${totalUpdated} compliance record(s) marked as ${status}`
+          : `No compliance records found for member ${memberId}`
       });
     }
 
