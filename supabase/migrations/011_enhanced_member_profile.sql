@@ -195,7 +195,7 @@ BEGIN
 END $$;
 
 -- ============================================
--- 7. MEMBER LOOKUP VIEW
+-- 7. MEMBER LOOKUP VIEW (Simplified)
 -- ============================================
 DROP VIEW IF EXISTS member_workspace_view CASCADE;
 CREATE OR REPLACE VIEW member_workspace_view AS
@@ -210,49 +210,15 @@ SELECT
     m.workflow_stage,
     m.registration_date,
     m.profile_photo_url,
-    
-    -- Personal info
     m.date_of_birth,
     m.gender,
     m.marital_status,
     m.nationality,
     m.id_number,
     m.kra_pin,
-    
-    -- Compliance status
-    (
-        SELECT json_build_object(
-            'compliance_score', COALESCE(maw.compliance_score, 0),
-            'required_complete', COALESCE(maw.required_documents_complete, false),
-            'current_stage', maw.current_stage
-        )
-        FROM member_approval_workflow maw
-        WHERE maw.member_id = m.id
-        LIMIT 1
-    ) as compliance,
-    
-    -- Balances (computed)
-    (
-        SELECT json_build_object(
-            'savings', COALESCE((SELECT SUM(CASE WHEN t.transaction_type LIKE 'savings_%' AND t.transaction_type NOT LIKE '%_withdrawal%' AND NOT t.reversed THEN t.amount - COALESCE((SELECT SUM(amount) FROM transactions t2 WHERE t2.member_id = t.member_id AND t2.account_id = t.account_id AND t2.transaction_type LIKE 'savings_withdrawal' AND t2.created_at <= t.created_at AND NOT t2.reversed), 0) END), 0), 0)
-        )
-    ) as balances,
-    
-    -- Document count
-    (
-        SELECT COUNT(*) 
-        FROM documents d 
-        WHERE d.member_id = m.id
-    ) as document_count,
-    
-    -- Active loans count
-    (
-        SELECT COUNT(*) 
-        FROM loans l 
-        WHERE l.member_id = m.id AND l.status IN ('approved', 'disbursed', 'active')
-    ) as active_loans_count,
-    
-    -- Created/updated
+    m.occupation,
+    m.employer,
+    m.physical_address,
     m.created_at,
     m.updated_at
 FROM members m;
