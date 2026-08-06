@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 
 // GET - Fetch all contribution campaigns with aggregated totals
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     
     // Fetch campaigns
     const { data: campaigns, error } = await supabase
@@ -67,7 +67,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     
     const { campaign_name, description, target_amount, start_date, end_date } = body;
 
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     
     const { id, campaign_name, description, target_amount, start_date, end_date, is_active } = body;
 
@@ -166,7 +166,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { error } = await supabase
       .from('campaigns')
       .delete()

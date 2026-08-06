@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '@/lib/services';
 
 // GET - Fetch all contributions from transactions table
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     
     // Fetch contributions from transactions table
     const { data, error } = await supabase
@@ -51,7 +51,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     
     const { member_id, campaign_id, amount, description, reference_number, payment_method } = body;
     const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
