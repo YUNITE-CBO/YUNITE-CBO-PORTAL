@@ -318,7 +318,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
     try {
       const res = await fetch(`/api/documents?categories=true&module=members`);
       const data = await res.json();
-      if (data.success) setDocumentCategories(data.data.categories || []);
+      if (data.success) setDocumentCategories(data.data || []);
     } catch (err) { console.error('Failed to fetch document categories:', err); }
   };
 
