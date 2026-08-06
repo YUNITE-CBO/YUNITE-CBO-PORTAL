@@ -721,9 +721,6 @@ export interface UserProfile extends User {
   address?: string | null;
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
-  date_joined?: string | null;
-  failed_login_attempts?: number;
-  locked_until?: string | null;
   password_changed_at?: string | null;
   must_change_password?: boolean;
 }

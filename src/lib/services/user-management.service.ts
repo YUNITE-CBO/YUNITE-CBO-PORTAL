@@ -543,7 +543,7 @@ export class UserManagementService {
       return {
         success: true,
         message: 'User is already active',
-        data: this.mapUserToResponse(user),
+        data: this.mapUserToResponse(user as unknown as Record<string, unknown>),
       };
     }
 
@@ -945,16 +945,6 @@ export class UserManagementService {
       .eq('email', email.toLowerCase())
       .single();
     return data;
-  }
-
-  private async getUserById(userId: string): Promise<Record<string, unknown> | null> {
-    const supabase = await createServiceClient();
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    return data as Record<string, unknown> | null;
   }
 
   private async countUsersByRole(role: string): Promise<number> {
