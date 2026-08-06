@@ -208,7 +208,8 @@ export async function POST(request: NextRequest) {
           notes: notes || null,
           updated_at: new Date().toISOString()
         })
-        .eq('member_id', memberId);
+        .eq('member_id', memberId)
+        .select('*', { count: 'exact' });
 
       if (oldError) {
         return NextResponse.json({
@@ -228,7 +229,8 @@ export async function POST(request: NextRequest) {
           review_notes: notes || null,
           updated_at: new Date().toISOString()
         })
-        .eq('member_id', memberId);
+        .eq('member_id', memberId)
+        .select('*', { count: 'exact' });
 
       if (newError) {
         return NextResponse.json({
