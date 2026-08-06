@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
       const completedDate = status === 'complete' ? new Date().toISOString() : null;
 
       // Update all compliance_records for this member
-      await supabase
+      const { error: oldBatchError, count: oldCount } = await supabase
         .from('compliance_records')
         .update({ 
           status, 
@@ -205,10 +205,11 @@ export async function POST(request: NextRequest) {
           notes: notes || null,
           updated_at: new Date().toISOString()
         })
-        .eq('member_id', memberId);
+        .eq('member_id', memberId)
+        .select('*', { count: 'exact' });
 
       // Update all member_compliance for this member
-      await supabase
+      const { error: newBatchError, count: newCount } = await supabase
         .from('member_compliance')
         .update({ 
           status, 
@@ -216,11 +217,33 @@ export async function POST(request: NextRequest) {
           review_notes: notes || null,
           updated_at: new Date().toISOString()
         })
-        .eq('member_id', memberId);
+        .eq('member_id', memberId)
+        .select('*', { count: 'exact' });
+
+      if (oldBatchError || newBatchError) {
+        console.error('Batch update error:', { oldBatchError, newBatchError });
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Failed to update compliance records' 
+        }, { status: 500 });
+      }
+
+      const totalUpdated = (oldCount || 0) + (newCount || 0);
+
+      // Log the batch action
+      await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        user_id: session.user.id,
+        action: `compliance.batch_${status}`,
+        record_id: memberId,
+        description: `Batch updated ${totalUpdated} compliance records to ${status} for member ${memberId}`,
+        created_at: new Date().toISOString(),
+      });
 
       return NextResponse.json({ 
         success: true, 
-        message: `All compliance records marked as ${status}` 
+        message: `All compliance records marked as ${status}`,
+        updated_count: totalUpdated
       });
     }
 
