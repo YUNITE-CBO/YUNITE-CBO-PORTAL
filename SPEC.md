@@ -1116,3 +1116,306 @@ Document operations trigger events for other services:
 
 - `007_document_management_system.sql` - Initial document system
 - `008_document_service_integration.sql` - Full integration with all modules
+
+---
+
+## 16. Super Administrator Bootstrap System (Release 1.4.0)
+
+### 16.1 Overview
+
+The Super Administrator Bootstrap System ensures that a Super Administrator account always exists in the database based on environment configuration. This system provides:
+
+1. **Automatic Account Provisioning**: Creates Super Admin on first startup if not exists
+2. **Environment-Based Configuration**: Credentials come exclusively from environment variables
+3. **Idempotent Operations**: Safe to run multiple times without creating duplicates
+4. **Audit Trail**: All bootstrap operations are logged for compliance
+5. **Graceful Failure**: Startup fails cleanly with clear error messages if config is missing
+
+### 16.2 Environment Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPER_ADMIN_NAME` | Yes | Full name of the Super Administrator |
+| `SUPER_ADMIN_EMAIL` | Yes | Email address for login (must be unique) |
+| `SUPER_ADMIN_PASSWORD` | Yes | Secure password (min 8 chars with uppercase, lowercase, number) |
+| `SUPER_ADMIN_PHONE` | No | Phone number |
+| `SUPER_ADMIN_STATUS` | No | ACTIVE or INACTIVE, defaults to ACTIVE |
+
+### 16.3 Bootstrap Logic
+
+```
+STARTUP:
+  1. Read SUPER_ADMIN_* from environment
+  2. Validate all required variables exist
+  3. IF any required variable missing:
+     - Log error to bootstrap_logs
+     - Continue startup (non-fatal)
+  4. Query users table for email = SUPER_ADMIN_EMAIL
+  5. IF user not found:
+     - Hash password with bcrypt (12 rounds)
+     - Create user with role='super_admin', is_active=true
+     - Create notification_preferences
+     - Log 'created' to bootstrap_logs
+  6. IF user found:
+     - Validate role is 'super_admin' (correct if not)
+     - Validate is_active matches SUPER_ADMIN_STATUS
+     - Update name/phone if changed
+     - Log 'verified' or 'updated' to bootstrap_logs
+```
+
+### 16.4 Database Schema (Migration 013)
+
+**bootstrap_logs** - Tracks all bootstrap operations
+```
+bootstrap_logs
+├── id (UUID, PK)
+├── operation_type (ENUM: super_admin_bootstrap, system_initialization, etc.)
+├── status (ENUM: success, failed, skipped, warning)
+├── action_taken (TEXT)
+├── message (TEXT)
+├── details (JSONB)
+├── duration_ms (INTEGER)
+├── environment (TEXT)
+├── metadata (JSONB)
+├── error_trace (TEXT)
+├── created_at (TIMESTAMPTZ)
+```
+
+**Enhanced users table fields**
+```
+users (enhanced with)
+├── email_verified (BOOLEAN)
+├── email_verified_at (TIMESTAMPTZ)
+├── is_system_user (BOOLEAN)
+├── is_protected (BOOLEAN)
+├── department (TEXT)
+├── job_title (TEXT)
+├── employee_id (TEXT)
+├── password_history (JSONB)
+├── suspended_at (TIMESTAMPTZ)
+├── suspended_by (UUID REFERENCES users)
+├── suspension_reason (TEXT)
+├── suspension_expires_at (TIMESTAMPTZ)
+├── archived_at (TIMESTAMPTZ)
+├── archived_by (UUID REFERENCES users)
+├── archive_reason (TEXT)
+├── admin_notes (TEXT)
+├── total_logins (INTEGER)
+├── last_active_at (TIMESTAMPTZ)
+├── account_status (COMPUTED: active, inactive, suspended, archived, locked)
+```
+
+### 16.5 Services
+
+#### SuperAdminBootstrapService
+```typescript
+// Main entry point
+const result = await superAdminBootstrapService.bootstrap();
+// Returns: { success, action, message, userId, timestamp, details }
+
+// Check bootstrap status
+const status = await superAdminBootstrapService.getBootstrapStatus();
+// Returns: { configured, exists, userId?, lastBootstrap? }
+```
+
+#### ApplicationStartupService
+```typescript
+// Initialize application (runs on startup)
+const result = await applicationStartupService.initialize();
+// Runs: super_admin_bootstrap, notification_cleanup, database_verification
+```
+
+#### UserManagementService
+```typescript
+// Create user
+const result = await userManagementService.createUser(adminId, {
+  email: 'user@example.com',
+  password: 'SecurePass123',
+  fullName: 'John Doe',
+  phone: '+254712345678',
+  role: 'staff',
+  department: 'Finance',
+});
+
+// Update user
+const result = await userManagementService.updateUser(adminId, userId, {
+  fullName: 'Jane Doe',
+  department: 'HR',
+});
+
+// Deactivate user
+const result = await userManagementService.deactivateUser(adminId, userId, {
+  reason: 'Employment terminated',
+});
+
+// Suspend user
+const result = await userManagementService.suspendUser(
+  adminId, userId, 'Under investigation', 
+  new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+);
+
+// Reset password
+const result = await userManagementService.resetPassword(
+  adminId, userId, 'NewSecurePass456', 
+  { forceChangeOnLogin: true }
+);
+
+// List users with filtering
+const { users, total, pagination } = await userManagementService.listUsers({
+  query: 'john',
+  role: 'staff',
+  isActive: true,
+  department: 'Finance',
+  limit: 20,
+  offset: 0,
+});
+
+// Get user audit history
+const { audits, total } = await userManagementService.getUserAuditHistory(userId);
+```
+
+### 16.6 API Endpoints
+
+**Bootstrap API**
+```
+GET  /api/bootstrap                      - Get bootstrap status
+POST /api/bootstrap                      - Trigger bootstrap manually (Super Admin only)
+```
+
+**User Management API**
+```
+GET  /api/users                          - List users with filtering
+POST /api/users                          - Create new user (Admin/Super Admin)
+
+GET  /api/users/[id]                     - Get user details
+PUT  /api/users/[id]                     - Update user
+DELETE /api/users/[id]                   - Deactivate user
+
+GET  /api/users/[id]/actions?action=audit-history  - Get user audit history
+POST /api/users/[id]/actions?action=suspend         - Suspend user
+POST /api/users/[id]/actions?action=reactivate     - Reactivate user
+POST /api/users/[id]/actions?action=reset-password  - Reset password
+```
+
+### 16.7 Frontend Features
+
+**User Management Dashboard** (`/dashboard/admin/users`)
+- Bootstrap status indicator (shows if Super Admin is configured)
+- User list with search, role filter, and status filter
+- Create user modal with department/job title fields
+- Edit user modal with protected Super Admin notice
+- User details modal with full account information
+- Audit history modal for each user
+- Environment-managed badge for Super Admin accounts
+
+### 16.8 Security Features
+
+1. **Password Strength Validation**
+   - Minimum 8 characters
+   - At least one uppercase letter
+   - At least one lowercase letter
+   - At least one number
+   - At least one special character
+
+2. **Password History**
+   - Tracks last 5 passwords
+   - Prevents password reuse
+
+3. **Protected Accounts**
+   - Super Admin cannot be modified through UI
+   - Super Admin cannot be deactivated
+   - Minimum one Super Admin must exist
+
+4. **Audit Logging**
+   - All user operations logged with acting admin
+   - Old/new values tracked
+   - IP address and user agent recorded
+   - Reason field for compliance
+
+### 16.9 Migrations
+
+- `013_super_admin_bootstrap.sql` - Bootstrap system with enhanced user fields
+
+### 16.10 Environment Variables for Production
+
+In Render dashboard, configure the following environment variables:
+
+```
+SUPER_ADMIN_NAME=Your Name
+SUPER_ADMIN_EMAIL=admin@example.com
+SUPER_ADMIN_PASSWORD=YourSecurePassword123!
+SUPER_ADMIN_PHONE=+254712345678
+SUPER_ADMIN_STATUS=ACTIVE
+```
+
+---
+
+## 17. Enterprise User Management System
+
+### 17.1 Overview
+
+The Enterprise User Management System provides comprehensive identity management for all non-Super Administrator users. Every organizational user is managed entirely through this module without requiring direct database access or environment configuration.
+
+### 17.2 User Lifecycle
+
+```
+┌─────────┐    Create     ┌─────────┐    Deactivate   ┌────────────┐
+│ Active  │──────────────>│ Pending │────────────────>│ Inactive   │
+└─────────┘               └─────────┘                 └────────────┘
+     │                        │                             │
+     │ Suspend                │ Activate                    │ Reactivate
+     v                        v                             v
+┌───────────┐          ┌─────────┐                  ┌─────────┐
+│ Suspended │─────────>│ Active  │<─────────────────│ Active  │
+└───────────┘          └─────────┘                  └─────────┘
+```
+
+### 17.3 Role Hierarchy
+
+| Role | Level | Permissions |
+|------|-------|------------|
+| Super Admin | 100 | Environment-managed, cannot be modified through UI |
+| Admin | 75 | Full user management except Super Admin |
+| Staff | 50 | Standard operational access |
+| Viewer | 25 | Read-only access |
+
+### 17.4 Department Management
+
+Users can be assigned to departments for organizational purposes:
+
+- Finance
+- Human Resources
+- Operations
+- IT
+- etc.
+
+### 17.5 Key Features
+
+1. **Comprehensive User Profiles**
+   - Contact information
+   - Department and job title
+   - Employee ID
+   - Login statistics
+   - Account status
+
+2. **Account Status Management**
+   - Active/Inactive toggle
+   - Temporary suspension with expiry
+   - Automatic unsuspension when expired
+
+3. **Role-Based Access Control**
+   - Intuitive role assignment
+   - Role hierarchy enforcement
+   - Admin privilege restrictions
+
+4. **Security Features**
+   - Password reset by admin
+   - Forced password change on login
+   - Session termination on role/status change
+   - Failed login tracking
+
+5. **Audit Trail**
+   - Complete change history
+   - Acting administrator tracking
+   - Reason for changes
+   - Immutable records

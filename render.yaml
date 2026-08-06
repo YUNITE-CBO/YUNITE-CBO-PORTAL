@@ -37,6 +37,33 @@ services:
         value: "900000"
       - key: RATE_LIMIT_MAX_REQUESTS
         value: "100"
+      # ===================================================================
+      # SUPER ADMIN CONFIGURATION
+      # ===================================================================
+      # IMPORTANT: Set these environment variables in Render Dashboard
+      # for production deployments. These values are NOT stored in
+      # version control and must be configured per environment.
+      #
+      # Required environment variables for Super Admin bootstrapping:
+      # - SUPER_ADMIN_NAME: Full name of the Super Administrator
+      # - SUPER_ADMIN_EMAIL: Email address for login
+      # - SUPER_ADMIN_PASSWORD: Secure password (min 8 chars with uppercase, lowercase, number)
+      # - SUPER_ADMIN_PHONE: (optional) Phone number
+      # - SUPER_ADMIN_STATUS: (optional) ACTIVE or INACTIVE, defaults to ACTIVE
+      # ===================================================================
+      - key: SUPER_ADMIN_NAME
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+      - key: SUPER_ADMIN_PHONE
+        sync: false
+      - key: SUPER_ADMIN_STATUS
+        value: "ACTIVE"
+      # ===================================================================
+      # END SUPER ADMIN CONFIGURATION
+      # ===================================================================
 
 # Auto-deploy hook - configure in GitHub Secrets as RENDER_DEPLOY_HOOK_URL
 # To get your deploy hook URL: Render Dashboard → Your Service → Settings → Deploy Hooks

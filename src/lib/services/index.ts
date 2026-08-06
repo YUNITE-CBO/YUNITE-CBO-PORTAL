@@ -19,6 +19,25 @@ export type { LoanEligibility, LoanApplication } from './loan.service';
 export { dashboardService } from './dashboard.service';
 export type { DashboardStats, ActivityItem, DashboardAlert } from './dashboard.service';
 
+// User Management Services
+export { userManagementService } from './user-management.service';
+export type { 
+  UserRole, 
+  UserStatus, 
+  CreateUserData, 
+  UpdateUserData, 
+  UserQueryOptions, 
+  UserWithDetails,
+  AuditLogEntry,
+  UserManagementResult 
+} from './user-management.service';
+
+export { superAdminBootstrapService } from './super-admin-bootstrap.service';
+export type { SuperAdminConfig, BootstrapResult } from './super-admin-bootstrap.service';
+
+export { applicationStartupService, getOrCreateInitialization } from './application-startup.service';
+export type { StartupResult } from './application-startup.service';
+
 // Notification Services
 export { notificationService, emailService, notificationEventService, templateService, scheduleService, statementService } from './notifications';
 export type { 
