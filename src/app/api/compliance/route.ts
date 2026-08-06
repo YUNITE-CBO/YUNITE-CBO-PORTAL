@@ -180,15 +180,19 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Log the action
-      await supabase.from('audit_logs').insert({
-        id: uuidv4(),
-        user_id: session.user.id,
-        action: `compliance.${status}`,
-        record_id: complianceId,
-        description: `Compliance ${status} for member ${memberId}`,
-        created_at: new Date().toISOString(),
-      });
+      // Log the action (non-blocking - don't fail the request if audit logging fails)
+      try {
+        await supabase.from('audit_logs').insert({
+          id: uuidv4(),
+          user_id: session.user.id,
+          action: `compliance.${status}`,
+          record_id: complianceId,
+          description: `Compliance ${status} for member ${memberId}`,
+          created_at: new Date().toISOString(),
+        });
+      } catch (auditError) {
+        console.error('Audit log insert failed:', auditError);
+      }
 
       return NextResponse.json({ 
         success: true, 
