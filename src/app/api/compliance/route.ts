@@ -145,7 +145,8 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString()
         })
         .eq('id', complianceId)
-        .eq('member_id', memberId);
+        .eq('member_id', memberId)
+        .select('*', { count: 'exact' });
 
       // If not found in old system, try member_compliance (new system)
       if (oldError) {
