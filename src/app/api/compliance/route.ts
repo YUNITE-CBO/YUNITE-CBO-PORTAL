@@ -147,19 +147,20 @@ export async function POST(request: NextRequest) {
         .eq('id', complianceId)
         .eq('member_id', memberId);
 
-      // If actual error and no rows updated, try new system; if error with rows updated, return error
-      if (oldError && (oldCount === null || oldCount === 0)) {
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Failed to update compliance record in old system' 
-        }, { status: 500 });
-      }
-
-      let newError = null;
+      let updatedInOldSystem = !oldError && oldCount !== null && oldCount > 0;
       let updatedInNewSystem = false;
-      if (oldCount === null || oldCount === 0) {
-        // Try member_compliance (new system)
-        const { error, count: newCount } = await supabase
+
+      // If not found or error in old system, try member_compliance (new system)
+      if (oldError || oldCount === 0) {
+        if (oldError) {
+          return NextResponse.json({ 
+            success: false, 
+            error: 'Failed to update compliance record in old system' 
+          }, { status: 500 });
+        }
+
+        // Record not found in old system, try new system
+        const { error: newError, count: newCount } = await supabase
           .from('member_compliance')
           .update({ 
             status, 
@@ -170,19 +171,18 @@ export async function POST(request: NextRequest) {
           .eq('id', complianceId)
           .eq('member_id', memberId);
 
-        newError = error;
-        updatedInNewSystem = newCount !== null && newCount > 0;
-
         if (newError) {
           return NextResponse.json({ 
             success: false, 
             error: 'Failed to update compliance record' 
           }, { status: 500 });
         }
+
+        updatedInNewSystem = newCount !== null && newCount > 0;
       }
 
       // Only log audit if a record was actually updated
-      const wasUpdated = (oldCount !== null && oldCount > 0) || updatedInNewSystem;
+      const wasUpdated = updatedInOldSystem || updatedInNewSystem;
       if (wasUpdated) {
         await supabase.from('audit_logs').insert({
           id: uuidv4(),
