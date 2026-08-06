@@ -166,14 +166,8 @@ export class UserManagementService {
       };
     }
 
-    // Validate role (cannot create super_admin through this service)
-    if (data.role === 'super_admin') {
-      return {
-        success: false,
-        message: 'Cannot create Super Admin accounts through user management',
-        errorCode: 'INVALID_ROLE',
-      };
-    }
+    // Note: UserRole type only allows 'admin' | 'staff' | 'viewer'
+    // super_admin can only be created via environment config (bootstrap service)
 
     const now = new Date().toISOString();
     const userId = uuidv4();
