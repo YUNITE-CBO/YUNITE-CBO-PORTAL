@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { enterpriseDocumentService, registerAllModuleHandlers } from '@/lib/services/documents';
 import { authService } from '@/lib/services/auth.service';
+import { createServiceClient } from '@/lib/supabase/server';
 
 interface RouteParams {
   params: { id: string };
@@ -77,6 +78,45 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (!result.success) {
           return NextResponse.json({ success: false, error: result.error }, { status: 400 });
         }
+
+        // Auto-complete compliance when document is verified
+        const doc = result.document;
+        if (doc?.entity_type === 'member' && doc?.category_code) {
+          try {
+            const supabase = await createServiceClient();
+            
+            const complianceTypeMap: Record<string, string> = {
+              'member_national_id': 'id_verification',
+              'member_kra_pin': 'kyc_complete',
+              'member_passport_photo': 'photo',
+            };
+            
+            const complianceType = complianceTypeMap[doc.category_code] || doc.category_code;
+            
+            await supabase
+              .from('compliance_records')
+              .update({ 
+                status: 'complete', 
+                completed_date: new Date().toISOString(),
+                notes: `Auto-completed from verified document: ${doc.title || doc.file_name}`
+              })
+              .eq('member_id', doc.entity_id)
+              .eq('compliance_type', complianceType);
+            
+            await supabase
+              .from('member_compliance')
+              .update({ 
+                status: 'approved', 
+                reviewed_at: new Date().toISOString(),
+                review_notes: `Auto-completed from verified document: ${doc.title || doc.file_name}`
+              })
+              .eq('member_id', doc.entity_id)
+              .eq('document_category_code', doc.category_code);
+          } catch (err) {
+            console.error('Failed to auto-update compliance:', err);
+          }
+        }
+
         return NextResponse.json({ 
           success: true, 
           data: result.document,
@@ -89,6 +129,48 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (!result.success) {
           return NextResponse.json({ success: false, error: result.error }, { status: 400 });
         }
+
+        // Auto-complete compliance when document is approved
+        const doc = result.document;
+        if (doc?.entity_type === 'member' && doc?.category_code) {
+          try {
+            const supabase = await createServiceClient();
+            
+            // Map document category codes to compliance types
+            const complianceTypeMap: Record<string, string> = {
+              'member_national_id': 'id_verification',
+              'member_kra_pin': 'kyc_complete',
+              'member_passport_photo': 'photo',
+            };
+            
+            const complianceType = complianceTypeMap[doc.category_code] || doc.category_code;
+            
+            // Update compliance_records
+            await supabase
+              .from('compliance_records')
+              .update({ 
+                status: 'complete', 
+                completed_date: new Date().toISOString(),
+                notes: `Auto-completed from approved document: ${doc.title || doc.file_name}`
+              })
+              .eq('member_id', doc.entity_id)
+              .eq('compliance_type', complianceType);
+            
+            // Update member_compliance
+            await supabase
+              .from('member_compliance')
+              .update({ 
+                status: 'approved', 
+                reviewed_at: new Date().toISOString(),
+                review_notes: `Auto-completed from approved document: ${doc.title || doc.file_name}`
+              })
+              .eq('member_id', doc.entity_id)
+              .eq('document_category_code', doc.category_code);
+          } catch (err) {
+            console.error('Failed to auto-update compliance:', err);
+          }
+        }
+
         return NextResponse.json({ 
           success: true, 
           data: result.document,
