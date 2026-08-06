@@ -9,9 +9,9 @@ const sendNotificationSchema = z.object({
   body: z.string().min(1),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
   channels: z.array(z.enum(['in_app', 'email', 'sms'])).optional(),
-  recipient_type: z.enum(['member', 'user', 'admin', 'all_admins', 'system']),
+  recipient_type: z.enum(['member', 'user', 'admin', 'all_admins', 'system', 'bulk_members']),
   recipient_id: z.string().uuid().optional(),
-  recipient_email: z.string().email().optional(),
+  recipient_email: z.union([z.string().email(), z.array(z.string().email())]).optional(),
   recipient_phone: z.string().optional(),
   recipient_name: z.string().optional(),
   source_module: z.string().optional(),
@@ -81,8 +81,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result) {
+      console.error('Notification service returned null - possible database or configuration issue');
       return NextResponse.json(
-        { success: false, error: 'Failed to send notification' },
+        { success: false, error: 'Failed to send notification. Please check that the notification tables exist and environment variables are configured correctly.' },
         { status: 500 }
       );
     }
@@ -100,9 +101,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Error sending notification:', error);
+    // Log the full error for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Error sending notification:', errorMessage, errorStack);
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to send notification' },
+      { 
+        success: false, 
+        error: `Failed to send notification: ${errorMessage}`,
+        ...(process.env.NODE_ENV === 'development' && { stack: errorStack })
+      },
       { status: 500 }
     );
   }

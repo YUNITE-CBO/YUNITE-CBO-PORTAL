@@ -13,7 +13,7 @@ import { settingsService } from '../settings.service';
 
 export type NotificationChannel = 'in_app' | 'email' | 'sms';
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type RecipientType = 'member' | 'user' | 'admin' | 'all_admins' | 'system';
+export type RecipientType = 'member' | 'user' | 'admin' | 'all_admins' | 'system' | 'bulk_members';
 export type NotificationStatus = 'pending' | 'queued' | 'processing' | 'sent' | 'delivered' | 'read' | 'failed' | 'cancelled';
 
 export interface NotificationData {
@@ -25,7 +25,7 @@ export interface NotificationData {
   channels?: NotificationChannel[];
   recipient_type: RecipientType;
   recipient_id?: string;
-  recipient_email?: string;
+  recipient_email?: string | string[];
   recipient_phone?: string;
   recipient_name?: string;
   source_module?: string;
@@ -55,6 +55,24 @@ export class NotificationService {
    */
   async send(data: NotificationData): Promise<{ id: string; ref: string } | null> {
     const supabase = await createServiceClient();
+
+    // Handle bulk members - send notification to each recipient
+    if (data.recipient_type === 'bulk_members' && Array.isArray(data.recipient_email) && data.recipient_email.length > 0) {
+      const results = [];
+      for (const email of data.recipient_email) {
+        const result = await this.send({
+          ...data,
+          recipient_type: 'member', // Treat as member for individual notification
+          recipient_email: email,
+          recipient_id: undefined,
+        });
+        if (result) {
+          results.push(result);
+        }
+      }
+      // Return the first result for backward compatibility
+      return results[0] || null;
+    }
 
     // Check idempotency
     if (data.idempotency_key) {
@@ -114,6 +132,9 @@ export class NotificationService {
     // Generate notification reference
     const notificationRef = this.generateNotificationRef();
 
+    // Normalize recipient_email to string for database
+    const recipientEmail = Array.isArray(data.recipient_email) ? data.recipient_email[0] : data.recipient_email;
+
     // Create notification record
     const { data: notification, error } = await supabase
       .from('notifications')
@@ -129,7 +150,7 @@ export class NotificationService {
         priority: data.priority || 'normal',
         recipient_type: data.recipient_type,
         recipient_id: data.recipient_id,
-        recipient_email: data.recipient_email,
+        recipient_email: recipientEmail,
         recipient_phone: data.recipient_phone,
         recipient_name: data.recipient_name,
         source_module: data.source_module,
@@ -148,14 +169,19 @@ export class NotificationService {
       .single();
 
     if (error || !notification) {
-      console.error('Failed to create notification:', error);
+      console.error('Failed to create notification:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      });
       return null;
     }
 
     // Queue for delivery
     const channels = data.channels || ['in_app'];
     
-    if (channels.includes('email') && data.recipient_email) {
+    if (channels.includes('email') && recipientEmail) {
       await this.queueEmail(notification);
     }
 
