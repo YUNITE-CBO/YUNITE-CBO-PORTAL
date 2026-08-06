@@ -107,14 +107,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: data || [] });
     }
 
-    // Get member compliance status
+    // Get member compliance status AND documents
     if (memberId) {
       ensureHandlersRegistered();
       const { MemberDocumentHandler } = await import('@/lib/services/documents/enhanced-handlers');
       const handler = new MemberDocumentHandler();
+      
+      // Get compliance data
       const compliance = await handler.getComplianceRequirements(memberId);
       const score = await handler.calculateComplianceScore(memberId);
-      return NextResponse.json({ success: true, data: { requirements: compliance, score } });
+      
+      // Also get documents for this member
+      const docs = await enterpriseDocumentService.getForEntity(
+        'members',
+        memberId,
+        { includeArchived: false }
+      );
+      
+      return NextResponse.json({ 
+        success: true, 
+        data: { 
+          requirements: compliance, 
+          score,
+          documents: docs || []
+        } 
+      });
     }
 
     // Get documents for an entity
