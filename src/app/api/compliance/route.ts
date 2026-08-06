@@ -151,9 +151,9 @@ export async function POST(request: NextRequest) {
       let updatedInOldSystem = !oldError && oldCount !== null && oldCount > 0;
       let updatedInNewSystem = false;
 
-      // If not found in old system, try member_compliance (new system)
-      if (oldCount === 0) {
-        // Record not found in old system, try new system
+      // If not found in old system or error occurred, try member_compliance (new system)
+      if (oldError || oldCount === 0) {
+        // Record not found in old system or error occurred, try new system
         const { error: newError, count: newCount } = await supabase
           .from('member_compliance')
           .update({ 
