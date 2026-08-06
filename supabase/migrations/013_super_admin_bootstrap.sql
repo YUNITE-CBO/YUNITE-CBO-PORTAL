@@ -104,48 +104,13 @@ ALTER TABLE user_management_audit ADD COLUMN IF NOT EXISTS metadata JSONB DEFAUL
 
 -- ===================================================================
 -- 5. FUNCTIONS & TRIGGERS
--- Note: Functions are defined AFTER all column additions above
--- to ensure columns exist when functions reference them
+-- Note: account_status is managed by application code (UserManagementService)
+-- to avoid cross-database validation issues during migration
 -- ===================================================================
 
--- Function to compute account status
-CREATE OR REPLACE FUNCTION compute_account_status()
-RETURNS TEXT AS $$
-BEGIN
-    RETURN 'active'; -- Default, will be overridden by trigger
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-
--- Function to update account_status on insert/update
-CREATE OR REPLACE FUNCTION update_account_status()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.account_status := CASE 
-        WHEN NEW.archived_at IS NOT NULL THEN 'archived'
-        WHEN NEW.suspended_at IS NOT NULL AND (NEW.suspension_expires_at IS NULL OR NEW.suspension_expires_at > NOW()) THEN 'suspended'
-        WHEN NEW.locked_until IS NOT NULL AND NEW.locked_until > NOW() THEN 'locked'
-        WHEN NEW.is_active = false THEN 'inactive'
-        ELSE 'active'
-    END;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to update account_status on user changes
-DROP TRIGGER IF EXISTS trigger_update_account_status ON users;
-CREATE TRIGGER trigger_update_account_status
-    BEFORE INSERT OR UPDATE ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION update_account_status();
-
--- Update existing users with correct account_status
-UPDATE users SET account_status = CASE 
-    WHEN archived_at IS NOT NULL THEN 'archived'
-    WHEN suspended_at IS NOT NULL AND (suspension_expires_at IS NULL OR suspension_expires_at > NOW()) THEN 'suspended'
-    WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 'locked'
-    WHEN is_active = false THEN 'inactive'
-    ELSE 'active'
-END WHERE account_status IS NULL OR account_status = 'active';
+-- Default account_status for new users (will be updated by application)
+UPDATE users SET account_status = CASE WHEN is_active = false THEN 'inactive' ELSE 'active' END 
+WHERE account_status IS NULL;
 
 -- Function to update total_logins counter
 CREATE OR REPLACE FUNCTION update_user_login_stats()
