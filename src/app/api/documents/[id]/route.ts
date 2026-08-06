@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         // Auto-complete compliance when document is verified
         const doc = result.document;
-        if (doc?.entity_type === 'member' && doc?.category_code) {
+        if (doc?.entityType === 'member' && doc?.categoryCode) {
           try {
             const supabase = await createServiceClient();
             
@@ -91,7 +91,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               'member_passport_photo': 'photo',
             };
             
-            const complianceType = complianceTypeMap[doc.category_code] || doc.category_code;
+            const complianceType = complianceTypeMap[doc.categoryCode] || doc.categoryCode;
             
             await supabase
               .from('compliance_records')
@@ -100,7 +100,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 completed_date: new Date().toISOString(),
                 notes: `Auto-completed from verified document: ${doc.title || doc.file_name}`
               })
-              .eq('member_id', doc.entity_id)
+              .eq('member_id', doc.entityId)
               .eq('compliance_type', complianceType);
             
             await supabase
@@ -110,8 +110,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 reviewed_at: new Date().toISOString(),
                 review_notes: `Auto-completed from verified document: ${doc.title || doc.file_name}`
               })
-              .eq('member_id', doc.entity_id)
-              .eq('document_category_code', doc.category_code);
+              .eq('member_id', doc.entityId)
+              .eq('document_category_code', doc.categoryCode);
           } catch (err) {
             console.error('Failed to auto-update compliance:', err);
           }
@@ -132,7 +132,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         // Auto-complete compliance when document is approved
         const doc = result.document;
-        if (doc?.entity_type === 'member' && doc?.category_code) {
+        if (doc?.entityType === 'member' && doc?.categoryCode) {
           try {
             const supabase = await createServiceClient();
             
@@ -143,7 +143,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               'member_passport_photo': 'photo',
             };
             
-            const complianceType = complianceTypeMap[doc.category_code] || doc.category_code;
+            const complianceType = complianceTypeMap[doc.categoryCode] || doc.categoryCode;
             
             // Update compliance_records
             await supabase
@@ -153,7 +153,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 completed_date: new Date().toISOString(),
                 notes: `Auto-completed from approved document: ${doc.title || doc.file_name}`
               })
-              .eq('member_id', doc.entity_id)
+              .eq('member_id', doc.entityId)
               .eq('compliance_type', complianceType);
             
             // Update member_compliance
@@ -164,8 +164,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 reviewed_at: new Date().toISOString(),
                 review_notes: `Auto-completed from approved document: ${doc.title || doc.file_name}`
               })
-              .eq('member_id', doc.entity_id)
-              .eq('document_category_code', doc.category_code);
+              .eq('member_id', doc.entityId)
+              .eq('document_category_code', doc.categoryCode);
           } catch (err) {
             console.error('Failed to auto-update compliance:', err);
           }
