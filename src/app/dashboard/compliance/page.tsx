@@ -83,7 +83,19 @@ export default function CompliancePage() {
     return Math.round((completed / records.length) * 100);
   };
 
-  const getMemberComplianceStatus = (records: ComplianceRecord[]) => {
+  const getMemberComplianceStatus = (records: ComplianceRecord[], member?: any) => {
+    // Use pre-calculated status if available from batch API
+    if (member?.compliance_status) {
+      const statusMap: Record<string, any> = {
+        'compliant': { status: 'compliant', label: 'Fully Compliant', color: 'green' },
+        'partial': { status: 'partial', label: 'Partially Compliant', color: 'yellow' },
+        'non_compliant': { status: 'non_compliant', label: 'Non-Compliant', color: 'red' },
+        'pending': { status: 'pending', label: 'Pending', color: 'gray' },
+      };
+      return statusMap[member.compliance_status] || { status: 'pending', label: 'Pending', color: 'gray' };
+    }
+
+    // Fallback to calculating from records
     const score = calculateComplianceScore(records);
     if (score === 100) return { status: 'compliant', label: 'Fully Compliant', color: 'green' };
     if (score >= 50) return { status: 'partial', label: 'Partially Compliant', color: 'yellow' };
@@ -130,10 +142,11 @@ export default function CompliancePage() {
 
   members.forEach(member => {
     const records = complianceData[member.id] || [];
-    const memberStatus = getMemberComplianceStatus(records);
+    const memberStatus = getMemberComplianceStatus(records, member);
     if (memberStatus.status === 'compliant') summary.fully_compliant++;
     else if (memberStatus.status === 'partial') summary.partially_compliant++;
     else if (memberStatus.status === 'non_compliant') summary.non_compliant++;
+    else if (memberStatus.status === 'pending') summary.partially_compliant++; // Pending = not yet started
   });
 
   summary.compliance_rate = summary.total_members > 0
@@ -148,7 +161,7 @@ export default function CompliancePage() {
       member.phone.includes(searchQuery);
 
     const records = complianceData[member.id] || [];
-    const status = getMemberComplianceStatus(records);
+    const status = getMemberComplianceStatus(records, member);
     const matchesStatus = statusFilter === 'all' || status.status === statusFilter;
 
     return matchesSearch && matchesStatus;
@@ -298,7 +311,7 @@ export default function CompliancePage() {
               ) : (
                 filteredMembers.map((member) => {
                   const records = complianceData[member.id] || [];
-                  const complianceStatus = getMemberComplianceStatus(records);
+                  const complianceStatus = getMemberComplianceStatus(records, member);
                   const score = calculateComplianceScore(records);
                   const completedCount = records.filter(r => r.status === 'approved' || r.status === 'complete').length;
                   
@@ -392,7 +405,7 @@ export default function CompliancePage() {
               {(() => {
                 const records = complianceData[selectedMember.id] || [];
                 const score = calculateComplianceScore(records);
-                const status = getMemberComplianceStatus(records);
+                const status = getMemberComplianceStatus(records, member);
                 
                 return (
                   <>

@@ -26,30 +26,42 @@ export async function GET(request: NextRequest) {
 
       if (membersError) throw membersError;
 
-      // Fetch all compliance records in one query
-      const { data: complianceRecords, error: complianceError } = await supabase
+      // Fetch compliance records from BOTH tables:
+      // 1. compliance_records (migration 001 - OLD system)
+      // 2. member_compliance (migration 007 - NEW system)
+      const { data: oldCompliance, error: oldError } = await supabase
+        .from('compliance_records')
+        .select('*');
+
+      if (oldError) console.warn('Old compliance_records error:', oldError);
+
+      const { data: newCompliance, error: newError } = await supabase
         .from('member_compliance')
         .select('*');
 
-      if (complianceError) throw complianceError;
+      if (newError) console.warn('New member_compliance error:', newError);
 
-      // Fetch document categories for names
-      const { data: categories } = await supabase
-        .from('document_categories')
-        .select('code, name');
-
-      const categoryMap = new Map((categories || []).map(c => [c.code, c.name]));
+      // Combine and deduplicate compliance records
+      const allCompliance = [
+        ...(oldCompliance || []).map(r => ({
+          ...r,
+          source: 'compliance_records',
+          category_name: r.compliance_type || r.compliance_type,
+        })),
+        ...(newCompliance || []).map(r => ({
+          ...r,
+          source: 'member_compliance',
+          category_name: r.document_category_code || r.compliance_type,
+        })),
+      ];
 
       // Group compliance by member
       const complianceByMember: Record<string, any[]> = {};
-      (complianceRecords || []).forEach(record => {
+      allCompliance.forEach(record => {
         if (!complianceByMember[record.member_id]) {
           complianceByMember[record.member_id] = [];
         }
-        complianceByMember[record.member_id].push({
-          ...record,
-          category_name: categoryMap.get(record.document_category_code) || record.document_category_code,
-        });
+        complianceByMember[record.member_id].push(record);
       });
 
       // Calculate scores for each member
@@ -57,14 +69,21 @@ export async function GET(request: NextRequest) {
         const records = complianceByMember[member.id] || [];
         const total = records.length;
         const completed = records.filter(r =>
-          r.status === 'approved' || r.status === 'complete' || r.status === 'submitted'
+          r.status === 'complete' || r.status === 'approved' || r.status === 'submitted'
         ).length;
         const score = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        // Determine compliance status
+        let complianceStatus = 'non_compliant';
+        if (score === 100) complianceStatus = 'compliant';
+        else if (score >= 50) complianceStatus = 'partial';
+        else if (total === 0) complianceStatus = 'pending';
 
         return {
           ...member,
           compliance: records,
           compliance_score: score,
+          compliance_status: complianceStatus,
           total_requirements: total,
           completed_requirements: completed,
         };
