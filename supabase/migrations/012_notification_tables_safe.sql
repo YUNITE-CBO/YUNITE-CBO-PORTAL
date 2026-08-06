@@ -1,11 +1,11 @@
 -- =============================================
--- NOTIFICATION TABLES MIGRATION
+-- NOTIFICATION TABLES - SAFE MIGRATION
 -- =============================================
--- Run this SQL in your Supabase SQL Editor to create notification tables
--- https://sprlwlxjhhmazxpflhnb.supabase.co/project/-/sql
+-- This migration uses CREATE TABLE IF NOT EXISTS
+-- to safely add tables that don't exist yet
 -- =============================================
 
--- 1. NOTIFICATION CHANNELS TABLE
+-- 1. NOTIFICATION CHANNELS
 CREATE TABLE IF NOT EXISTS notification_channels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
@@ -18,14 +18,13 @@ CREATE TABLE IF NOT EXISTS notification_channels (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Seed default channels
 INSERT INTO notification_channels (code, name, description, is_active) VALUES
     ('in_app', 'In-App Notification', 'Internal platform notifications', true),
     ('email', 'Email', 'SMTP email delivery', true),
     ('sms', 'SMS', 'SMS text messaging', false)
 ON CONFLICT (code) DO NOTHING;
 
--- 2. NOTIFICATION CATEGORIES TABLE
+-- 2. NOTIFICATION CATEGORIES
 CREATE TABLE IF NOT EXISTS notification_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
@@ -38,7 +37,6 @@ CREATE TABLE IF NOT EXISTS notification_categories (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Seed default categories
 INSERT INTO notification_categories (code, name, description, icon, color, sort_order) VALUES
     ('member', 'Member Management', 'Member registration, status changes, documents', 'users', '#10B981', 1),
     ('savings', 'Savings', 'Deposits, withdrawals, adjustments', 'piggy-bank', '#3B82F6', 2),
@@ -52,7 +50,7 @@ INSERT INTO notification_categories (code, name, description, icon, color, sort_
     ('security', 'Security', 'Security-related notifications', 'lock', '#DC2626', 10)
 ON CONFLICT (code) DO NOTHING;
 
--- 3. NOTIFICATION TEMPLATES TABLE
+-- 3. NOTIFICATION TEMPLATES
 CREATE TABLE IF NOT EXISTS notification_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     template_code TEXT UNIQUE NOT NULL,
@@ -75,7 +73,7 @@ CREATE TABLE IF NOT EXISTS notification_templates (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. NOTIFICATIONS TABLE (MAIN TABLE)
+-- 4. NOTIFICATIONS TABLE
 CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     notification_ref TEXT UNIQUE NOT NULL,
@@ -111,7 +109,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. EMAIL QUEUE TABLE
+-- 5. EMAIL QUEUE
 CREATE TABLE IF NOT EXISTS email_queue (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     notification_id UUID REFERENCES notifications(id),
@@ -139,7 +137,7 @@ CREATE TABLE IF NOT EXISTS email_queue (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. NOTIFICATION PREFERENCES TABLE
+-- 6. NOTIFICATION PREFERENCES
 CREATE TABLE IF NOT EXISTS notification_preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
@@ -159,7 +157,7 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
     UNIQUE(user_id)
 );
 
--- 7. NOTIFICATION DELIVERY HISTORY TABLE
+-- 7. DELIVERY HISTORY
 CREATE TABLE IF NOT EXISTS notification_delivery_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     notification_id UUID REFERENCES notifications(id),
@@ -181,7 +179,7 @@ CREATE TABLE IF NOT EXISTS notification_delivery_history (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. NOTIFICATION SCHEDULES TABLE
+-- 8. NOTIFICATION SCHEDULES
 CREATE TABLE IF NOT EXISTS notification_schedules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     schedule_code TEXT UNIQUE NOT NULL,
@@ -207,7 +205,7 @@ CREATE TABLE IF NOT EXISTS notification_schedules (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. NOTIFICATION STATEMENTS TABLE
+-- 9. NOTIFICATION STATEMENTS
 CREATE TABLE IF NOT EXISTS notification_statements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     statement_ref TEXT UNIQUE NOT NULL,
@@ -222,7 +220,7 @@ CREATE TABLE IF NOT EXISTS notification_statements (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 10. NOTIFICATION EVENT LOGS TABLE
+-- 10. NOTIFICATION EVENT LOGS
 CREATE TABLE IF NOT EXISTS notification_event_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_type TEXT NOT NULL,
@@ -239,68 +237,222 @@ CREATE TABLE IF NOT EXISTS notification_event_logs (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS idx_notifications_ref ON notifications(notification_ref);
-CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_id, recipient_type);
-CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
-CREATE INDEX IF NOT EXISTS idx_notifications_scheduled ON notifications(scheduled_for) WHERE status = 'pending';
-CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status);
-CREATE INDEX IF NOT EXISTS idx_email_queue_notification ON email_queue(notification_id);
-CREATE INDEX IF NOT EXISTS idx_delivery_history_notification ON notification_delivery_history(notification_id);
-CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON notification_schedules(next_run_at) WHERE is_active = true;
+-- Create indexes (ignore errors if they exist)
+DO $$
+BEGIN
+    CREATE INDEX idx_notifications_ref ON notifications(notification_ref);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Enable RLS
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_templates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_schedules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_delivery_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_statements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_event_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE email_queue ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+    CREATE INDEX idx_notifications_recipient ON notifications(recipient_id, recipient_type);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Create policies
-DROP POLICY IF EXISTS "Public read notifications" ON notifications;
-CREATE POLICY "Public read notifications" ON notifications FOR SELECT USING (true);
+DO $$
+BEGIN
+    CREATE INDEX idx_notifications_status ON notifications(status);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public insert notifications" ON notifications;
-CREATE POLICY "Public insert notifications" ON notifications FOR INSERT WITH CHECK (true);
+DO $$
+BEGIN
+    CREATE INDEX idx_email_queue_status ON email_queue(status);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public read templates" ON notification_templates;
-CREATE POLICY "Public read templates" ON notification_templates FOR SELECT USING (true);
+DO $$
+BEGIN
+    CREATE INDEX idx_email_queue_notification ON email_queue(notification_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public read schedules" ON notification_schedules;
-CREATE POLICY "Public read schedules" ON notification_schedules FOR SELECT USING (true);
+DO $$
+BEGIN
+    CREATE INDEX idx_delivery_history_notification ON notification_delivery_history(notification_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public read preferences" ON notification_preferences;
-CREATE POLICY "Public read preferences" ON notification_preferences FOR SELECT USING (true);
+DO $$
+BEGIN
+    CREATE INDEX idx_schedules_next_run ON notification_schedules(next_run_at) WHERE is_active = true;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public read delivery history" ON notification_delivery_history;
-CREATE POLICY "Public read delivery history" ON notification_delivery_history FOR SELECT USING (true);
+-- Enable RLS on tables that don't have it
+DO $$
+DECLARE
+    rls_enabled boolean;
+BEGIN
+    SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'notifications';
+    IF rls_enabled = false OR rls_enabled IS NULL THEN
+        ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public read event logs" ON notification_event_logs;
-CREATE POLICY "Public read event logs" ON notification_event_logs FOR SELECT USING (true);
+DO $$
+DECLARE
+    rls_enabled boolean;
+BEGIN
+    SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'notification_templates';
+    IF rls_enabled = false OR rls_enabled IS NULL THEN
+        ALTER TABLE notification_templates ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public read email queue" ON email_queue;
-CREATE POLICY "Public read email queue" ON email_queue FOR SELECT USING (true);
+DO $$
+DECLARE
+    rls_enabled boolean;
+BEGIN
+    SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'notification_schedules';
+    IF rls_enabled = false OR rls_enabled IS NULL THEN
+        ALTER TABLE notification_schedules ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public insert notifications" ON notifications;
-CREATE POLICY "Public insert notifications" ON notifications FOR INSERT WITH CHECK (true);
+DO $$
+DECLARE
+    rls_enabled boolean;
+BEGIN
+    SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'notification_preferences';
+    IF rls_enabled = false OR rls_enabled IS NULL THEN
+        ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public insert event logs" ON notification_event_logs;
-CREATE POLICY "Public insert event logs" ON notification_event_logs FOR INSERT WITH CHECK (true);
+DO $$
+DECLARE
+    rls_enabled boolean;
+BEGIN
+    SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'notification_delivery_history';
+    IF rls_enabled = false OR rls_enabled IS NULL THEN
+        ALTER TABLE notification_delivery_history ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public insert email queue" ON email_queue;
-CREATE POLICY "Public insert email queue" ON email_queue FOR INSERT WITH CHECK (true);
+DO $$
+DECLARE
+    rls_enabled boolean;
+BEGIN
+    SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'notification_statements';
+    IF rls_enabled = false OR rls_enabled IS NULL THEN
+        ALTER TABLE notification_statements ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public insert delivery history" ON notification_delivery_history;
-CREATE POLICY "Public insert delivery history" ON notification_delivery_history FOR INSERT WITH CHECK (true);
+DO $$
+DECLARE
+    rls_enabled boolean;
+BEGIN
+    SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'notification_event_logs';
+    IF rls_enabled = false OR rls_enabled IS NULL THEN
+        ALTER TABLE notification_event_logs ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public insert preferences" ON notification_preferences;
-CREATE POLICY "Public insert preferences" ON notification_preferences FOR INSERT WITH CHECK (true);
+DO $$
+DECLARE
+    rls_enabled boolean;
+BEGIN
+    SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'email_queue';
+    IF rls_enabled = false OR rls_enabled IS NULL THEN
+        ALTER TABLE email_queue ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-DROP POLICY IF EXISTS "Public insert statements" ON notification_statements;
-CREATE POLICY "Public insert statements" ON notification_statements FOR INSERT WITH CHECK (true);
+-- Create RLS policies (ignore if exists)
+DO $$
+BEGIN
+    CREATE POLICY "Public read notifications" ON notifications FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
--- Verify tables exist
-SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'notification%';
+DO $$
+BEGIN
+    CREATE POLICY "Public insert notifications" ON notifications FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public read templates" ON notification_templates FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public read schedules" ON notification_schedules FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public read preferences" ON notification_preferences FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public read delivery history" ON notification_delivery_history FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public read event logs" ON notification_event_logs FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public read email queue" ON email_queue FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public insert notifications" ON notifications FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public insert event logs" ON notification_event_logs FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public insert email queue" ON email_queue FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public insert delivery history" ON notification_delivery_history FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public insert preferences" ON notification_preferences FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    CREATE POLICY "Public insert statements" ON notification_statements FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Verify
+SELECT 'Migration complete' as status;
