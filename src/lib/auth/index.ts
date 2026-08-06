@@ -18,3 +18,21 @@ export {
   getUserAgent,
   type AuthenticatedUser,
 } from './server-auth';
+
+// Centralized authorization framework
+export {
+  getAuthUser,
+  requireAuth as requireAuthUser,
+  hasPermission,
+  requirePermission,
+  requireRole,
+  requireSuperAdmin,
+  requireAdmin,
+  unauthorizedResponse,
+  forbiddenResponse,
+  getRoleDisplayName,
+  isValidRole,
+  getRoleLevel,
+  type AuthenticatedUser as AuthenticatedUserV2,
+  type AuthResult,
+} from './authorization';

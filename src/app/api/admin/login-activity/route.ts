@@ -2,42 +2,22 @@
  * ADMIN LOGIN ACTIVITY API
  * 
  * Super Admin only endpoint for viewing login activity across all users.
+ * Uses centralized authorization framework.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import { requireSuperAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
-
-// Helper to verify super admin
-async function verifySuperAdmin(request: NextRequest): Promise<boolean> {
-  const token = request.cookies.get('auth_token')?.value;
-  
-  if (!token) {
-    return false;
-  }
-
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload.role === 'super_admin';
-  } catch {
-    return false;
-  }
-}
 
 // GET /api/admin/login-activity - Get login activity
 export async function GET(request: NextRequest) {
   try {
-    const isSuperAdmin = await verifySuperAdmin(request);
-
-    if (!isSuperAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Super Admin access required' },
-        { status: 403 }
-      );
+    // Use centralized authorization
+    const authResult = await requireSuperAdmin(request);
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
     }
 
     const supabase = await createServiceClient();

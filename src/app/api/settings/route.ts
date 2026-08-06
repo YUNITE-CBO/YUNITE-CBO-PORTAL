@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 
 export async function GET() {
   try {
@@ -26,6 +27,14 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Require permission to update settings
+    const authResult = await requirePermission(request, 'settings', 'update');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const body = await request.json();
     const supabase = await createServiceClient();
 

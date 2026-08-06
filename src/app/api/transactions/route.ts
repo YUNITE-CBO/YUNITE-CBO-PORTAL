@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transactionEngine, AccountType } from '@/lib/services';
+import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
 
 // Map simplified client transaction types to internal types
@@ -41,6 +42,14 @@ const transactionSchema = z.object({
 // GET /api/transactions - Get transaction history
 export async function GET(request: NextRequest) {
   try {
+    // Require authentication for all transaction reads
+    const authResult = await requirePermission(request, 'transactions', 'read');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const memberId = searchParams.get('member_id');
 
@@ -103,6 +112,14 @@ export async function GET(request: NextRequest) {
 // POST /api/transactions - Execute transaction
 export async function POST(request: NextRequest) {
   try {
+    // Require permission to create transactions
+    const authResult = await requirePermission(request, 'transactions', 'create');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const body = await request.json();
     const validated = transactionSchema.parse(body);
 
@@ -115,7 +132,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
+    // Use the authenticated user's ID
+    const userId = authResult.user!.user_id;
 
     const result = await transactionEngine.execute({
       member_id: validated.member_id,
@@ -154,6 +172,14 @@ export async function POST(request: NextRequest) {
 // DELETE /api/transactions - Delete a transaction
 export async function DELETE(request: NextRequest) {
   try {
+    // Require permission to reverse/delete transactions
+    const authResult = await requirePermission(request, 'transactions', 'delete');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

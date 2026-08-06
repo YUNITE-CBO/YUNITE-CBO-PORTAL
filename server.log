@@ -1,0 +1,446 @@
+
+> yunite-enterprise-os@1.3.0 dev
+> next dev
+
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3000
+  - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Ready in 1561ms
+ ○ Compiling /src/middleware ...
+ ✓ Compiled /src/middleware in 538ms (153 modules)
+ ○ Compiling /api/auth/login ...
+ ✓ Compiled /api/auth/login in 696ms (243 modules)
+ POST /api/auth/login 200 in 2223ms
+ POST /api/auth/login 423 in 486ms
+ POST /api/auth/login 400 in 6ms
+ POST /api/auth/login 200 in 540ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ ✓ Compiled /api/auth/session in 113ms (245 modules)
+ GET /api/auth/session 200 in 181ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ POST /api/auth/login 200 in 513ms
+ POST /api/auth/login 200 in 515ms
+ ✓ Compiled /api/auth/logout in 67ms (247 modules)
+ POST /api/auth/logout 200 in 265ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ POST /api/auth/login 200 in 525ms
+ ✓ Compiled /api/auth/profile in 61ms (249 modules)
+ GET /api/auth/profile 200 in 122ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ POST /api/auth/login 200 in 507ms
+ ✓ Compiled /api/admin/users in 59ms (251 modules)
+ GET /api/admin/users 200 in 126ms
+ POST /api/admin/users 201 in 536ms
+ POST /api/admin/users 400 in 7ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ ✓ Compiled /api/admin/login-activity in 199ms (260 modules)
+ GET /api/admin/login-activity 200 in 324ms
+ POST /api/auth/login 200 in 503ms
+ ✓ Compiled /api/members in 413ms (321 modules)
+ GET /api/members 200 in 534ms
+ GET /api/members?page=1&limit=10 200 in 48ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+Failed to create notification: {
+  message: "Could not find the 'body' column of 'notifications' in the schema cache",
+  details: null,
+  hint: null,
+  code: 'PGRST204'
+}
+Failed to create notification: {
+  message: "Could not find the 'body' column of 'notifications' in the schema cache",
+  details: null,
+  hint: null,
+  code: 'PGRST204'
+}
+Failed to create notification: {
+  message: "Could not find the 'body' column of 'notifications' in the schema cache",
+  details: null,
+  hint: null,
+  code: 'PGRST204'
+}
+Failed to create notification: {
+  message: "Could not find the 'body' column of 'notifications' in the schema cache",
+  details: null,
+  hint: null,
+  code: 'PGRST204'
+}
+ POST /api/members 201 in 1099ms
+ POST /api/auth/login 200 in 501ms
+ ✓ Compiled /api/transactions in 97ms (323 modules)
+ GET /api/transactions 200 in 176ms
+ POST /api/auth/login 200 in 504ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ ✓ Compiled /api/documents in 146ms (332 modules)
+Error fetching documents: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column documents.module does not exist'
+}
+ GET /api/documents?module=members&entityType=member&entityId=test-id 200 in 208ms
+ GET /api/documents?action=search&query=test 200 in 60ms
+ GET /api/documents?action=stats 200 in 86ms
+ ✓ Compiled /api/document-categories in 83ms (335 modules)
+ GET /api/document-categories 200 in 172ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ POST /api/auth/login 200 in 487ms
+ ✓ Compiled /api/notifications in 88ms (337 modules)
+ GET /api/notifications?recipient_id=3c6581db-5afd-4a21-af74-bfff33a5c13f&recipient_type=user 200 in 157ms
+ ✓ Compiled /api/notifications/preferences in 68ms (339 modules)
+ GET /api/notifications/preferences?owner_id=3c6581db-5afd-4a21-af74-bfff33a5c13f&owner_type=user 200 in 124ms
+ ✓ Compiled /api/notifications/templates in 69ms (341 modules)
+ GET /api/notifications/templates 200 in 136ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ POST /api/auth/login 200 in 502ms
+ ✓ Compiled /api/loans in 69ms (343 modules)
+ GET /api/loans 200 in 143ms
+ POST /api/auth/login 200 in 499ms
+ ✓ Compiled /api/fines in 79ms (345 modules)
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ GET /api/fines 200 in 154ms
+ POST /api/auth/login 200 in 489ms
+ ✓ Compiled /api/settings in 81ms (347 modules)
+ GET /api/settings 200 in 105ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ ✓ Compiled /api/health in 68ms (349 modules)
+ GET /api/health 200 in 81ms
+ POST /api/auth/login 200 in 497ms
+ GET /api/admin/users 200 in 53ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ GET /api/admin/login-activity 200 in 92ms
+ POST /api/admin/users 201 in 484ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ POST /api/admin/users 201 in 481ms
+ POST /api/admin/users 201 in 483ms
+ POST /api/auth/logout 200 in 171ms
+ POST /api/auth/login 200 in 495ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}
+ GET /api/notifications?recipient_id=3c6581db-5afd-4a21-af74-bfff33a5c13f&recipient_type=user 200 in 52ms
+Email send error: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-transport/index.js:272:32)
+    at SMTPConnection.eval (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:633:28)
+    at SMTPConnection.emit (node:events:519:28)
+    at SMTPConnection._actionEHLO (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (webpack-internal:///(rsc)/./node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+    at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
+  code: 'EAUTH',
+  command: 'API'
+}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loanService } from '@/lib/services';
+import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
 
 const applicationSchema = z.object({
@@ -13,6 +14,14 @@ const applicationSchema = z.object({
 // GET /api/loans - Get all loans or filter by status/member
 export async function GET(request: NextRequest) {
   try {
+    // Require authentication for all loan reads
+    const authResult = await requirePermission(request, 'loans', 'read');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const memberId = searchParams.get('member_id');
     const status = searchParams.get('status');
@@ -42,10 +51,19 @@ export async function GET(request: NextRequest) {
 // POST /api/loans - Apply for loan
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication to apply for loan
+    const authResult = await requirePermission(request, 'loans', 'apply');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const body = await request.json();
     const validated = applicationSchema.parse(body);
 
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
+    // Use authenticated user's ID
+    const userId = authResult.user!.user_id;
 
     const loan = await loanService.apply({
       ...validated,
@@ -88,7 +106,38 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
+    // Check permission based on action
+    let requiredPermission: string;
+    switch (action) {
+      case 'approve':
+        requiredPermission = 'approve';
+        break;
+      case 'reject':
+        requiredPermission = 'reject';
+        break;
+      case 'disburse':
+        requiredPermission = 'disburse';
+        break;
+      case 'repay':
+        requiredPermission = 'repay';
+        break;
+      default:
+        return NextResponse.json(
+          { success: false, error: 'Invalid action. Use: approve, reject, disburse, or repay' },
+          { status: 400 }
+        );
+    }
+
+    // Require appropriate permission
+    const authResult = await requirePermission(request, 'loans', requiredPermission);
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
+    // Use authenticated user's ID
+    const userId = authResult.user!.user_id;
 
     let result;
     if (action === 'approve') {
@@ -126,11 +175,6 @@ export async function PUT(request: NextRequest) {
         message: 'Loan repayment recorded successfully',
         data: result,
       });
-    } else {
-      return NextResponse.json(
-        { success: false, error: 'Invalid action. Use: approve, reject, disburse, or repay' },
-        { status: 400 }
-      );
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Loan operation failed';

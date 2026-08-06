@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { memberRegistrationService } from '@/lib/services';
+import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
 
 const registrationSchema = z.object({
@@ -23,10 +24,19 @@ const registrationSchema = z.object({
 // POST /api/members - Register new member
 export async function POST(request: NextRequest) {
   try {
+    // Require permission to create members
+    const authResult = await requirePermission(request, 'members', 'create');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const body = await request.json();
     const validated = registrationSchema.parse(body);
 
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
+    // Use authenticated user's ID
+    const userId = authResult.user!.user_id;
 
     try {
       const result = await memberRegistrationService.register(validated, userId);
@@ -63,6 +73,14 @@ export async function POST(request: NextRequest) {
 // GET /api/members - Search members
 export async function GET(request: NextRequest) {
   try {
+    // Require authentication for member reads
+    const authResult = await requirePermission(request, 'members', 'read');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const searchParams = request.nextUrl.searchParams;
 
     const result = await memberRegistrationService.search({

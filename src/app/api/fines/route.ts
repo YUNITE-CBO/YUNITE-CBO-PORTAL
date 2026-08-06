@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transactionEngine } from '@/lib/services';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 
@@ -15,6 +16,14 @@ const fineSchema = z.object({
 // GET /api/fines - Get fines
 export async function GET(request: NextRequest) {
   try {
+    // Require authentication for fine reads
+    const authResult = await requirePermission(request, 'fines', 'read');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const memberId = searchParams.get('member_id');
 
@@ -41,11 +50,20 @@ export async function GET(request: NextRequest) {
 // POST /api/fines - Issue a fine
 export async function POST(request: NextRequest) {
   try {
+    // Require permission to create fines
+    const authResult = await requirePermission(request, 'fines', 'create');
+    if (!authResult.success) {
+      return authResult.status === 401 
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+
     const body = await request.json();
     const validated = fineSchema.parse(body);
 
     const supabase = await createServiceClient();
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
+    // Use authenticated user's ID
+    const userId = authResult.user!.user_id;
 
     // Generate fine number
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
