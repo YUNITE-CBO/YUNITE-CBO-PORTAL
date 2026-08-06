@@ -85,7 +85,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ;
 -- Valid values: active, inactive, suspended, archived, locked, pending
 -- ===================================================================
 
--- Add account_status as a regular column (not generated, updated via trigger)
+-- Add account_status as a regular column (updated via trigger)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status TEXT DEFAULT 'active';
 
 -- ===================================================================
@@ -104,27 +104,29 @@ ALTER TABLE user_management_audit ADD COLUMN IF NOT EXISTS metadata JSONB DEFAUL
 
 -- ===================================================================
 -- 5. FUNCTIONS & TRIGGERS
+-- Note: Functions are defined AFTER all column additions above
+-- to ensure columns exist when functions reference them
 -- ===================================================================
 
--- Function to compute account status (used by trigger)
+-- Function to compute account status
 CREATE OR REPLACE FUNCTION compute_account_status()
 RETURNS TEXT AS $$
 BEGIN
-    RETURN CASE 
-        WHEN archived_at IS NOT NULL THEN 'archived'
-        WHEN suspended_at IS NOT NULL AND (suspension_expires_at IS NULL OR suspension_expires_at > NOW()) THEN 'suspended'
-        WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 'locked'
-        WHEN is_active = false THEN 'inactive'
-        ELSE 'active'
-    END;
+    RETURN 'active'; -- Default, will be overridden by trigger
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- Function to update account_status whenever relevant fields change
+-- Function to update account_status on insert/update
 CREATE OR REPLACE FUNCTION update_account_status()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.account_status := compute_account_status();
+    NEW.account_status := CASE 
+        WHEN NEW.archived_at IS NOT NULL THEN 'archived'
+        WHEN NEW.suspended_at IS NOT NULL AND (NEW.suspension_expires_at IS NULL OR NEW.suspension_expires_at > NOW()) THEN 'suspended'
+        WHEN NEW.locked_until IS NOT NULL AND NEW.locked_until > NOW() THEN 'locked'
+        WHEN NEW.is_active = false THEN 'inactive'
+        ELSE 'active'
+    END;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -132,18 +134,18 @@ $$ LANGUAGE plpgsql;
 -- Trigger to update account_status on user changes
 DROP TRIGGER IF EXISTS trigger_update_account_status ON users;
 CREATE TRIGGER trigger_update_account_status
-    BEFORE INSERT OR UPDATE OF 
-        is_active, 
-        archived_at, 
-        suspended_at, 
-        suspension_expires_at, 
-        locked_until 
-    ON users
+    BEFORE INSERT OR UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_account_status();
 
--- Initialize account_status for existing users
-UPDATE users SET account_status = compute_account_status() WHERE account_status IS NULL;
+-- Update existing users with correct account_status
+UPDATE users SET account_status = CASE 
+    WHEN archived_at IS NOT NULL THEN 'archived'
+    WHEN suspended_at IS NOT NULL AND (suspension_expires_at IS NULL OR suspension_expires_at > NOW()) THEN 'suspended'
+    WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 'locked'
+    WHEN is_active = false THEN 'inactive'
+    ELSE 'active'
+END WHERE account_status IS NULL OR account_status = 'active';
 
 -- Function to update total_logins counter
 CREATE OR REPLACE FUNCTION update_user_login_stats()
