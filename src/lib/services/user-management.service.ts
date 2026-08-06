@@ -539,7 +539,7 @@ export class UserManagementService {
       };
     }
 
-    if (user.is_active) {
+    if ((user as Record<string, unknown>).is_active) {
       return {
         success: true,
         message: 'User is already active',
