@@ -117,10 +117,15 @@ export default function LoansPage() {
     const active = loansData.filter((l) => ['disbursed', 'active'].includes(l.status)).length;
     const disbursed = loansData
       .filter((l) => ['disbursed', 'active', 'completed'].includes(l.status))
-      .reduce((sum, l) => sum + l.principal_amount, 0);
+      .reduce((sum, l) => sum + (l.principal_amount || 0), 0);
+    // Calculate outstanding as total_amount - amount_paid for active/disbursed loans
     const outstanding = loansData
       .filter((l) => ['disbursed', 'active'].includes(l.status))
-      .reduce((sum, l) => sum + l.amount_due, 0);
+      .reduce((sum, l) => {
+        const total = l.total_amount || 0;
+        const paid = l.amount_paid || 0;
+        return sum + Math.max(0, total - paid);
+      }, 0);
 
     setStats({
       pending_applications: pending,
@@ -267,7 +272,9 @@ export default function LoansPage() {
 
   const openRepayModal = (loan: Loan) => {
     setSelectedLoan(loan);
-    setRepayAmount(loan.amount_due.toString());
+    // Calculate outstanding as total_amount - amount_paid
+    const outstanding = Math.max(0, (loan.total_amount || 0) - (loan.amount_paid || 0));
+    setRepayAmount(outstanding.toString());
     setRepayType('full');
     setShowRepayModal(true);
   };
@@ -278,6 +285,9 @@ export default function LoansPage() {
     setActionLoading(selectedLoan.id);
     setError(null);
 
+    // Calculate outstanding amount
+    const outstanding = Math.max(0, (selectedLoan.total_amount || 0) - (selectedLoan.amount_paid || 0));
+
     try {
       const res = await fetch('/api/loans', {
         method: 'PUT',
@@ -285,7 +295,7 @@ export default function LoansPage() {
         body: JSON.stringify({
           loan_id: selectedLoan.id,
           action: 'repay',
-          amount: repayType === 'full' ? selectedLoan.amount_due : parseFloat(repayAmount),
+          amount: repayType === 'full' ? outstanding : parseFloat(repayAmount),
         }),
       });
 
@@ -745,8 +755,8 @@ export default function LoansPage() {
                     <span className="ml-2 font-medium text-green-600">{formatCurrency(selectedLoan.amount_paid)}</span>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-gray-500">Amount Due:</span>
-                    <span className="ml-2 font-bold text-red-600">{formatCurrency(selectedLoan.amount_due)}</span>
+                    <span className="text-gray-500">Outstanding:</span>
+                    <span className="ml-2 font-bold text-red-600">{formatCurrency(Math.max(0, (selectedLoan.total_amount || 0) - (selectedLoan.amount_paid || 0)))}</span>
                   </div>
                 </div>
               </div>
@@ -776,7 +786,8 @@ export default function LoansPage() {
                       checked={repayType === 'full'}
                       onChange={() => {
                         setRepayType('full');
-                        setRepayAmount(selectedLoan.amount_due.toString());
+                        const outstanding = Math.max(0, (selectedLoan.total_amount || 0) - (selectedLoan.amount_paid || 0));
+                        setRepayAmount(outstanding.toString());
                       }}
                       className="w-4 h-4 text-indigo-600"
                     />
@@ -796,11 +807,11 @@ export default function LoansPage() {
                     onChange={(e) => setRepayAmount(e.target.value)}
                     placeholder="Enter amount"
                     min="1"
-                    max={selectedLoan.amount_due}
+                    max={Math.max(0, (selectedLoan.total_amount || 0) - (selectedLoan.amount_paid || 0))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Maximum: {formatCurrency(selectedLoan.amount_due)}
+                    Maximum: {formatCurrency(Math.max(0, (selectedLoan.total_amount || 0) - (selectedLoan.amount_paid || 0)))}
                   </p>
                 </div>
               )}
@@ -808,7 +819,7 @@ export default function LoansPage() {
               {repayType === 'full' && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-sm text-green-800">
-                    <strong>Full Repayment:</strong> {formatCurrency(selectedLoan.amount_due)}
+                    <strong>Full Repayment:</strong> {formatCurrency(Math.max(0, (selectedLoan.total_amount || 0) - (selectedLoan.amount_paid || 0)))}
                   </p>
                 </div>
               )}
