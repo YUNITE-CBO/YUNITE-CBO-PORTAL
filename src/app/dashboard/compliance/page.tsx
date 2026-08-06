@@ -11,6 +11,10 @@ interface Member {
   phone: string;
   status: string;
   registration_date: string;
+  compliance_score?: number;
+  total_requirements?: number;
+  completed_requirements?: number;
+  compliance?: ComplianceRecord[];
 }
 
 interface ComplianceRecord {
@@ -50,31 +54,20 @@ export default function CompliancePage() {
 
   const fetchData = async () => {
     try {
-      const membersRes = await fetch('/api/members');
-      const membersData = await membersRes.json();
+      // Use batch endpoint to fetch all compliance data in a single query (fixes N+1)
+      const response = await fetch('/api/compliance?batch=true');
+      const data = await response.json();
 
-      if (membersData.success) {
-        setMembers(membersData.data || []);
-        
-        // Fetch compliance for each member
-        const compliancePromises = (membersData.data || []).map(async (member: Member) => {
-          try {
-            const res = await fetch(`/api/compliance?memberId=${member.id}`);
-            const data = await res.json();
-            if (data.success) {
-              return { memberId: member.id, records: data.data?.requirements || [] };
-            }
-          } catch {
-            // Skip failed requests
-          }
-          return { memberId: member.id, records: [] };
-        });
+      if (data.success) {
+        const memberData: Member[] = data.data || [];
 
-        const results = await Promise.all(compliancePromises);
+        // Build compliance map from batch response
         const complianceMap: Record<string, ComplianceRecord[]> = {};
-        results.forEach(({ memberId, records }) => {
-          complianceMap[memberId] = records;
+        memberData.forEach((member: Member) => {
+          complianceMap[member.id] = member.compliance || [];
         });
+
+        setMembers(memberData);
         setComplianceData(complianceMap);
       }
     } catch {

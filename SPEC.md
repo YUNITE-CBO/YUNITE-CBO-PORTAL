@@ -62,64 +62,64 @@ The authentication system provides enterprise-grade security with the following 
 
 ```
 users (enhanced)
-├── avatar_url
-├── address
-├── emergency_contact_name
-├── emergency_contact_phone
-├── date_joined
-├── failed_login_attempts
-├── locked_until
-├── password_changed_at
-├── must_change_password
+в”ңв”Җв”Җ avatar_url
+в”ңв”Җв”Җ address
+в”ңв”Җв”Җ emergency_contact_name
+в”ңв”Җв”Җ emergency_contact_phone
+в”ңв”Җв”Җ date_joined
+в”ңв”Җв”Җ failed_login_attempts
+в”ңв”Җв”Җ locked_until
+в”ңв”Җв”Җ password_changed_at
+в”ңв”Җв”Җ must_change_password
 
 user_sessions
-├── id (UUID, PK)
-├── user_id (FK → users)
-├── session_token
-├── ip_address
-├── user_agent
-├── device_info (JSONB)
-├── location_info (JSONB)
-├── is_active
-├── created_at
-├── last_activity_at
-├── expires_at
-├── terminated_at
-├── termination_reason
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ user_id (FK вҶ’ users)
+в”ңв”Җв”Җ session_token
+в”ңв”Җв”Җ ip_address
+в”ңв”Җв”Җ user_agent
+в”ңв”Җв”Җ device_info (JSONB)
+в”ңв”Җв”Җ location_info (JSONB)
+в”ңв”Җв”Җ is_active
+в”ңв”Җв”Җ created_at
+в”ңв”Җв”Җ last_activity_at
+в”ңв”Җв”Җ expires_at
+в”ңв”Җв”Җ terminated_at
+в”ңв”Җв”Җ termination_reason
 
 login_activity
-├── id (UUID, PK)
-├── user_id (FK → users)
-├── email
-├── event_type
-├── ip_address
-├── user_agent
-├── device_info (JSONB)
-├── metadata (JSONB)
-├── success
-├── failure_reason
-├── created_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ user_id (FK вҶ’ users)
+в”ңв”Җв”Җ email
+в”ңв”Җв”Җ event_type
+в”ңв”Җв”Җ ip_address
+в”ңв”Җв”Җ user_agent
+в”ңв”Җв”Җ device_info (JSONB)
+в”ңв”Җв”Җ metadata (JSONB)
+в”ңв”Җв”Җ success
+в”ңв”Җв”Җ failure_reason
+в”ңв”Җв”Җ created_at
 
 notification_preferences
-├── id (UUID, PK)
-├── user_id (FK → users)
-├── notify_on_login
-├── notify_on_logout
-├── notify_on_password_change
-├── notify_on_profile_update
-├── email_notifications
-├── in_app_notifications
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ user_id (FK вҶ’ users)
+в”ңв”Җв”Җ notify_on_login
+в”ңв”Җв”Җ notify_on_logout
+в”ңв”Җв”Җ notify_on_password_change
+в”ңв”Җв”Җ notify_on_profile_update
+в”ңв”Җв”Җ email_notifications
+в”ңв”Җв”Җ in_app_notifications
 
 user_management_audit
-├── id (UUID, PK)
-├── admin_user_id (FK → users)
-├── target_user_id (FK → users)
-├── action
-├── old_values (JSONB)
-├── new_values (JSONB)
-├── reason
-├── ip_address
-├── created_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ admin_user_id (FK вҶ’ users)
+в”ңв”Җв”Җ target_user_id (FK вҶ’ users)
+в”ңв”Җв”Җ action
+в”ңв”Җв”Җ old_values (JSONB)
+в”ңв”Җв”Җ new_values (JSONB)
+в”ңв”Җв”Җ reason
+в”ңв”Җв”Җ ip_address
+в”ңв”Җв”Җ created_at
 ```
 
 ### API Endpoints
@@ -173,7 +173,7 @@ All balances are **derived from transaction history**, never stored as duplicate
 | Balance Type | Source | Calculation |
 |--------------|--------|-------------|
 | Savings Balance | Transaction Ledger | SUM(deposits) - SUM(withdrawals) |
-| Shares Balance | Savings + Settings | Total Savings ÷ Share Value |
+| Shares Balance | Savings + Settings | Total Savings Г· Share Value |
 | Loan Balance | Loan Ledger | SUM(disbursements) - SUM(repayments) |
 | Fine Balance | Fine Ledger | SUM(fines) - SUM(payments) |
 | Contribution Balance | Transaction Ledger | SUM(contributions) |
@@ -193,125 +193,125 @@ All balances are **derived from transaction history**, never stored as duplicate
 
 ```
 organizations
-├── id (UUID, PK)
-├── name
-├── registration_number
-├── email, phone, address
-├── currency
-├── created_at, updated_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ name
+в”ңв”Җв”Җ registration_number
+в”ңв”Җв”Җ email, phone, address
+в”ңв”Җв”Җ currency
+в”ңв”Җв”Җ created_at, updated_at
 
 members
-├── id (UUID, PK)
-├── member_number (unique, auto-generated)
-├── first_name, last_name
-├── email, phone
-├── id_number
-├── date_of_birth, gender
-├── physical_address, postal_address
-├── occupation, employer
-├── next_of_kin_name, next_of_kin_phone, next_of_kin_relationship
-├── registration_date
-├── status (pending | active | suspended | withdrawn | deceased)
-├── created_at, updated_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ member_number (unique, auto-generated)
+в”ңв”Җв”Җ first_name, last_name
+в”ңв”Җв”Җ email, phone
+в”ңв”Җв”Җ id_number
+в”ңв”Җв”Җ date_of_birth, gender
+в”ңв”Җв”Җ physical_address, postal_address
+в”ңв”Җв”Җ occupation, employer
+в”ңв”Җв”Җ next_of_kin_name, next_of_kin_phone, next_of_kin_relationship
+в”ңв”Җв”Җ registration_date
+в”ңв”Җв”Җ status (pending | active | suspended | withdrawn | deceased)
+в”ңв”Җв”Җ created_at, updated_at
 
 accounts (logical workspaces per member)
-├── id (UUID, PK)
-├── member_id (FK → members)
-├── account_type (savings | shares | contributions | welfare | fines | loans)
-├── status (active | closed | frozen)
-├── created_at, updated_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ member_id (FK вҶ’ members)
+в”ңв”Җв”Җ account_type (savings | shares | contributions | welfare | fines | loans)
+в”ңв”Җв”Җ status (active | closed | frozen)
+в”ңв”Җв”Җ created_at, updated_at
 
 transactions (AUTHORITATIVE LEDGER - single source of truth)
-├── id (UUID, PK)
-├── transaction_ref (unique, auto-generated)
-├── member_id (FK → members)
-├── account_id (FK → accounts)
-├── transaction_type
-├── amount (always positive)
-├── balance_before (snapshot)
-├── balance_after (snapshot)
-├── description
-├── reference_number
-├── posted_by (FK → users)
-├── posted_at
-├── reversed (boolean)
-├── reversed_at, reversed_by, reversal_reason
-├── metadata (JSONB)
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ transaction_ref (unique, auto-generated)
+в”ңв”Җв”Җ member_id (FK вҶ’ members)
+в”ңв”Җв”Җ account_id (FK вҶ’ accounts)
+в”ңв”Җв”Җ transaction_type
+в”ңв”Җв”Җ amount (always positive)
+в”ңв”Җв”Җ balance_before (snapshot)
+в”ңв”Җв”Җ balance_after (snapshot)
+в”ңв”Җв”Җ description
+в”ңв”Җв”Җ reference_number
+в”ңв”Җв”Җ posted_by (FK вҶ’ users)
+в”ңв”Җв”Җ posted_at
+в”ңв”Җв”Җ reversed (boolean)
+в”ңв”Җв”Җ reversed_at, reversed_by, reversal_reason
+в”ңв”Җв”Җ metadata (JSONB)
 
 fines
-├── id (UUID, PK)
-├── fine_number (unique)
-├── member_id (FK → members)
-├── fine_type (meeting_absence | late_payment | penalty | manual)
-├── amount
-├── amount_paid
-├── reason
-├── due_date
-├── issued_by, issued_date
-├── status (pending | partial | paid | waived)
-├── paid_date
-├── created_at, updated_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ fine_number (unique)
+в”ңв”Җв”Җ member_id (FK вҶ’ members)
+в”ңв”Җв”Җ fine_type (meeting_absence | late_payment | penalty | manual)
+в”ңв”Җв”Җ amount
+в”ңв”Җв”Җ amount_paid
+в”ңв”Җв”Җ reason
+в”ңв”Җв”Җ due_date
+в”ңв”Җв”Җ issued_by, issued_date
+в”ңв”Җв”Җ status (pending | partial | paid | waived)
+в”ңв”Җв”Җ paid_date
+в”ңв”Җв”Җ created_at, updated_at
 
 loans
-├── id (UUID, PK)
-├── loan_number (unique)
-├── member_id (FK → members)
-├── loan_type
-├── principal_amount
-├── interest_rate
-├── interest_amount
-├── total_amount
-├── amount_paid
-├── amount_due
-├── repayment_period_months
-├── monthly_repayment
-├── disbursement_date
-├── repayment_start_date
-├── repayment_end_date
-├── disbursed_by
-├── status (pending | approved | disbursed | active | completed | defaulted)
-├── created_at, updated_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ loan_number (unique)
+в”ңв”Җв”Җ member_id (FK вҶ’ members)
+в”ңв”Җв”Җ loan_type
+в”ңв”Җв”Җ principal_amount
+в”ңв”Җв”Җ interest_rate
+в”ңв”Җв”Җ interest_amount
+в”ңв”Җв”Җ total_amount
+в”ңв”Җв”Җ amount_paid
+в”ңв”Җв”Җ amount_due
+в”ңв”Җв”Җ repayment_period_months
+в”ңв”Җв”Җ monthly_repayment
+в”ңв”Җв”Җ disbursement_date
+в”ңв”Җв”Җ repayment_start_date
+в”ңв”Җв”Җ repayment_end_date
+в”ңв”Җв”Җ disbursed_by
+в”ңв”Җв”Җ status (pending | approved | disbursed | active | completed | defaulted)
+в”ңв”Җв”Җ created_at, updated_at
 
 documents
-├── id (UUID, PK)
-├── member_id (FK → members)
-├── document_type (national_id | passport | photo | kra_pin | other)
-├── file_name
-├── file_path
-├── expiry_date
-├── status (pending | verified | expired)
-├── verified_by, verified_at
-├── uploaded_by, uploaded_at
-├── created_at, updated_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ member_id (FK вҶ’ members)
+в”ңв”Җв”Җ document_type (national_id | passport | photo | kra_pin | other)
+в”ңв”Җв”Җ file_name
+в”ңв”Җв”Җ file_path
+в”ңв”Җв”Җ expiry_date
+в”ңв”Җв”Җ status (pending | verified | expired)
+в”ңв”Җв”Җ verified_by, verified_at
+в”ңв”Җв”Җ uploaded_by, uploaded_at
+в”ңв”Җв”Җ created_at, updated_at
 
 compliance_records
-├── id (UUID, PK)
-├── member_id (FK → members)
-├── compliance_type
-├── status (pending | complete | missing | expired)
-├── due_date
-├── completed_date
-├── notes
-├── created_at, updated_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ member_id (FK вҶ’ members)
+в”ңв”Җв”Җ compliance_type
+в”ңв”Җв”Җ status (pending | complete | missing | expired)
+в”ңв”Җв”Җ due_date
+в”ңв”Җв”Җ completed_date
+в”ңв”Җв”Җ notes
+в”ңв”Җв”Җ created_at, updated_at
 
 audit_logs (IMmutable)
-├── id (UUID, PK)
-├── user_id (FK → users)
-├── action (table.operation)
-├── record_id
-├── before_value (JSONB)
-├── after_value (JSONB)
-├── reason
-├── ip_address
-├── created_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ user_id (FK вҶ’ users)
+в”ңв”Җв”Җ action (table.operation)
+в”ңв”Җв”Җ record_id
+в”ңв”Җв”Җ before_value (JSONB)
+в”ңв”Җв”Җ after_value (JSONB)
+в”ңв”Җв”Җ reason
+в”ңв”Җв”Җ ip_address
+в”ңв”Җв”Җ created_at
 
 settings (Configuration)
-├── id (UUID, PK)
-├── key (unique, namespaced)
-├── value
-├── description
-├── category
-├── updated_by, updated_at
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ key (unique, namespaced)
+в”ңв”Җв”Җ value
+в”ңв”Җв”Җ description
+в”ңв”Җв”Җ category
+в”ңв”Җв”Җ updated_by, updated_at
 ```
 
 ### 2.2 Indexes
@@ -333,9 +333,9 @@ CREATE INDEX idx_members_phone ON members(phone);
 
 ### 3.2 Transaction Flow
 ```
-Request → Validate → Create Transaction → Update Ledger → 
-Recalculate Balances → Generate Audit Log → Update Dashboard → 
-Update Statements → Notify Services
+Request вҶ’ Validate вҶ’ Create Transaction вҶ’ Update Ledger вҶ’ 
+Recalculate Balances вҶ’ Generate Audit Log вҶ’ Update Dashboard вҶ’ 
+Update Statements вҶ’ Notify Services
 ```
 
 ### 3.3 Supported Transaction Types
@@ -343,7 +343,7 @@ Update Statements → Notify Services
 |------|----------|--------|
 | savings_deposit | savings | +amount |
 | savings_withdrawal | savings | -amount |
-| savings_adjustment | savings | ±amount |
+| savings_adjustment | savings | Вұamount |
 | registration_fee | fees | -amount |
 | annual_fee | fees | -amount |
 | contribution_monthly | contributions | +amount |
@@ -431,7 +431,7 @@ On registration, system automatically creates:
 
 ### 5.1 Shares Calculation
 ```
-Shares = Total Savings ÷ Share Value
+Shares = Total Savings Г· Share Value
 ```
 - Share Value from Settings (e.g., 100 KES)
 - Automatically recalculated on every savings change
@@ -439,7 +439,7 @@ Shares = Total Savings ÷ Share Value
 
 ### 5.2 Loan Eligibility
 ```
-Max Loan = Savings × Loan Percentage
+Max Loan = Savings Г— Loan Percentage
 ```
 - Loan Percentage from Settings (e.g., 75%)
 - Recalculated whenever savings change
@@ -505,15 +505,15 @@ interface AuditLog {
 ### 7.2 Reversal Flow
 ```
 Original Transaction (intact)
-↓
+вҶ“
 Create Reversal Transaction (negative of original)
-↓
+вҶ“
 Mark Original as reversed
-↓
+вҶ“
 Recalculate all derived balances
-↓
+вҶ“
 Update audit trail
-↓
+вҶ“
 Statements reflect both entries
 ```
 
@@ -948,9 +948,9 @@ The **Enterprise Document & Media Service** is a centralized platform service th
 ### 15.3 Document Lifecycle
 
 ```
-DRAFT → PENDING → UNDER_REVIEW → APPROVED/REJECTED
-                                    ↓
-                              EXPIRED ←────────── ARCHIVED
+DRAFT вҶ’ PENDING вҶ’ UNDER_REVIEW вҶ’ APPROVED/REJECTED
+                                    вҶ“
+                              EXPIRED вҶҗв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җ ARCHIVED
 ```
 
 ### 14.4 Document Categories by Module
@@ -1168,41 +1168,41 @@ STARTUP:
 **bootstrap_logs** - Tracks all bootstrap operations
 ```
 bootstrap_logs
-├── id (UUID, PK)
-├── operation_type (ENUM: super_admin_bootstrap, system_initialization, etc.)
-├── status (ENUM: success, failed, skipped, warning)
-├── action_taken (TEXT)
-├── message (TEXT)
-├── details (JSONB)
-├── duration_ms (INTEGER)
-├── environment (TEXT)
-├── metadata (JSONB)
-├── error_trace (TEXT)
-├── created_at (TIMESTAMPTZ)
+в”ңв”Җв”Җ id (UUID, PK)
+в”ңв”Җв”Җ operation_type (ENUM: super_admin_bootstrap, system_initialization, etc.)
+в”ңв”Җв”Җ status (ENUM: success, failed, skipped, warning)
+в”ңв”Җв”Җ action_taken (TEXT)
+в”ңв”Җв”Җ message (TEXT)
+в”ңв”Җв”Җ details (JSONB)
+в”ңв”Җв”Җ duration_ms (INTEGER)
+в”ңв”Җв”Җ environment (TEXT)
+в”ңв”Җв”Җ metadata (JSONB)
+в”ңв”Җв”Җ error_trace (TEXT)
+в”ңв”Җв”Җ created_at (TIMESTAMPTZ)
 ```
 
 **Enhanced users table fields**
 ```
 users (enhanced with)
-├── email_verified (BOOLEAN)
-├── email_verified_at (TIMESTAMPTZ)
-├── is_system_user (BOOLEAN)
-├── is_protected (BOOLEAN)
-├── department (TEXT)
-├── job_title (TEXT)
-├── employee_id (TEXT)
-├── password_history (JSONB)
-├── suspended_at (TIMESTAMPTZ)
-├── suspended_by (UUID REFERENCES users)
-├── suspension_reason (TEXT)
-├── suspension_expires_at (TIMESTAMPTZ)
-├── archived_at (TIMESTAMPTZ)
-├── archived_by (UUID REFERENCES users)
-├── archive_reason (TEXT)
-├── admin_notes (TEXT)
-├── total_logins (INTEGER)
-├── last_active_at (TIMESTAMPTZ)
-├── account_status (COMPUTED: active, inactive, suspended, archived, locked)
+в”ңв”Җв”Җ email_verified (BOOLEAN)
+в”ңв”Җв”Җ email_verified_at (TIMESTAMPTZ)
+в”ңв”Җв”Җ is_system_user (BOOLEAN)
+в”ңв”Җв”Җ is_protected (BOOLEAN)
+в”ңв”Җв”Җ department (TEXT)
+в”ңв”Җв”Җ job_title (TEXT)
+в”ңв”Җв”Җ employee_id (TEXT)
+в”ңв”Җв”Җ password_history (JSONB)
+в”ңв”Җв”Җ suspended_at (TIMESTAMPTZ)
+в”ңв”Җв”Җ suspended_by (UUID REFERENCES users)
+в”ңв”Җв”Җ suspension_reason (TEXT)
+в”ңв”Җв”Җ suspension_expires_at (TIMESTAMPTZ)
+в”ңв”Җв”Җ archived_at (TIMESTAMPTZ)
+в”ңв”Җв”Җ archived_by (UUID REFERENCES users)
+в”ңв”Җв”Җ archive_reason (TEXT)
+в”ңв”Җв”Җ admin_notes (TEXT)
+в”ңв”Җв”Җ total_logins (INTEGER)
+в”ңв”Җв”Җ last_active_at (TIMESTAMPTZ)
+в”ңв”Җв”Җ account_status (COMPUTED: active, inactive, suspended, archived, locked)
 ```
 
 ### 16.5 Services
@@ -1359,15 +1359,15 @@ The Enterprise User Management System provides comprehensive identity management
 ### 17.2 User Lifecycle
 
 ```
-┌─────────┐    Create     ┌─────────┐    Deactivate   ┌────────────┐
-│ Active  │──────────────>│ Pending │────────────────>│ Inactive   │
-└─────────┘               └─────────┘                 └────────────┘
-     │                        │                             │
-     │ Suspend                │ Activate                    │ Reactivate
+в”Ңв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”җ    Create     в”Ңв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”җ    Deactivate   в”Ңв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”җ
+в”Ӯ Active  в”Ӯв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җ>в”Ӯ Pending в”Ӯв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җ>в”Ӯ Inactive   в”Ӯ
+в””в”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”ҳ               в””в”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”ҳ                 в””в”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”ҳ
+     в”Ӯ                        в”Ӯ                             в”Ӯ
+     в”Ӯ Suspend                в”Ӯ Activate                    в”Ӯ Reactivate
      v                        v                             v
-┌───────────┐          ┌─────────┐                  ┌─────────┐
-│ Suspended │─────────>│ Active  │<─────────────────│ Active  │
-└───────────┘          └─────────┘                  └─────────┘
+в”Ңв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”җ          в”Ңв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”җ                  в”Ңв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”җ
+в”Ӯ Suspended в”Ӯв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җ>в”Ӯ Active  в”Ӯ<в”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Ӯ Active  в”Ӯ
+в””в”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”ҳ          в””в”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”ҳ                  в””в”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”Җв”ҳ
 ```
 
 ### 17.3 Role Hierarchy
@@ -1419,3 +1419,63 @@ Users can be assigned to departments for organizational purposes:
    - Acting administrator tracking
    - Reason for changes
    - Immutable records
+
+---
+
+## 18. Transaction Type Reference
+
+### 18.1 Complete Transaction Type Mapping
+
+The system uses a consistent naming convention for all financial transactions. The following table documents the complete mapping between frontend-simplified types and backend-authoritative types.
+
+| Frontend Type | Backend Type | Account Type | Direction | Description |
+|---------------|--------------|-------------|-----------|-------------|
+| `deposit` | `savings_deposit` | savings | CREDIT | Member savings deposit |
+| `withdrawal` | `savings_withdrawal` | savings | DEBIT | Member savings withdrawal |
+| `adjustment` | `savings_adjustment` | savings | BOTH | Manual balance adjustment |
+| `contribution` | `contribution_monthly` | contributions | CREDIT | Monthly contribution |
+| `special` | `contribution_special` | contributions | CREDIT | Special campaign contribution |
+| `development` | `contribution_development` | contributions | CREDIT | Development contribution |
+| `fine` | `fine_payment` | fines | DEBIT | Fine payment |
+| `fine_posting` | `fine_posting` | fines | CREDIT | Fine issued (penalty) |
+| `loan_repayment` | `loan_repayment` | loans | DEBIT | Loan repayment received |
+| `loan_disbursement` | `loan_disbursement` | loans | CREDIT | Loan disbursed to member |
+| `welfare_deposit` | `welfare_deposit` | welfare | CREDIT | Welfare contribution |
+| `welfare_disbursement` | `welfare_disbursement` | welfare | DEBIT | Welfare payout to member |
+| `registration_fee` | `registration_fee` | savings | DEBIT | Member registration fee |
+| `annual_fee` | `annual_fee` | savings | DEBIT | Annual membership fee |
+| `reversal` | `reversal` | all | BOTH | Transaction reversal |
+
+### 18.2 Account Types
+
+Each member has multiple logical accounts:
+
+| Account Type | Purpose | Balance Calculation |
+|--------------|---------|---------------------|
+| `savings` | Member savings account | SUM(deposits) - SUM(withdrawals) - SUM(fees) |
+| `shares` | Member shares | COUNT(share_purchase transactions) × share_value |
+| `contributions` | All contribution types | SUM(contributions) |
+| `welfare` | Welfare fund | SUM(deposits) - SUM(disbursements) |
+| `fines` | Fine tracking | SUM(fines issued) - SUM(fines paid) |
+| `loans` | Outstanding loans | SUM(disbursements) - SUM(repayments) |
+
+### 18.3 Transaction Flow Rules
+
+1. **Balance Validation**: Withdrawals cannot exceed available balance
+2. **Reversal**: Creates offsetting transaction with `reversal` type
+3. **Audit Trail**: All transactions logged in `audit_logs` table
+4. **Non-Deletable**: Financial records are never deleted, only reversed
+
+### 18.4 Code Reference
+
+```typescript
+// Transaction type mapping in src/lib/services/transaction.engine.ts
+const TRANSACTION_TYPE_MAP = {
+  deposit: 'savings_deposit',
+  withdrawal: 'savings_withdrawal',
+  contribution: 'contribution_monthly',
+  fine: 'fine_payment',
+  loan_repayment: 'loan_repayment',
+  // ... extended mappings
+};
+```

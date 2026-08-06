@@ -13,7 +13,70 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const memberId = searchParams.get('memberId');
+    const batch = searchParams.get('batch') === 'true';
 
+    // Batch endpoint: Fetch compliance for ALL members in a single query (fixes N+1)
+    if (batch) {
+      const supabase = await createServiceClient();
+
+      // Fetch all members with their compliance data in a single query
+      const { data: members, error: membersError } = await supabase
+        .from('members')
+        .select('id, member_number, first_name, last_name, status');
+
+      if (membersError) throw membersError;
+
+      // Fetch all compliance records in one query
+      const { data: complianceRecords, error: complianceError } = await supabase
+        .from('member_compliance')
+        .select('*');
+
+      if (complianceError) throw complianceError;
+
+      // Fetch document categories for names
+      const { data: categories } = await supabase
+        .from('document_categories')
+        .select('code, name');
+
+      const categoryMap = new Map((categories || []).map(c => [c.code, c.name]));
+
+      // Group compliance by member
+      const complianceByMember: Record<string, any[]> = {};
+      (complianceRecords || []).forEach(record => {
+        if (!complianceByMember[record.member_id]) {
+          complianceByMember[record.member_id] = [];
+        }
+        complianceByMember[record.member_id].push({
+          ...record,
+          category_name: categoryMap.get(record.document_category_code) || record.document_category_code,
+        });
+      });
+
+      // Calculate scores for each member
+      const memberCompliance = (members || []).map(member => {
+        const records = complianceByMember[member.id] || [];
+        const total = records.length;
+        const completed = records.filter(r =>
+          r.status === 'approved' || r.status === 'complete' || r.status === 'submitted'
+        ).length;
+        const score = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        return {
+          ...member,
+          compliance: records,
+          compliance_score: score,
+          total_requirements: total,
+          completed_requirements: completed,
+        };
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: memberCompliance,
+      });
+    }
+
+    // Single member endpoint (existing behavior)
     if (!memberId) {
       return NextResponse.json({ success: false, error: 'memberId is required' }, { status: 400 });
     }
