@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '@/lib/services';
+import { verifyRequestAuth, hasRole } from '@/lib/auth/auth-utils';
 
 /**
  * Welfare API
+ * IMPORTANT: POST requires authentication - only staff/admin can record welfare transactions
  * Handles welfare deposits and disbursements
  */
 
-// GET - Fetch all welfare transactions
+// GET - Fetch all welfare transactions (public read)
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServiceClient();
@@ -84,12 +86,30 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Record a welfare deposit or disbursement
+// POST - Record a welfare deposit or disbursement (requires authentication with staff/admin role)
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication - require staff or admin role
+    const authResult = await verifyRequestAuth(request);
+    if (!authResult.valid) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Check authorization - require staff or admin role
+    const userRole = authResult.payload?.role || '';
+    if (!hasRole(userRole, 'staff')) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions. Staff or admin role required.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { member_id, amount, type, description, reference_number } = body;
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
+    const userId = authResult.payload?.user_id || body.user_id || '00000000-0000-0000-0000-000000000000';
 
     if (!member_id || !amount || !type) {
       return NextResponse.json(

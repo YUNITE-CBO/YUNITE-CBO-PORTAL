@@ -17,7 +17,7 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS verification_notes TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'authenticated' CHECK (visibility IN ('public', 'authenticated', 'admin', 'owner'));
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS access_roles TEXT[] DEFAULT '{}';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
-ALTER TABLE documents ADD NOT EXISTS expiry_date TIMESTAMPTZ;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT FALSE;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS reminder_count INTEGER DEFAULT 0;
 

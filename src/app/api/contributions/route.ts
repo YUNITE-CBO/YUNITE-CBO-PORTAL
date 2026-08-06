@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '@/lib/services';
+import { verifyRequestAuth, hasRole } from '@/lib/auth/auth-utils';
 
-// GET - Fetch all contributions from transactions table
+/**
+ * CONTRIBUTIONS API
+ * IMPORTANT: POST requires authentication - only staff/admin can record contributions
+ */
+
+// GET - Fetch all contributions from transactions table (public read)
 export async function GET() {
   try {
     const supabase = await createServiceClient();
@@ -47,14 +53,32 @@ export async function GET() {
   }
 }
 
-// POST - Record a new contribution
+// POST - Record a new contribution (requires authentication with staff/admin role)
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication - require staff or admin role
+    const authResult = await verifyRequestAuth(request);
+    if (!authResult.valid) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Check authorization - require staff or admin role
+    const userRole = authResult.payload?.role || '';
+    if (!hasRole(userRole, 'staff')) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions. Staff or admin role required.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const supabase = await createServiceClient();
+    const userId = authResult.payload?.user_id || body.user_id || '00000000-0000-0000-0000-000000000000';
     
     const { member_id, campaign_id, amount, description, reference_number, payment_method } = body;
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
 
     if (!member_id || !amount) {
       return NextResponse.json(
