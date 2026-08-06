@@ -198,6 +198,7 @@ export class UserManagementService {
         updated_at: now,
         email_verified: false,
         password_history: [passwordHash],
+        account_status: 'active',
       })
       .select()
       .single();
@@ -487,6 +488,7 @@ export class UserManagementService {
       .from('users')
       .update({
         is_active: false,
+        account_status: 'inactive',
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId);
@@ -554,6 +556,7 @@ export class UserManagementService {
       .from('users')
       .update({
         is_active: true,
+        account_status: 'active',
         locked_until: null,
         failed_login_attempts: 0,
         suspended_at: null,
@@ -638,6 +641,7 @@ export class UserManagementService {
       .from('users')
       .update({
         is_active: false,
+        account_status: 'suspended',
         suspended_at: new Date().toISOString(),
         suspended_by: adminId,
         suspension_reason: reason,
