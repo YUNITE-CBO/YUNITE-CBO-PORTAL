@@ -223,7 +223,6 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Part 3 error (may be expected): %', SQLERRM;
 END $$;
-$;
 
 DO $$
 BEGIN
