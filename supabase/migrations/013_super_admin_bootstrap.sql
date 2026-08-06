@@ -80,30 +80,13 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS total_logins INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ;
 
 -- ===================================================================
--- 3. USER STATUS ENUM AND CONSTRAINTS
--- Define valid user statuses
+-- 3. USER STATUS CONSTRAINTS
+-- Account status is stored as TEXT, updated via trigger
+-- Valid values: active, inactive, suspended, archived, locked, pending
 -- ===================================================================
 
--- Create user status type if not exists
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
-        CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended', 'archived', 'pending', 'locked');
-    END IF;
-END $$;
-
--- Add computed status column
-ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status user_status 
-    GENERATED ALWAYS AS (
-        CASE 
-            WHEN archived_at IS NOT NULL THEN 'archived'::user_status
-            WHEN suspended_at IS NOT NULL AND (suspension_expires_at IS NULL OR suspension_expires_at > NOW()) THEN 'suspended'::user_status
-            WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 'locked'::user_status
-            WHEN is_active = false THEN 'inactive'::user_status
-            WHEN date_joined IS NOT NULL AND date_joined > NOW() - INTERVAL '1 day' THEN 'pending'::user_status
-            ELSE 'active'::user_status
-        END
-    ) STORED;
+-- Add account_status as a regular column (not generated, updated via trigger)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status TEXT DEFAULT 'active';
 
 -- ===================================================================
 -- 4. EXTENDED AUDIT LOG FIELDS
@@ -122,6 +105,45 @@ ALTER TABLE user_management_audit ADD COLUMN IF NOT EXISTS metadata JSONB DEFAUL
 -- ===================================================================
 -- 5. FUNCTIONS & TRIGGERS
 -- ===================================================================
+
+-- Function to compute account status (used by trigger)
+CREATE OR REPLACE FUNCTION compute_account_status()
+RETURNS TEXT AS $$
+BEGIN
+    RETURN CASE 
+        WHEN archived_at IS NOT NULL THEN 'archived'
+        WHEN suspended_at IS NOT NULL AND (suspension_expires_at IS NULL OR suspension_expires_at > NOW()) THEN 'suspended'
+        WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 'locked'
+        WHEN is_active = false THEN 'inactive'
+        ELSE 'active'
+    END;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Function to update account_status whenever relevant fields change
+CREATE OR REPLACE FUNCTION update_account_status()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.account_status := compute_account_status();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update account_status on user changes
+DROP TRIGGER IF EXISTS trigger_update_account_status ON users;
+CREATE TRIGGER trigger_update_account_status
+    BEFORE INSERT OR UPDATE OF 
+        is_active, 
+        archived_at, 
+        suspended_at, 
+        suspension_expires_at, 
+        locked_until 
+    ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_account_status();
+
+-- Initialize account_status for existing users
+UPDATE users SET account_status = compute_account_status() WHERE account_status IS NULL;
 
 -- Function to update total_logins counter
 CREATE OR REPLACE FUNCTION update_user_login_stats()
