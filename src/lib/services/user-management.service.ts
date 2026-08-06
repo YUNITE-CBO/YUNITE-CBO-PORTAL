@@ -954,7 +954,7 @@ export class UserManagementService {
       .select('*')
       .eq('id', userId)
       .single();
-    return data;
+    return data as Record<string, unknown> | null;
   }
 
   private async countUsersByRole(role: string): Promise<number> {

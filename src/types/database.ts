@@ -42,6 +42,30 @@ export interface Database {
           last_login: string | null;
           created_at: string;
           updated_at: string;
+          date_joined: string | null;
+          email_verified: boolean;
+          email_verified_at: string | null;
+          verification_token: string | null;
+          verification_token_expires: string | null;
+          is_system_user: boolean;
+          is_protected: boolean;
+          department: string | null;
+          job_title: string | null;
+          employee_id: string | null;
+          password_history: Json;
+          suspended_at: string | null;
+          suspended_by: string | null;
+          suspension_reason: string | null;
+          suspension_expires_at: string | null;
+          archived_at: string | null;
+          archived_by: string | null;
+          archive_reason: string | null;
+          admin_notes: string | null;
+          total_logins: number;
+          last_active_at: string | null;
+          account_status: string;
+          failed_login_attempts: number;
+          locked_until: string | null;
         };
         Insert: Omit<Database['public']['Tables']['users']['Row'], 'id' | 'created_at' | 'updated_at'> & {
           id?: string;
@@ -376,12 +400,40 @@ export interface Database {
           reason: string | null;
           ip_address: string | null;
           created_at: string;
+          module: string | null;
+          user_agent: string | null;
+          session_id: string | null;
+          previous_status: string | null;
+          new_status: string | null;
+          metadata: Json;
         };
         Insert: Omit<Database['public']['Tables']['user_management_audit']['Row'], 'id' | 'created_at'> & {
           id?: string;
           created_at?: string;
         };
         Update: never;
+      };
+
+      // ============ BOOTSTRAP LOGS ============
+      bootstrap_logs: {
+        Row: {
+          id: string;
+          operation_type: 'super_admin_bootstrap' | 'system_initialization' | 'database_migration' | 'cache_warmup' | 'notification_setup';
+          status: 'success' | 'failed' | 'skipped' | 'warning';
+          action_taken: string | null;
+          message: string | null;
+          details: Json;
+          duration_ms: number | null;
+          environment: string;
+          metadata: Json;
+          error_trace: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['bootstrap_logs']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['bootstrap_logs']['Insert']>;
       };
 
       // ============ SETTINGS (Enhanced) ============
