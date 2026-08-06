@@ -263,7 +263,7 @@ export class UserManagementService {
     }
 
     // Prevent modification of protected accounts
-    if ((currentUser as Record<string, unknown>).is_protected) {
+    if (currentUser.isProtected) {
       return {
         success: false,
         message: 'Cannot modify protected user account',
@@ -359,7 +359,9 @@ export class UserManagementService {
     }
 
     if (data.adminNotes !== undefined) {
-      oldValues.admin_notes = (currentUser as Record<string, unknown>).admin_notes;
+      // Access admin_notes from the raw user object
+      const rawUser = await this.getUserById(userId);
+      oldValues.admin_notes = rawUser?.admin_notes;
       newValues.admin_notes = data.adminNotes || null;
       updates.admin_notes = data.adminNotes || null;
     }
@@ -439,7 +441,7 @@ export class UserManagementService {
     }
 
     // Prevent deactivation of protected accounts
-    if ((user as Record<string, unknown>).is_protected) {
+    if ((user as unknown as { is_protected?: boolean }).is_protected) {
       return {
         success: false,
         message: 'Cannot deactivate protected user account',
@@ -614,7 +616,7 @@ export class UserManagementService {
     }
 
     // Prevent suspension of protected accounts
-    if ((user as Record<string, unknown>).is_protected) {
+    if ((user as unknown as { is_protected?: boolean }).is_protected) {
       return {
         success: false,
         message: 'Cannot suspend protected user account',
@@ -714,7 +716,7 @@ export class UserManagementService {
     const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
     // Get current password history
-    const currentHistory: string[] = (user as Record<string, unknown>).password_history || [];
+    const currentHistory: string[] = (user as unknown as { password_history?: string[] }).password_history || [];
     
     // Check if password was used recently
     for (const oldHash of currentHistory.slice(0, this.MAX_PASSWORD_HISTORY)) {
