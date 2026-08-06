@@ -33,6 +33,7 @@ export interface BootstrapResult {
   message: string;
   userId?: string;
   timestamp: string;
+  duration?: number;
   details?: Record<string, unknown>;
 }
 
