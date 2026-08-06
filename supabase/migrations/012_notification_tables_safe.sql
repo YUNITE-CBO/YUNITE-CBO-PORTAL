@@ -237,47 +237,54 @@ CREATE TABLE IF NOT EXISTS notification_event_logs (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create indexes (ignore errors if they exist)
+-- Create indexes (check existence first)
 DO $$
 BEGIN
-    CREATE INDEX idx_notifications_ref ON notifications(notification_ref);
-EXCEPTION WHEN duplicate_object THEN NULL;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_notifications_ref') THEN
+        CREATE INDEX idx_notifications_ref ON notifications(notification_ref);
+    END IF;
 END $$;
 
 DO $$
 BEGIN
-    CREATE INDEX idx_notifications_recipient ON notifications(recipient_id, recipient_type);
-EXCEPTION WHEN duplicate_object THEN NULL;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_notifications_recipient') THEN
+        CREATE INDEX idx_notifications_recipient ON notifications(recipient_id, recipient_type);
+    END IF;
 END $$;
 
 DO $$
 BEGIN
-    CREATE INDEX idx_notifications_status ON notifications(status);
-EXCEPTION WHEN duplicate_object THEN NULL;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_notifications_status') THEN
+        CREATE INDEX idx_notifications_status ON notifications(status);
+    END IF;
 END $$;
 
 DO $$
 BEGIN
-    CREATE INDEX idx_email_queue_status ON email_queue(status);
-EXCEPTION WHEN duplicate_object THEN NULL;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_email_queue_status') THEN
+        CREATE INDEX idx_email_queue_status ON email_queue(status);
+    END IF;
 END $$;
 
 DO $$
 BEGIN
-    CREATE INDEX idx_email_queue_notification ON email_queue(notification_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_email_queue_notification') THEN
+        CREATE INDEX idx_email_queue_notification ON email_queue(notification_id);
+    END IF;
 END $$;
 
 DO $$
 BEGIN
-    CREATE INDEX idx_delivery_history_notification ON notification_delivery_history(notification_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_delivery_history_notification') THEN
+        CREATE INDEX idx_delivery_history_notification ON notification_delivery_history(notification_id);
+    END IF;
 END $$;
 
 DO $$
 BEGIN
-    CREATE INDEX idx_schedules_next_run ON notification_schedules(next_run_at) WHERE is_active = true;
-EXCEPTION WHEN duplicate_object THEN NULL;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_schedules_next_run') THEN
+        CREATE INDEX idx_schedules_next_run ON notification_schedules(next_run_at) WHERE is_active = true;
+    END IF;
 END $$;
 
 -- Enable RLS on tables that don't have it
