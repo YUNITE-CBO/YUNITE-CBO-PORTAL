@@ -233,6 +233,7 @@ export async function PUT(
           await notificationEventService.emit({
             event_type: 'member',
             event_action: 'approved',
+            source_module: 'members',
             entity_id: id,
             data: {
               member_name: `${currentMember.first_name} ${currentMember.last_name}`,
@@ -244,6 +245,7 @@ export async function PUT(
           await notificationEventService.emit({
             event_type: 'member',
             event_action: 'suspended',
+            source_module: 'members',
             entity_id: id,
             data: {
               member_name: `${currentMember.first_name} ${currentMember.last_name}`,
