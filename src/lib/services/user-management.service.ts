@@ -287,8 +287,8 @@ export class UserManagementService {
     const newValues: Record<string, unknown> = {};
 
     // Build update object
-    if (data.fullName !== undefined && data.fullName !== currentUser.full_name) {
-      oldValues.full_name = currentUser.full_name;
+    if (data.fullName !== undefined && data.fullName !== currentUser.fullName) {
+      oldValues.full_name = currentUser.fullName;
       newValues.full_name = data.fullName.trim();
       updates.full_name = data.fullName.trim();
     }
@@ -347,13 +347,13 @@ export class UserManagementService {
     }
 
     if (data.jobTitle !== undefined) {
-      oldValues.job_title = currentUser.job_title;
+      oldValues.job_title = currentUser.jobTitle;
       newValues.job_title = data.jobTitle?.trim() || null;
       updates.job_title = data.jobTitle?.trim() || null;
     }
 
     if (data.employeeId !== undefined) {
-      oldValues.employee_id = currentUser.employee_id;
+      oldValues.employee_id = currentUser.employeeId;
       newValues.employee_id = data.employeeId?.trim() || null;
       updates.employee_id = data.employeeId?.trim() || null;
     }
