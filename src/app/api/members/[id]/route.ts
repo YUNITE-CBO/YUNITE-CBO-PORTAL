@@ -234,7 +234,7 @@ export async function PUT(
             event_type: 'member',
             event_action: 'approved',
             entity_id: id,
-            entity_data: {
+            data: {
               member_name: `${currentMember.first_name} ${currentMember.last_name}`,
               member_number: currentMember.member_number,
             },
@@ -245,7 +245,7 @@ export async function PUT(
             event_type: 'member',
             event_action: 'suspended',
             entity_id: id,
-            entity_data: {
+            data: {
               member_name: `${currentMember.first_name} ${currentMember.last_name}`,
               reason: body.suspension_reason,
             },
