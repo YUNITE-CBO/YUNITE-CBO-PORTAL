@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth';
 
 interface Notification {
   id: string;
@@ -75,6 +76,7 @@ interface SelectedRecipient {
 }
 
 export default function NotificationsPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -117,7 +119,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -130,10 +132,13 @@ export default function NotificationsPage() {
         setTotalFailed(emailData.data.failed || 0);
       }
 
-      const notificationsRes = await fetch('/api/notifications');
-      const notificationsData = await notificationsRes.json();
-      if (notificationsData.success) {
-        setNotifications(notificationsData.data || []);
+      // Fetch notifications for current user if available
+      if (user?.id) {
+        const notificationsRes = await fetch(`/api/notifications?recipient_id=${user.id}&recipient_type=user`);
+        const notificationsData = await notificationsRes.json();
+        if (notificationsData.success) {
+          setNotifications(notificationsData.data || []);
+        }
       }
 
       const templatesRes = await fetch('/api/notifications/templates');

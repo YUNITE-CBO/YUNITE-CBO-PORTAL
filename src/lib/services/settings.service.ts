@@ -2,18 +2,18 @@
  * SETTINGS SERVICE - All business rules from Settings
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 
 export class SettingsService {
   async getAll() {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { data } = await supabase.from('settings').select('*').order('category').order('key');
     return data || [];
   }
 
   async get(key: string): Promise<string | null> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { data } = await supabase.from('settings').select('value').eq('key', key).single();
     return data?.value || null;
   }
@@ -24,14 +24,14 @@ export class SettingsService {
   }
 
   async getMany(keys: string[]): Promise<Record<string, string>> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { data } = await supabase.from('settings').select('key, value').in('key', keys);
     if (!data) return {};
     return data.reduce((acc, item) => ({ ...acc, [item.key]: item.value }), {});
   }
 
   async update(key: string, value: string, userId?: string) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const { data: current } = await supabase.from('settings').select('value').eq('key', key).single();
 
     const { data, error } = await supabase
@@ -57,7 +57,7 @@ export class SettingsService {
   }
 
   async seedDefaults() {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const defaults = [
       { key: 'shares.share_value', value: '100', category: 'financial' },
       { key: 'loan.max_percentage', value: '75', category: 'loan' },

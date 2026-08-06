@@ -2,7 +2,7 @@
  * DASHBOARD SERVICE - Live calculations, never stored
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from './transaction.engine';
 
 export interface DashboardStats {
@@ -44,7 +44,7 @@ export class DashboardService {
    * All values calculated from authoritative sources
    */
   async getStats(): Promise<DashboardStats> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     // Member counts
     const [totalMembers, activeMembers, pendingMembers] = await Promise.all([
@@ -100,7 +100,7 @@ export class DashboardService {
    * Get recent activity
    */
   async getRecentActivity(limit: number = 20): Promise<ActivityItem[]> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     // Get recent transactions with member and user info
     const { data: transactions } = await supabase
@@ -170,7 +170,7 @@ export class DashboardService {
    * Get alerts
    */
   async getAlerts(): Promise<DashboardAlert[]> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     const alerts: DashboardAlert[] = [];
 
     // Pending loans
@@ -220,7 +220,7 @@ export class DashboardService {
 
   // Helper methods
   private async count(table: string, filters?: Record<string, string>): Promise<number> {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
     let query = supabase.from(table).select('*', { count: 'exact', head: true });
     
     if (filters) {
@@ -265,7 +265,7 @@ export class DashboardService {
   }
 
   private async getTransactionTotals(accountType: string) {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     // Get account IDs for this type
     const { data: accounts } = await supabase
@@ -309,7 +309,7 @@ export class DashboardService {
   }
 
   private async getLoanTotals() {
-    const supabase = await createClient();
+    const supabase = await createServiceClient();
 
     // Get disbursements from transactions (these INCREASE outstanding)
     const { data: disbursements } = await supabase

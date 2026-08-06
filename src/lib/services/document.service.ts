@@ -10,7 +10,6 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 
