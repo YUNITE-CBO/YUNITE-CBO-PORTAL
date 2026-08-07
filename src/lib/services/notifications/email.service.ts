@@ -104,7 +104,6 @@ export class EmailService {
         attachments: message.attachments,
       });
 
-      console.log('Email sent:', info.messageId);
       return { success: true, messageId: info.messageId };
     } catch (error: any) {
       console.error('Email send error:', error);
@@ -120,7 +119,6 @@ export class EmailService {
 
     const configured = await this.initializeTransporter();
     if (!configured) {
-      console.log('SMTP not configured, skipping queue processing');
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
