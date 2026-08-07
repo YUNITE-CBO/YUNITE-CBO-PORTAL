@@ -97,7 +97,7 @@ interface Fine {
 
 interface Document {
   id: string;
-  document_ref: string;
+  document_ref?: string;
   document_type: string;
   document_name: string;
   file_url: string;
