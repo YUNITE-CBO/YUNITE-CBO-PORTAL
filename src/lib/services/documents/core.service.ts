@@ -261,7 +261,6 @@ export class EnterpriseDocumentService {
     
     // Fallback to 'documents' if the requested bucket doesn't exist
     if (!availableBuckets.includes(bucket)) {
-      console.log(`Bucket '${bucket}' not found, falling back to 'documents' bucket`);
       activeBucket = 'documents';
     }
 
