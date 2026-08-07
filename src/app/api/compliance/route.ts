@@ -230,15 +230,20 @@ export async function POST(request: NextRequest) {
 
       const totalUpdated = (oldCount || 0) + (newCount || 0);
 
-      // Log the batch action
-      await supabase.from('audit_logs').insert({
-        id: uuidv4(),
-        user_id: session.user.id,
-        action: `compliance.batch_${status}`,
-        record_id: memberId,
-        description: `Batch updated ${totalUpdated} compliance records to ${status} for member ${memberId}`,
-        created_at: new Date().toISOString(),
-      });
+      // Log the batch action (non-blocking - audit failure shouldn't fail the operation)
+      try {
+        await supabase.from('audit_logs').insert({
+          id: uuidv4(),
+          user_id: session.user.id,
+          action: `compliance.batch_${status}`,
+          record_id: memberId,
+          description: `Batch updated ${totalUpdated} compliance records to ${status} for member ${memberId}`,
+          created_at: new Date().toISOString(),
+        });
+      } catch (auditError) {
+        // Log but don't fail - audit is secondary to the main operation
+        console.error('Audit log insert failed (non-critical):', auditError);
+      }
 
       return NextResponse.json({ 
         success: true, 
