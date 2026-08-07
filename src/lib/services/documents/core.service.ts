@@ -254,25 +254,19 @@ export class EnterpriseDocumentService {
     }
 
     // Upload to Supabase Storage
-    // First, ensure the bucket exists (auto-create if missing)
+    // Check available buckets and fallback to 'documents' if needed
     const { data: bucketList } = await supabase.storage.listBuckets();
-    const bucketExists = bucketList?.some(b => b.id === bucket);
+    const availableBuckets = bucketList?.map(b => b.id) || [];
+    let activeBucket = bucket;
     
-    if (!bucketExists) {
-      // Try to create the bucket
-      console.log(`Creating storage bucket: ${bucket}`);
-      const { error: createBucketError } = await supabase.storage.createBucket(bucket, {
-        public: false,
-      });
-      
-      if (createBucketError && createBucketError.message !== 'Bucket already exists') {
-        console.error('Failed to create bucket:', createBucketError);
-        return { success: false, error: `Storage bucket '${bucket}' not found. Please create it in Supabase Dashboard.` };
-      }
+    // Fallback to 'documents' if the requested bucket doesn't exist
+    if (!availableBuckets.includes(bucket)) {
+      console.log(`Bucket '${bucket}' not found, falling back to 'documents' bucket`);
+      activeBucket = 'documents';
     }
 
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(bucket)
+      .from(activeBucket)
       .upload(storagePath, fileBuffer, {
         contentType: mimeType,
         upsert: false,
@@ -284,7 +278,7 @@ export class EnterpriseDocumentService {
     }
 
     // Get public URL
-    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+    const { data: urlData } = supabase.storage.from(activeBucket).getPublicUrl(storagePath);
     const publicUrl = urlData.publicUrl;
 
     // Determine initial status
@@ -316,7 +310,7 @@ export class EnterpriseDocumentService {
       // Storage
       file_name: options.fileName,
       original_file_name: options.fileName,
-      storage_bucket: bucket,
+      storage_bucket: activeBucket,
       storage_path: storagePath,
       file_path: publicUrl,
       
@@ -380,7 +374,7 @@ export class EnterpriseDocumentService {
 
     if (insertError) {
       // Rollback storage upload
-      await supabase.storage.from(bucket).remove([storagePath]);
+      await supabase.storage.from(activeBucket).remove([storagePath]);
       return { success: false, error: `Database insert failed: ${insertError.message}` };
     }
 
