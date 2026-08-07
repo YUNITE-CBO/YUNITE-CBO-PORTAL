@@ -99,13 +99,19 @@ DO $$
 DECLARE
     has_user_id_col BOOLEAN;
     has_owner_id_col BOOLEAN;
-    has_general_prefs BOOLEAN;
     has_user_prefs BOOLEAN;
+    has_notification_prefs_table BOOLEAN;
 BEGIN
     -- ===================================================================
     -- PART 3: NOTIFICATION_PREFERENCES COMPATIBILITY
     -- Check existing schemas and ensure compatibility
     -- ===================================================================
+    
+    -- Check if notification_preferences table exists
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name = 'notification_preferences'
+    ) INTO has_notification_prefs_table;
     
     -- Check which notification_preferences schema exists
     SELECT EXISTS (
@@ -118,15 +124,26 @@ BEGIN
         WHERE table_name = 'notification_preferences' AND column_name = 'owner_id'
     ) INTO has_owner_id_col;
     
-    -- If user_id column exists (migration 006 schema), rename to avoid conflict
-    -- The system will use the owner_id version (migration 005) as primary
-    IF has_user_id_col AND NOT has_owner_id_col THEN
-        -- Migration 006 schema was created first - rename table
-        -- This is a workaround since both migrations use IF NOT EXISTS
+    -- Check if user_notification_settings (migrated from user_id schema) already exists
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name = 'user_notification_settings'
+    ) INTO has_user_prefs;
+    
+    -- Only migrate if user_id schema exists AND user_notification_settings doesn't
+    -- This prevents data loss on re-runs
+    IF has_notification_prefs_table AND has_user_id_col AND NOT has_owner_id_col AND NOT has_user_prefs THEN
+        -- Rename the existing notification_preferences table to preserve data
         ALTER TABLE notification_preferences RENAME TO user_notification_settings;
-        
+    END IF;
+    
+    -- Create notification_preferences table if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name = 'notification_preferences'
+    ) THEN
         -- Create the proper notification_preferences table with migration 005 schema
-        CREATE TABLE IF NOT EXISTS notification_preferences (
+        CREATE TABLE notification_preferences (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             owner_type TEXT NOT NULL,
             owner_id UUID NOT NULL,
@@ -148,38 +165,59 @@ BEGIN
         -- Create trigger function if not exists
         CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
         
-        -- Add RLS policies
-        ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
-        CREATE POLICY "notification_prefs_owner_access" ON notification_preferences
-            FOR ALL USING (true) WITH CHECK (true);
-    END IF;
-    
-    -- If neither schema exists, create the general one (migration 005 schema)
-    IF NOT has_user_id_col AND NOT has_owner_id_col THEN
-        CREATE TABLE IF NOT EXISTS notification_preferences (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            owner_type TEXT NOT NULL,
-            owner_id UUID NOT NULL,
-            channels JSONB DEFAULT '{"in_app": true, "email": true, "sms": false}',
-            enabled_categories UUID[] DEFAULT '{}',
-            disabled_categories UUID[] DEFAULT '{}',
-            quiet_hours_enabled BOOLEAN DEFAULT FALSE,
-            quiet_hours_start TIME,
-            quiet_hours_end TIME,
-            quiet_hours_timezone TEXT DEFAULT 'Africa/Nairobi',
-            digest_frequency TEXT DEFAULT 'immediate',
-            email_format TEXT DEFAULT 'html',
-            is_active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            updated_at TIMESTAMPTZ DEFAULT NOW(),
-            UNIQUE(owner_type, owner_id)
-        );
+        -- Create update timestamp trigger function
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_proc 
+            WHERE proname = 'update_notification_preferences_timestamp'
+        ) THEN
+            CREATE OR REPLACE FUNCTION update_notification_preferences_timestamp()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.updated_at = NOW();
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        END IF;
         
-        ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
-        CREATE POLICY "notification_prefs_owner_access" ON notification_preferences
-            FOR ALL USING (true) WITH CHECK (true);
+        -- Create trigger if not exists
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_trigger 
+            WHERE tgname = 'trigger_notification_prefs_updated'
+        ) THEN
+            CREATE TRIGGER trigger_notification_prefs_updated
+                BEFORE UPDATE ON notification_preferences
+                FOR EACH ROW EXECUTE FUNCTION update_notification_preferences_timestamp();
+        END IF;
+        
+        -- Create index for owner lookups
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_indexes 
+            WHERE tablename = 'notification_preferences' 
+            AND indexname = 'idx_notification_prefs_owner'
+        ) THEN
+            CREATE INDEX idx_notification_prefs_owner 
+                ON notification_preferences(owner_type, owner_id);
+        END IF;
+        
+        -- Add RLS policies only if RLS not already enabled
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_tables 
+            WHERE tablename = 'notification_preferences' 
+            AND rowsecurity = true
+        ) THEN
+            ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
+            
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_policies 
+                WHERE tablename = 'notification_preferences' 
+                AND policyname = 'notification_prefs_owner_access'
+            ) THEN
+                CREATE POLICY "notification_prefs_owner_access" ON notification_preferences
+                    FOR ALL USING (true) WITH CHECK (true);
+            END IF;
+        END IF;
     END IF;
-    
+
     RAISE NOTICE 'Part 3 complete: notification_preferences compatibility';
 
 EXCEPTION WHEN OTHERS THEN
