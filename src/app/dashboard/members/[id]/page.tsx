@@ -773,7 +773,28 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                   <p className="text-sm text-gray-500">{documents.length} documents uploaded</p>
                 </div>
                 {isAdmin && (
-                  <button onClick={() => { setSelectedCategory(documentCategories[0]); setActionModal('upload_document'); }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">+ Upload Document</button>
+                  <div className="relative inline-block">
+                    <select 
+                      onChange={(e) => {
+                        const category = documentCategories.find(c => c.code === e.target.value);
+                        if (category) {
+                          setSelectedCategory(category);
+                          setActionModal('upload_document');
+                        }
+                        e.target.value = '';
+                      }}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm cursor-pointer appearance-none pr-8"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>+ Upload Document</option>
+                      {documentCategories.map(cat => (
+                        <option key={cat.code} value={cat.code}>
+                          {cat.name} {cat.is_required ? '(Required)' : '(Optional)'}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-white pointer-events-none">▼</span>
+                  </div>
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
