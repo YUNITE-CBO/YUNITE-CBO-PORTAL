@@ -531,6 +531,9 @@ export class EnterpriseDocumentService {
       query = query.eq('is_archived', false);
     }
 
+    // Exclude soft-deleted documents by default
+    query = query.neq('status', 'deleted');
+
     query = query.order('uploaded_at', { ascending: false });
 
     const { data, error } = await query;
@@ -612,8 +615,9 @@ export class EnterpriseDocumentService {
       query = query.eq('is_archived', false);
     }
 
-    if (options.includeDeleted) {
-      query = query.eq('status', 'deleted');
+    // Exclude deleted documents unless explicitly included
+    if (!options.includeDeleted) {
+      query = query.neq('status', 'deleted');
     }
 
     // Date filters
