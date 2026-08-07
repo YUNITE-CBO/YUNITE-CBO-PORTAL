@@ -21,3 +21,6 @@ export type { ScheduleData, ScheduleType, RecipientFilterType, ScheduleRun } fro
 
 export { statementService } from './statement.service';
 export type { StatementData, StatementType, GeneratedStatement } from './statement.service';
+
+export { gmailApiAdapter } from './gmail-api.adapter';
+export type { GmailApiConfig, GmailApiMessage, GmailApiDeliveryResult } from './gmail-api.adapter';
