@@ -192,7 +192,7 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
   }
 
   private async notifyMemberReady(memberId: string): Promise<void> {
-    // Publish event for notification service to handle
+    // Event publishing for notification service would be handled here
   }
 }
 
@@ -271,8 +271,7 @@ export class LoanDocumentHandler implements ModuleDocumentHandler {
   }
 
   private async updateLoanDocumentStatus(loanId: string): Promise<void> {
-    const score = await this.calculateComplianceScore(loanId);
-    // Would update loan record with document status
+    // Loan record update with document status would be handled here
   }
 }
 
@@ -311,9 +310,7 @@ export class FinancialDocumentHandler implements ModuleDocumentHandler {
   }
 
   async onUpload(document: EnterpriseDocument): Promise<void> {
-    // Link to transaction if applicable
-    if (document.metadata?.transactionId) {
-    }
+    // Transaction linking would be handled here
   }
 }
 
@@ -482,9 +479,7 @@ export class NotificationDocumentHandler implements ModuleDocumentHandler {
   }
 
   async onUpload(document: EnterpriseDocument): Promise<void> {
-    // Link document to notification
-    if (document.metadata?.notificationId) {
-    }
+    // Notification linking would be handled here
   }
 }
 
@@ -512,9 +507,7 @@ export class StatementDocumentHandler implements ModuleDocumentHandler {
   }
 
   async onUpload(document: EnterpriseDocument): Promise<void> {
-    // Update statement record if exists
-    if (document.metadata?.statementId) {
-    }
+    // Statement record update would be handled here
   }
 }
 
