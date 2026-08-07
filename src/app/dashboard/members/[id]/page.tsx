@@ -823,7 +823,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center"><span className="text-lg">📄</span></div>
                         <div>
-                          <h3 className="font-medium text-gray-900">{doc.fileName || doc.categoryCode || 'Document'}</h3>
+                          <h3 className="font-medium text-gray-900">{doc.fileName || doc.categoryCode || doc.category_code || 'Document'}</h3>
                           <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize || doc.file_size)}</p>
                         </div>
                       </div>
