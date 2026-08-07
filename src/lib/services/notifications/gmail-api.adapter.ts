@@ -64,9 +64,9 @@ const GMAIL_UPLOAD_URL = 'https://www.googleapis.com/upload/gmail/v1/users/me/me
 /**
  * Encode email to RFC 2822 format with base64url encoding
  */
-function encodeEmail(message: GmailApiMessage, senderName: string): { raw: string; headers: Record<string, string> } {
+function encodeEmail(message: GmailApiMessage, senderEmail: string, senderName: string): { raw: string; headers: Record<string, string> } {
   const toAddress = message.toName ? `"${message.toName}" <${message.to}>` : message.to;
-  const fromAddress = senderName ? `"${senderName}" <${message.to}>` : message.to;
+  const fromAddress = senderName ? `"${senderName}" <${senderEmail}>` : senderEmail;
   
   let body = `To: ${toAddress}\r\n`;
   body += `From: ${fromAddress}\r\n`;
@@ -246,7 +246,7 @@ export class GmailApiAdapter {
       };
     }
 
-    const { raw } = encodeEmail(message, this.config!.senderName ?? 'YUNITE');
+    const { raw } = encodeEmail(message, this.config!.senderEmail, this.config!.senderName ?? 'YUNITE');
 
     try {
       const response = await fetch(GMAIL_SEND_URL, {
