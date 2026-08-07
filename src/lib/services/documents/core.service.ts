@@ -318,6 +318,9 @@ export class EnterpriseDocumentService {
       entity_id: options.entityId,
       category_code: options.categoryCode,
       
+      // Member association (required for members module)
+      member_id: options.module === 'members' ? options.entityId : null,
+      
       // Versioning
       version,
       parent_document_id: parentDocumentId,
@@ -1103,6 +1106,7 @@ export class EnterpriseDocumentService {
       entityType: row.entity_type,
       entityId: row.entity_id,
       categoryCode: row.category_code,
+      memberId: row.member_id,
       version: row.version,
       parentDocumentId: row.parent_document_id,
       status: row.status as DocumentStatus,

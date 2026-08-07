@@ -204,6 +204,7 @@ export interface EnterpriseDocument {
   entityId: string;
   categoryCode: string;
   categoryName?: string;
+  memberId?: string; // Optional member association
   
   // Versioning
   version: number;
