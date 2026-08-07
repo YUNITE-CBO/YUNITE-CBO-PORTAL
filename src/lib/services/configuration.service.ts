@@ -75,24 +75,38 @@ export class ConfigurationService {
 
     if (!categories) return [];
 
+    // Create a map of code -> category for lookup by code
+    const categoriesByCode: Record<string, typeof categories[0]> = {};
+    for (const cat of categories) {
+      categoriesByCode[cat.code] = cat;
+    }
+
     // Get all settings with category info
     const { data: settings } = await supabase
       .from('settings')
       .select('*')
       .order('display_order');
 
-    // Group settings by category
+    // Group settings by category - use config_category_id first, then category field, then 'uncategorized'
     const groupedSettings: Record<string, SettingWithCategory[]> = {};
     for (const setting of settings || []) {
-      const categoryId = setting.config_category_id || 'uncategorized';
+      // Try to find category by config_category_id first, then by category code
+      let categoryInfo = categories.find(c => c.id === setting.config_category_id);
+      if (!categoryInfo && setting.category) {
+        // Try matching by category code
+        categoryInfo = categoriesByCode[setting.category];
+      }
+      const categoryId = categoryInfo?.id || 'uncategorized';
+      const categoryCode = categoryInfo?.code || setting.category || 'uncategorized';
+      
       if (!groupedSettings[categoryId]) {
         groupedSettings[categoryId] = [];
       }
       groupedSettings[categoryId].push({
         ...setting,
-        category_name: categories.find(c => c.id === categoryId)?.name || 'Other',
-        category_icon: categories.find(c => c.id === categoryId)?.icon || null,
-        category_color: categories.find(c => c.id === categoryId)?.color || '#6B7280',
+        category_name: categoryInfo?.name || 'Other',
+        category_icon: categoryInfo?.icon || null,
+        category_color: categoryInfo?.color || '#6B7280',
       });
     }
 
