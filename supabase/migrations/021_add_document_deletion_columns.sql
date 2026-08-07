@@ -13,9 +13,9 @@ CREATE INDEX IF NOT EXISTS idx_documents_deleted_at ON documents(deleted_at) WHE
 CREATE INDEX IF NOT EXISTS idx_documents_deleted_by ON documents(deleted_by) WHERE deleted_by IS NOT NULL;
 
 -- Update the status constraint to include 'deleted' status
--- First, drop the existing constraint if it exists
-ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_status_check;
+-- First, drop the existing constraint if it exists (match the name from migration 019)
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS document_status_check;
 
--- Add the new constraint with 'deleted' status
-ALTER TABLE documents ADD CONSTRAINT documents_status_check 
-    CHECK (status IN ('pending', 'verified', 'expired', 'deleted'));
+-- Add the new constraint with 'deleted' status (use consistent naming)
+ALTER TABLE documents ADD CONSTRAINT document_status_check
+    CHECK (status IN ('draft', 'pending', 'under_review', 'approved', 'rejected', 'verified', 'expired', 'archived', 'deleted'));
