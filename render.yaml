@@ -33,6 +33,15 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
+      # Mailgun Configuration (recommended for free hosting tiers)
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        sync: false
+      - key: MAILGUN_FROM_EMAIL
+        sync: false
+      - key: MAILGUN_FROM_NAME
+        sync: false
       - key: RATE_LIMIT_WINDOW_MS
         value: "900000"
       - key: RATE_LIMIT_MAX_REQUESTS
