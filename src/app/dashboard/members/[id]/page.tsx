@@ -1353,13 +1353,13 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                 </div>
               )}
             </div>
-            <ModalActions>
-              <button onClick={() => { setActionModal(null); setSelectedDocument(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Close</button>
-              {isAdmin && selectedDocument.status !== 'verified' && (
-                <button onClick={() => { setVerificationForm({ status: 'verified', notes: '' }); setActionModal('verify_document'); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Verify Document</button>
-              )}
-            </ModalActions>
           </div>
+          <ModalActions>
+            <button onClick={() => { setActionModal(null); setSelectedDocument(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Close</button>
+            {isAdmin && selectedDocument.status !== 'verified' && (
+              <button onClick={() => { setVerificationForm({ status: 'verified', notes: '' }); setActionModal('verify_document'); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Verify Document</button>
+            )}
+          </ModalActions>
         </Modal>
       )}
 
