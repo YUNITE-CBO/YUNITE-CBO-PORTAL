@@ -565,7 +565,7 @@ export interface Database {
           storage_bucket: string;
           storage_path: string | null;
           expiry_date: string | null;
-          status: 'pending' | 'verified' | 'expired';
+          status: 'draft' | 'pending' | 'under_review' | 'approved' | 'rejected' | 'verified' | 'expired' | 'archived' | 'deleted';
           verified_by: string | null;
           verified_at: string | null;
           uploaded_by: string | null;
@@ -579,6 +579,20 @@ export interface Database {
           checksum: string | null;
           original_file_name: string | null;
           created_at: string;
+          // New columns from migration 017
+          document_ref: string | null;
+          category_code: string | null;
+          module: string | null;
+          entity_type: string | null;
+          entity_id: string | null;
+          is_verified: boolean;
+          is_expired: boolean;
+          reminder_sent: boolean;
+          reminder_count: number;
+          uploaded_by_name: string | null;
+          ip_address: string | null;
+          verification_notes: string | null;
+          visibility: 'public' | 'authenticated' | 'admin' | 'owner';
         };
         Insert: Omit<Database['public']['Tables']['documents']['Row'], 'id' | 'created_at'> & {
           id?: string;
