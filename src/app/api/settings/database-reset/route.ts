@@ -193,12 +193,6 @@ export async function POST(request: NextRequest) {
     // LOG THE ATTEMPT
     // =========================================================================
 
-    console.log('🔴 DATABASE RESET INITIATED');
-    console.log(`   Level: ${level}`);
-    console.log(`   User: ${user.email}`);
-    console.log(`   Archive: ${archive_instead_of_delete}`);
-    console.log(`   Delete Audit Logs: ${delete_audit_logs}`);
-
     await supabase.from('audit_logs').insert({
       id: uuidv4(),
       action: 'system.reset_attempted',
@@ -223,10 +217,6 @@ export async function POST(request: NextRequest) {
       two_factor_verified: body.two_factor_verified,
       confirmation_phrase,
     });
-
-    console.log('✅ DATABASE RESET COMPLETED');
-    console.log(`   Report ID: ${report.id}`);
-    console.log(`   Validation: ${report.validation_passed ? 'PASSED' : 'FAILED'}`);
 
     return NextResponse.json({
       success: true,
