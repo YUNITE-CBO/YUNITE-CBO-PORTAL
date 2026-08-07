@@ -156,6 +156,10 @@ export default function EnhancedSettingsPage() {
   const [resetResult, setResetResult] = useState<any>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
+  // SMTP Test state
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState<{success: boolean; message: string; error?: string} | null>(null);
+
   useEffect(() => {
     fetchSession();
     fetchConfiguration();
@@ -411,6 +415,64 @@ export default function EnhancedSettingsPage() {
       setError('Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // SMTP Test Connection
+  const handleTestSmtp = async () => {
+    if (!isAdmin) {
+      setError('You do not have permission to test SMTP');
+      return;
+    }
+
+    setSmtpTesting(true);
+    setSmtpTestResult(null);
+
+    // Get current SMTP settings
+    const smtpSettings: Record<string, string> = {};
+    for (const [key, value] of Object.entries(editedSettings)) {
+      if (key.startsWith('smtp.')) {
+        smtpSettings[key.replace('smtp.', '')] = value;
+      }
+    }
+
+    try {
+      const res = await fetch('/api/settings/smtp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: smtpSettings.host || 'smtp.gmail.com',
+          port: smtpSettings.port || '587',
+          secure: smtpSettings.secure === 'true',
+          user: smtpSettings.user || '',
+          password: smtpSettings.password || '',
+          fromEmail: smtpSettings.from_email || '',
+          fromName: smtpSettings.from_name || 'YUNITE'
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSmtpTestResult({
+          success: true,
+          message: 'SMTP connection successful! Test email sent.'
+        });
+      } else {
+        setSmtpTestResult({
+          success: false,
+          message: data.error || 'SMTP test failed',
+          error: data.details
+        });
+      }
+    } catch (err: any) {
+      setSmtpTestResult({
+        success: false,
+        message: 'Failed to test SMTP connection',
+        error: err.message
+      });
+    } finally {
+      setSmtpTesting(false);
     }
   };
 
@@ -1326,6 +1388,64 @@ export default function EnhancedSettingsPage() {
         renderOverview()
       ) : activeSection === 'system' ? (
         renderSystemSection()
+      ) : activeSection === 'smtp' && currentCategory ? (
+        <div>
+          {renderSettingsForm(currentCategory)}
+          
+          {/* SMTP Test Connection Section */}
+          <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Test SMTP Connection</h3>
+                <p className="text-sm text-gray-600">Verify your SMTP settings by sending a test email</p>
+              </div>
+              <button
+                onClick={handleTestSmtp}
+                disabled={smtpTesting}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  smtpTesting 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {smtpTesting ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Testing...
+                  </span>
+                ) : (
+                  'Test Connection'
+                )}
+              </button>
+            </div>
+            
+            {smtpTestResult && (
+              <div className={`rounded-lg p-4 ${
+                smtpTestResult.success 
+                  ? 'bg-green-50 border border-green-200' 
+                  : 'bg-red-50 border border-red-200'
+              }`}>
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">{smtpTestResult.success ? '✅' : '❌'}</span>
+                  <div>
+                    <p className={`font-medium ${smtpTestResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                      {smtpTestResult.success ? 'Connection Successful!' : 'Connection Failed'}
+                    </p>
+                    <p className="text-sm mt-1">{smtpTestResult.message}</p>
+                    {smtpTestResult.error && (
+                      <p className="text-sm text-red-600 mt-1 font-mono bg-red-100 p-2 rounded">
+                        {smtpTestResult.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       ) : currentCategory ? (
         renderSettingsForm(currentCategory)
       ) : (
