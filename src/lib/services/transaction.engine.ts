@@ -232,7 +232,7 @@ export class TransactionEngine {
             disbursed_by: null,
           })
           .eq('id', loanId);
-        
+
         if (loanUpdateError) {
           console.error('Error reverting loan disbursement:', loanUpdateError);
         }
@@ -295,7 +295,6 @@ export class TransactionEngine {
 
       if (fineUpdateError) {
         console.error('Error waiving fine:', fineUpdateError);
-              
       }
     }
 
@@ -303,8 +302,6 @@ export class TransactionEngine {
     // Need to update the fine record to reverse the payment
     if (original.transaction_type === 'fine_payment' && original.metadata?.fine_id) {
       const fineId = original.metadata.fine_id;
-      
-      
       const { data: fine } = await supabase
         .from('fines')
         .select('*')
@@ -345,8 +342,6 @@ export class TransactionEngine {
     const contributionTypes = ['contribution_monthly', 'contribution_special', 'contribution_development'];
     if (contributionTypes.includes(original.transaction_type) && original.metadata?.campaign_id) {
       const campaignId = original.metadata.campaign_id;
-      
-      
       // Recalculate campaign totals from non-reversed transactions of THIS campaign
       // Filter by both transaction_type AND campaign_id in metadata
       const { data: campaignTxns } = await supabase
@@ -370,7 +365,6 @@ export class TransactionEngine {
 
       if (campaignUpdateError) {
         console.error('Error updating campaign:', campaignUpdateError);
-              
       }
     }
 
@@ -386,8 +380,6 @@ export class TransactionEngine {
 
     // Calculate final balances
     const balances = await this.calculateAllBalances(original.member_id);
-    
-    
     return { reversal, balances };
   }
 
