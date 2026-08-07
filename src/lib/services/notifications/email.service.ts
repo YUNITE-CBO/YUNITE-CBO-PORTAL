@@ -44,17 +44,26 @@ export class EmailService {
     if (this.transporter) return this.isConfigured;
 
     try {
-      const host = await settingsService.get('smtp.host');
-      const port = await settingsService.getNumber('smtp.port', 587);
-      const secure = await settingsService.get('smtp.secure') === 'true';
-      const user = await settingsService.get('smtp.user');
-      const password = await settingsService.get('smtp.password');
+      // Try database settings first, then fallback to environment variables
+      const host = await settingsService.get('smtp.host') || process.env.SMTP_HOST;
+      const port = await settingsService.getNumber('smtp.port', parseInt(process.env.SMTP_PORT || '587'));
+      const secure = (await settingsService.get('smtp.secure') || process.env.SMTP_SECURE || 'false') === 'true';
+      const user = await settingsService.get('smtp.user') || process.env.SMTP_USER;
+      const password = await settingsService.get('smtp.password') || process.env.SMTP_PASS;
 
       if (!host || !user) {
-        console.error('SMTP not configured');
+        console.error('SMTP not configured - missing host or user');
         this.isConfigured = false;
         return false;
       }
+
+      if (!password) {
+        console.error('SMTP not configured - missing password');
+        this.isConfigured = false;
+        return false;
+      }
+
+      console.log('Initializing SMTP transporter with:', { host, port, secure, user, hasPassword: !!password });
 
       this.transporter = nodemailer.createTransport({
         host: host,
@@ -64,8 +73,8 @@ export class EmailService {
           user: user,
           pass: password,
         },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
         socketTimeout: 30000,
       } as any);
 
@@ -87,9 +96,20 @@ export class EmailService {
       return { success: false, error: 'SMTP not configured' };
     }
 
-    const fromEmail = message.from || (await settingsService.get('smtp.from_email')) || 'noreply@yunite.ke';
-    const fromName = message.fromName || (await settingsService.get('smtp.from_name')) || 'YUNITE';
-    const replyTo = message.replyTo || (await settingsService.get('smtp.reply_to')) || undefined;
+    // Try database first, then environment variables, then defaults
+    const fromEmail = message.from 
+      || await settingsService.get('smtp.from_email') 
+      || process.env.SMTP_FROM_EMAIL 
+      || process.env.SMTP_USER 
+      || 'noreply@yunite.ke';
+    const fromName = message.fromName 
+      || await settingsService.get('smtp.from_name') 
+      || process.env.SMTP_FROM_NAME 
+      || 'YUNITE';
+    const replyTo = message.replyTo 
+      || await settingsService.get('smtp.reply_to') 
+      || process.env.SMTP_REPLY_TO 
+      || undefined;
 
     try {
       const info = await this.transporter.sendMail({

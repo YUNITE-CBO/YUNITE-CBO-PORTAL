@@ -1,11 +1,13 @@
 /**
  * SMTP Test Connection API
  * Tests the SMTP configuration by attempting to connect and send a test email
+ * Reads from database settings, with fallback to environment variables
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { authService } from '@/lib/services/auth.service';
+import { settingsService } from '@/lib/services/settings.service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,13 +23,38 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { host, port, secure, user, password, fromEmail, fromName } = body;
+    
+    // Get settings from database, fallback to provided body, then environment variables
+    const host = body.host || await settingsService.get('smtp.host') || process.env.SMTP_HOST;
+    const port = body.port || await settingsService.get('smtp.port') || process.env.SMTP_PORT || '587';
+    const secure = body.secure ?? (await settingsService.get('smtp.secure') || process.env.SMTP_SECURE || 'false') === 'true';
+    const user = body.user || await settingsService.get('smtp.user') || process.env.SMTP_USER;
+    const password = body.password || await settingsService.get('smtp.password') || process.env.SMTP_PASS;
+    const fromEmail = body.fromEmail || await settingsService.get('smtp.from_email') || process.env.SMTP_FROM_EMAIL || user;
+    const fromName = body.fromName || await settingsService.get('smtp.from_name') || process.env.SMTP_FROM_NAME || 'YUNITE';
 
     // Validate required fields
-    if (!host || !port || !user || !password) {
+    if (!host) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Missing required fields: host, port, user, password' 
+        error: 'SMTP host is not configured',
+        hint: 'Please set smtp.host in database settings or SMTP_HOST environment variable'
+      }, { status: 400 });
+    }
+
+    if (!user) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'SMTP user is not configured',
+        hint: 'Please set smtp.user in database settings or SMTP_USER environment variable'
+      }, { status: 400 });
+    }
+
+    if (!password) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'SMTP password is not configured',
+        hint: 'Please set smtp.password in database settings or SMTP_PASS environment variable'
       }, { status: 400 });
     }
 
@@ -35,19 +62,22 @@ export async function POST(request: NextRequest) {
     const transporter = nodemailer.createTransport({
       host,
       port: parseInt(port),
-      secure: secure === true || secure === 'true',
+      secure,
       auth: {
         user,
         pass: password,
       },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 30000,
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
+      socketTimeout: 45000,
     });
+
+    console.log(`Testing SMTP connection to ${host}:${port} as ${user}`);
 
     // Test connection
     try {
       await transporter.verify();
+      console.log('SMTP connection verified');
     } catch (connError: any) {
       let helpfulMessage = connError.message;
       
