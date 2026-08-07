@@ -249,37 +249,47 @@ export class ConfigurationService {
       return { success: false, error: `Failed to update setting: ${updateError.message}` };
     }
 
-    // Record in configuration history
-    const oldValueMasked = current.is_encrypted ? '********' : current.value;
-    const newValueMasked = current.is_encrypted ? '********' : newValue;
+    // Record in configuration history (optional - table may not exist)
+    try {
+      const oldValueMasked = current.is_encrypted ? '********' : current.value;
+      const newValueMasked = current.is_encrypted ? '********' : newValue;
 
-    await supabase.from('configuration_history').insert({
-      id: uuidv4(),
-      setting_key: key,
-      old_value: current.value,
-      new_value: newValue,
-      old_value_masked: oldValueMasked,
-      new_value_masked: newValueMasked,
-      changed_by: userId,
-      changed_by_name: userName,
-      reason: reason || null,
-      ip_address: ipAddress || null,
-      user_agent: userAgent || null,
-      created_at: new Date().toISOString(),
-    });
+      await supabase.from('configuration_history').insert({
+        id: uuidv4(),
+        setting_key: key,
+        old_value: current.value,
+        new_value: newValue,
+        old_value_masked: oldValueMasked,
+        new_value_masked: newValueMasked,
+        changed_by: userId,
+        changed_by_name: userName,
+        reason: reason || null,
+        ip_address: ipAddress || null,
+        user_agent: userAgent || null,
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      // Configuration history table may not exist - that's ok
+      console.warn('Failed to record configuration history:', e);
+    }
 
-    // Also record in audit logs
-    await supabase.from('audit_logs').insert({
-      id: uuidv4(),
-      user_id: userId || 'system',
-      action: 'configuration.updated',
-      record_id: key,
-      before_value: { key, value: current.value },
-      after_value: { key, value: newValue },
-      description: `Configuration updated: ${key}`,
-      ip_address: ipAddress,
-      created_at: new Date().toISOString(),
-    });
+    // Also record in audit logs (optional - wrap in try-catch)
+    try {
+      await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        user_id: userId || 'system',
+        action: 'configuration.updated',
+        record_id: key,
+        before_value: { key, value: current.value },
+        after_value: { key, value: newValue },
+        description: `Configuration updated: ${key}`,
+        ip_address: ipAddress,
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      // Audit logs may fail - that's ok, main update succeeded
+      console.warn('Failed to record audit log:', e);
+    }
 
     return { success: true };
   }
