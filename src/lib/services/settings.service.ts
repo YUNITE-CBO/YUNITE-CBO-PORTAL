@@ -13,14 +13,22 @@ export class SettingsService {
   }
 
   async get(key: string): Promise<string | null> {
-    const supabase = await createServiceClient();
-    const { data } = await supabase.from('settings').select('value').eq('key', key).single();
-    return data?.value || null;
+    try {
+      const supabase = await createServiceClient();
+      const { data, error } = await supabase.from('settings').select('value').eq('key', key).single();
+      if (error || !data) return null;
+      return data?.value || null;
+    } catch (e) {
+      // If no rows or error, return null
+      return null;
+    }
   }
 
   async getNumber(key: string, defaultValue: number = 0): Promise<number> {
     const value = await this.get(key);
-    return value ? parseFloat(value) : defaultValue;
+    if (!value) return defaultValue;
+    const num = parseFloat(value);
+    return isNaN(num) ? defaultValue : num;
   }
 
   async getMany(keys: string[]): Promise<Record<string, string>> {
