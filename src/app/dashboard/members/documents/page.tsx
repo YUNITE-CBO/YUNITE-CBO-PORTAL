@@ -184,7 +184,7 @@ export default function MemberDocumentsPage() {
       formData.append('module', 'members');
       formData.append('entityType', 'member');
       formData.append('entityId', selectedMember.id);
-      formData.append('documentCategoryId', uploadCategory);
+      formData.append('categoryCode', uploadCategory);
 
       const res = await fetch('/api/documents', {
         method: 'POST',

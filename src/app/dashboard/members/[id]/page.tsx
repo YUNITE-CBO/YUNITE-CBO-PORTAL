@@ -462,8 +462,12 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
     setSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('file', file); formData.append('memberId', id); formData.append('module', 'members');
-      formData.append('categoryCode', selectedCategory.code); formData.append('documentName', file.name);
+      formData.append('file', file);
+      formData.append('module', 'members');
+      formData.append('entityType', 'member');
+      formData.append('entityId', id);
+      formData.append('categoryCode', selectedCategory.code);
+      formData.append('documentName', file.name);
       const res = await fetch('/api/documents', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) { showMessage('success', 'Document uploaded successfully'); setActionModal(null); setSelectedCategory(null); fetchDocuments(); fetchActivities(); }
