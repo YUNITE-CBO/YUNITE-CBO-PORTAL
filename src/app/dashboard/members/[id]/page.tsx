@@ -188,7 +188,7 @@ const WORKFLOW_STAGES = [
 type ProfileSection = 'overview' | 'documents' | 'compliance' | 'financial' | 'loans' | 'timeline' | 'kyc' | 'committees' | 'settings';
 type ActionModal = 'edit_profile' | 'edit_contact' | 'savings_deposit' | 'savings_withdrawal' | 'contribution' | 'fine' | 
   'approve' | 'reject' | 'suspend' | 'reactivate' | 'archive' |
-  'upload_document' | 'verify_document' | 'edit_next_of_kin' | 'edit_emergency' | 'edit_employment' | 'edit_preferences' | null;
+  'upload_document' | 'verify_document' | 'view_document' | 'edit_next_of_kin' | 'edit_emergency' | 'edit_employment' | 'edit_preferences' | null;
 
 // ============================================
 // MAIN COMPONENT
@@ -344,7 +344,10 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   const formatCurrency = (amount: number) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0 }).format(amount);
   const formatDate = (date: string | null) => date ? new Date(date).toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
   const formatDateTime = (date: string) => new Date(date).toLocaleDateString('en-KE', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const formatFileSize = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || isNaN(bytes)) return 'Unknown size';
+    return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
   const showMessage = (type: 'success' | 'error', text: string) => { setMessage({ type, text }); setTimeout(() => setMessage(null), 5000); };
   const getStatusConfig = (status: string) => STATUS_CONFIG[status as MemberStatus] || STATUS_CONFIG.pending;
   const getDocumentStatusColor = (status: string) => {
@@ -804,18 +807,21 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center"><span className="text-lg">📄</span></div>
                         <div>
-                          <h3 className="font-medium text-gray-900">{doc.category_name}</h3>
-                          <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)}</p>
+                          <h3 className="font-medium text-gray-900">{doc.categoryCode || doc.category_name || 'Document'}</h3>
+                          <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize || doc.file_size)}</p>
                         </div>
                       </div>
                       <span className={`px-2 py-1 text-xs rounded-full ${getDocumentStatusColor(doc.status)}`}>{doc.status}</span>
                     </div>
-                    <p className="text-sm text-gray-600 mb-3 truncate">{doc.document_name}</p>
+                    <p className="text-sm text-gray-600 mb-3 truncate">{doc.fileName || doc.document_name || 'Document'}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">{formatDate(doc.created_at)}</span>
-                      {isAdmin && doc.status !== 'verified' && (
-                        <button onClick={() => { setSelectedDocument(doc); setVerificationForm({ status: 'verified', notes: '' }); setActionModal('verify_document'); }} className="text-xs text-indigo-600 hover:text-indigo-800">Verify</button>
-                      )}
+                      <span className="text-xs text-gray-400">{formatDate(doc.uploadedAt || doc.created_at)}</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => { setSelectedDocument(doc); setActionModal('view_document'); }} className="text-xs text-blue-600 hover:text-blue-800">View</button>
+                        {isAdmin && doc.status !== 'verified' && (
+                          <button onClick={() => { setSelectedDocument(doc); setVerificationForm({ status: 'verified', notes: '' }); setActionModal('verify_document'); }} className="text-xs text-indigo-600 hover:text-indigo-800">Verify</button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1285,11 +1291,59 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       {actionModal === 'verify_document' && selectedDocument && (
         <Modal title="Verify Document" onClose={() => { setActionModal(null); setSelectedDocument(null); }}>
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">{selectedDocument.category_name}</p>
+            <p className="text-sm text-gray-500">{selectedDocument.categoryCode || selectedDocument.category_name}</p>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Verification Status</label><select value={verificationForm.status} onChange={(e) => setVerificationForm({ ...verificationForm, status: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"><option value="verified">Verified</option><option value="rejected">Rejected</option></select></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Notes</label><textarea value={verificationForm.notes} onChange={(e) => setVerificationForm({ ...verificationForm, notes: e.target.value })} placeholder="Add verification notes..." rows={3} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
           </div>
           <ModalActions><button onClick={() => { setActionModal(null); setSelectedDocument(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button onClick={handleVerifyDocument} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">{submitting ? 'Processing...' : 'Confirm'}</button></ModalActions>
+        </Modal>
+      )}
+
+      {actionModal === 'view_document' && selectedDocument && (
+        <Modal title="View Document" onClose={() => { setActionModal(null); setSelectedDocument(null); }} className="max-w-4xl">
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <p className="text-sm font-medium text-gray-700">{selectedDocument.fileName || selectedDocument.document_name}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Size: {formatFileSize(selectedDocument.fileSize || selectedDocument.file_size)} | 
+                Type: {selectedDocument.mimeType || selectedDocument.mime_type} | 
+                Uploaded: {formatDate(selectedDocument.uploadedAt || selectedDocument.created_at)}
+              </p>
+            </div>
+            <div className="border rounded-lg overflow-hidden bg-gray-100 min-h-[400px] flex items-center justify-center">
+              {(selectedDocument.mimeType || selectedDocument.mime_type)?.startsWith('image/') ? (
+                <img 
+                  src={selectedDocument.publicUrl || selectedDocument.file_path} 
+                  alt={selectedDocument.fileName || 'Document'} 
+                  className="max-w-full max-h-[60vh] object-contain"
+                />
+              ) : (selectedDocument.mimeType || selectedDocument.mime_type)?.includes('pdf') ? (
+                <iframe 
+                  src={selectedDocument.publicUrl || selectedDocument.file_path} 
+                  className="w-full h-[60vh]"
+                  title="Document Preview"
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 mb-4">Preview not available for this file type</p>
+                  <a 
+                    href={selectedDocument.publicUrl || selectedDocument.file_path} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    Download to View
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+          <ModalActions>
+            <button onClick={() => { setActionModal(null); setSelectedDocument(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Close</button>
+            {isAdmin && selectedDocument.status !== 'verified' && (
+              <button onClick={() => { setVerificationForm({ status: 'verified', notes: '' }); setActionModal('verify_document'); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Verify Document</button>
+            )}
+          </ModalActions>
         </Modal>
       )}
 
@@ -1338,10 +1392,10 @@ function BalanceCard({ title, amount, color }: { title: string; amount: number; 
   );
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({ title, onClose, children, className = '' }: { title: string; onClose: () => void; children: React.ReactNode; className?: string }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className={`bg-white rounded-xl shadow-xl w-full max-h-[90vh] overflow-y-auto ${className || 'max-w-lg'}`}>
         <div className="p-6 border-b sticky top-0 bg-white">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
