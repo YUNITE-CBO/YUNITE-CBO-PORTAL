@@ -303,9 +303,45 @@ export class AuthService {
    * Get session from request (for API routes using cookies)
    */
   async getSession(): Promise<{ user?: { id: string; email: string; role: string; full_name: string } } | null> {
-    // This method is a placeholder - actual session handling is done by middleware
-    // API routes that need user info should use the middleware to extract user from JWT
-    return null;
+    try {
+      const { cookies } = await import('next/headers');
+      const cookieStore = await cookies();
+      const token = cookieStore.get('auth_token')?.value;
+
+      if (!token) {
+        return null;
+      }
+
+      // Verify the token
+      const verification = await this.verifyToken(token);
+      if (!verification.valid || !verification.payload) {
+        return null;
+      }
+
+      // Get full user data from database
+      const supabase = await createServiceClient();
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('id, email, full_name, role, is_active')
+        .eq('id', verification.payload.user_id)
+        .single();
+
+      if (error || !user || !user.is_active) {
+        return null;
+      }
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          full_name: user.full_name || '',
+        },
+      };
+    } catch (error) {
+      console.error('Error getting session:', error);
+      return null;
+    }
   }
 
   /**
