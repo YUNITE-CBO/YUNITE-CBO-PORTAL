@@ -460,7 +460,8 @@ export class TransactionEngine {
     for (const txn of txns) {
       if (this.isDebitTransaction(txn.transaction_type as TransactionType)) {
         balance -= Number(txn.amount);
-              balance += Number(txn.amount);
+      } else {
+        balance += Number(txn.amount);
       }
     }
     return balance;
