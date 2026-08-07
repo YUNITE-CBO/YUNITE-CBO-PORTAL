@@ -33,20 +33,20 @@ export async function GET(request: NextRequest) {
         .from('compliance_records')
         .select('*');
 
-      if (oldError) console.warn('Old compliance_records error:', oldError);
+      if (oldError) throw oldError;
 
       const { data: newCompliance, error: newError } = await supabase
         .from('member_compliance')
         .select('*');
 
-      if (newError) console.warn('New member_compliance error:', newError);
+      if (newError) throw newError;
 
       // Combine and deduplicate compliance records
       const allCompliance = [
         ...(oldCompliance || []).map(r => ({
           ...r,
           source: 'compliance_records',
-          category_name: r.compliance_type || r.compliance_type,
+          category_name: r.compliance_type,
         })),
         ...(newCompliance || []).map(r => ({
           ...r,
