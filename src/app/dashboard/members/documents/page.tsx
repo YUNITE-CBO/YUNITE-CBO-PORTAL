@@ -560,14 +560,12 @@ export default function MemberDocumentsPage() {
                           Verify
                         </button>
                       )}
-                      {isAdmin && (
-                        <button
-                          onClick={() => handleDeleteClick(doc)}
-                          className="px-3 py-1 text-sm text-red-600 hover:text-red-800"
-                        >
-                          Delete
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDeleteClick(doc)}
+                        className="px-3 py-1 text-sm text-red-600 hover:text-red-800"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}
