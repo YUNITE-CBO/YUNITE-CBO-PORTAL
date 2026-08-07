@@ -254,6 +254,23 @@ export class EnterpriseDocumentService {
     }
 
     // Upload to Supabase Storage
+    // First, ensure the bucket exists (auto-create if missing)
+    const { data: bucketList } = await supabase.storage.listBuckets();
+    const bucketExists = bucketList?.some(b => b.id === bucket);
+    
+    if (!bucketExists) {
+      // Try to create the bucket
+      console.log(`Creating storage bucket: ${bucket}`);
+      const { error: createBucketError } = await supabase.storage.createBucket(bucket, {
+        public: false,
+      });
+      
+      if (createBucketError && createBucketError.message !== 'Bucket already exists') {
+        console.error('Failed to create bucket:', createBucketError);
+        return { success: false, error: `Storage bucket '${bucket}' not found. Please create it in Supabase Dashboard.` };
+      }
+    }
+
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(storagePath, fileBuffer, {
