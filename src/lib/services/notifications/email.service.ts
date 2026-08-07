@@ -63,8 +63,6 @@ export class EmailService {
         return false;
       }
 
-      console.log('Initializing SMTP transporter with:', { host, port, secure, user, hasPassword: !!password });
-
       this.transporter = nodemailer.createTransport({
         host: host,
         port: port,

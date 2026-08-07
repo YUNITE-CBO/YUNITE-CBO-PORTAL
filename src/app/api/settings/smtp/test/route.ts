@@ -72,12 +72,9 @@ export async function POST(request: NextRequest) {
       socketTimeout: 45000,
     });
 
-    console.log(`Testing SMTP connection to ${host}:${port} as ${user}`);
-
     // Test connection
     try {
       await transporter.verify();
-      console.log('SMTP connection verified');
     } catch (connError: any) {
       let helpfulMessage = connError.message;
       
