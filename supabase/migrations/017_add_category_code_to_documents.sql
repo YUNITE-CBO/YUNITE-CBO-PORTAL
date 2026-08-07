@@ -69,3 +69,4 @@ CREATE INDEX IF NOT EXISTS idx_documents_document_ref ON documents(document_ref)
 CREATE INDEX IF NOT EXISTS idx_documents_verified ON documents(is_verified);
 CREATE INDEX IF NOT EXISTS idx_documents_expired ON documents(is_expired);
 CREATE INDEX IF NOT EXISTS idx_documents_archived ON documents(is_archived);
+CREATE INDEX IF NOT EXISTS idx_documents_visibility ON documents(visibility);
