@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       const completedDate = status === 'complete' ? new Date().toISOString() : null;
 
       // Update all compliance_records for this member
-      const { error: oldBatchError, count: oldCount } = await supabase
+      const { error: oldBatchError } = await supabase
         .from('compliance_records')
         .update({ 
           status, 
@@ -208,11 +208,16 @@ export async function POST(request: NextRequest) {
           notes: notes || null,
           updated_at: new Date().toISOString()
         })
-        .eq('member_id', memberId)
-        .select('*', { count: 'exact' });
+        .eq('member_id', memberId);
+
+      // Get count of updated old compliance records
+      const { count: oldCount } = await supabase
+        .from('compliance_records')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', memberId);
 
       // Update all member_compliance for this member
-      const { error: newBatchError, count: newCount } = await supabase
+      const { error: newBatchError } = await supabase
         .from('member_compliance')
         .update({ 
           status, 
@@ -220,8 +225,13 @@ export async function POST(request: NextRequest) {
           review_notes: notes || null,
           updated_at: new Date().toISOString()
         })
-        .eq('member_id', memberId)
-        .select('*', { count: 'exact' });
+        .eq('member_id', memberId);
+
+      // Get count of updated new compliance records
+      const { count: newCount } = await supabase
+        .from('member_compliance')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', memberId);
 
       if (oldBatchError || newBatchError) {
         console.error('Batch update error:', { oldBatchError, newBatchError });
