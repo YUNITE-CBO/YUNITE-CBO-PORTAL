@@ -166,7 +166,6 @@ export class GmailApiAdapter {
       };
 
       this.isConfigured = true;
-      console.log('Gmail API adapter initialized successfully');
       return true;
     } catch (error) {
       console.error('Failed to initialize Gmail API adapter:', error);
@@ -293,7 +292,6 @@ export class GmailApiAdapter {
       }
 
       const result = await response.json();
-      console.log('Email sent via Gmail API:', result.id);
       
       return {
         success: true,

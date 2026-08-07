@@ -202,7 +202,6 @@ export class EmailService {
         attachments: message.attachments,
       });
 
-      console.log('Email sent via SMTP:', info.messageId);
       return { success: true, messageId: info.messageId, method: 'smtp' };
     } catch (error: any) {
       console.error('Email send error:', error);
