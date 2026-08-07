@@ -239,8 +239,8 @@ export class AuthNotificationService {
     await supabase.from('notifications').insert({
       id: uuidv4(),
       notification_ref: `NTF-${Date.now()}-${uuidv4().split('-')[0]}`,
-      subject,
-      body,
+      title: subject,
+      message: body,
       priority: 'normal',
       recipient_type: recipientType,
       recipient_id: recipientId,
