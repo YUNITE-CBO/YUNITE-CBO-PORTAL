@@ -134,10 +134,13 @@ export default function NotificationsPage() {
 
       // Fetch notifications for current user if available
       if (user?.id) {
-        const notificationsRes = await fetch(`/api/notifications?recipient_id=${user.id}&recipient_type=user`);
+        const notificationsRes = await fetch(`/api/notifications?recipient_id=${user.id}&recipient_type=user&unread_only=false`);
         const notificationsData = await notificationsRes.json();
         if (notificationsData.success) {
           setNotifications(notificationsData.data || []);
+          // Calculate actual unread count
+          const unread = (notificationsData.data || []).filter((n: Notification) => n.status !== 'read').length;
+          setUnreadCount(unread);
         }
       }
 
@@ -152,8 +155,6 @@ export default function NotificationsPage() {
       if (schedulesData.success) {
         setSchedules(schedulesData.data || []);
       }
-
-      setUnreadCount(2);
     } catch (error) {
       console.error('Failed to fetch notification data:', error);
     }
