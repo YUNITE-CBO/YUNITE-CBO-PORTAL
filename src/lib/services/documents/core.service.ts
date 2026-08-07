@@ -253,16 +253,26 @@ export class EnterpriseDocumentService {
       }
     }
 
+        
     // Upload to Supabase Storage
-    // Check available buckets and fallback to 'documents' if needed
+    // Check available buckets and ensure 'documents' bucket exists
     const { data: bucketList } = await supabase.storage.listBuckets();
     const availableBuckets = bucketList?.map(b => b.id) || [];
-    let activeBucket = bucket;
     
-    // Fallback to 'documents' if the requested bucket doesn't exist
-    if (!availableBuckets.includes(bucket)) {
-      console.log(`Bucket '${bucket}' not found, falling back to 'documents' bucket`);
-      activeBucket = 'documents';
+    // Use 'documents' as the universal bucket for all uploads
+    let activeBucket = 'documents';
+    
+    // Try to create 'documents' bucket if it doesn't exist
+    if (!availableBuckets.includes('documents')) {
+      console.log(`Creating 'documents' bucket...`);
+      const { error: createError } = await supabase.storage.createBucket('documents', {
+        public: true, // Make it public for viewing
+      });
+      if (createError && !createError.message.includes('already exists')) {
+        console.error('Failed to create documents bucket:', createError);
+        // Try the original bucket anyway
+        activeBucket = bucket;
+      }
     }
 
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -280,6 +290,8 @@ export class EnterpriseDocumentService {
     // Get public URL
     const { data: urlData } = supabase.storage.from(activeBucket).getPublicUrl(storagePath);
     const publicUrl = urlData.publicUrl;
+    
+    console.log('Upload successful. Public URL:', publicUrl);
 
     // Determine initial status
     const initialStatus: DocumentStatus = options.behaviorOverrides?.requireVerification 
