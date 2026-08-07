@@ -290,13 +290,11 @@ export class EnterpriseDocumentService {
     // Get public URL
     const { data: urlData } = supabase.storage.from(activeBucket).getPublicUrl(storagePath);
     const publicUrl = urlData.publicUrl;
-    
-    console.log('Upload successful. Public URL:', publicUrl);
 
     // Determine initial status
     const initialStatus: DocumentStatus = options.behaviorOverrides?.requireVerification 
       ? 'pending' 
-      : 'pending';
+      : 'approved';
 
     // Create document record
     const documentId = uuidv4();
