@@ -287,10 +287,8 @@ export class EnterpriseDocumentService {
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
     const publicUrl = urlData.publicUrl;
 
-    // Determine initial status
-    const initialStatus: DocumentStatus = options.behaviorOverrides?.requireVerification 
-      ? 'pending' 
-      : 'pending';
+    // All documents start as pending (verified by requireVerification flag)
+    const initialStatus: DocumentStatus = 'pending';
 
     // Create document record
     const documentId = uuidv4();
