@@ -296,6 +296,19 @@ export class EnterpriseDocumentService {
     const documentId = uuidv4();
     const documentRef = this.generateDocumentRef(options.module);
 
+    // Map category code to document type
+    const getDocumentType = (categoryCode: string): string => {
+      const typeMap: Record<string, string> = {
+        'member_national_id': 'national_id',
+        'member_passport_photo': 'photo',
+        'member_kra_pin': 'kra_pin',
+        'member_proof_residence': 'other',
+        'member_application_form': 'membership_form',
+        'member_agreement': 'contract',
+      };
+      return typeMap[categoryCode] || 'other';
+    };
+
     const documentData = {
       id: documentId,
       document_ref: documentRef,
@@ -317,6 +330,7 @@ export class EnterpriseDocumentService {
       entity_type: options.entityType,
       entity_id: options.entityId,
       category_code: options.categoryCode,
+      document_type: getDocumentType(options.categoryCode),
       
       // Member association (required for members module)
       member_id: options.module === 'members' ? options.entityId : null,
