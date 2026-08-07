@@ -97,14 +97,30 @@ export async function GET(request: NextRequest) {
     // Get document categories for a module
     if (categories && module) {
       const { createServiceClient } = await import('@/lib/supabase/server');
+      const { ModuleConfigurations } = await import('@/lib/services/documents/module-configurations');
+      
       const supabase = await createServiceClient();
-      const { data } = await supabase
+      const { data: dbCategories } = await supabase
         .from('document_categories')
         .select('*')
         .eq('module', module)
         .eq('is_active', true)
         .order('sort_order');
-      return NextResponse.json({ success: true, data: data || [] });
+      
+      // Merge with config file values (config takes precedence for limits)
+      const config = ModuleConfigurations[module as keyof typeof ModuleConfigurations];
+      const mergedCategories = (dbCategories || []).map(cat => {
+        const configCategory = config?.categories ? 
+          Object.values(config.categories).find(c => c.code === cat.code) : null;
+        
+        return {
+          ...cat,
+          // Override max_file_size_mb from config if available
+          max_file_size_mb: configCategory?.maxFileSizeMb ?? cat.max_file_size_mb,
+        };
+      });
+      
+      return NextResponse.json({ success: true, data: mergedCategories });
     }
 
     // Get member compliance status AND documents
