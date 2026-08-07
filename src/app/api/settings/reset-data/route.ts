@@ -45,8 +45,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('🔴 DATA RESET INITIATED by user:', user_id || 'system');
-
     // Log the reset attempt
     await supabase.from('audit_logs').insert({
       id: uuidv4(),
@@ -61,70 +59,55 @@ export async function POST(request: NextRequest) {
     // Order matters due to foreign keys!
     
     // 1. Delete all transactions (depends on accounts)
-    console.log('Deleting transactions...');
     const { error: txnError } = await supabase.from('transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (txnError) {
       console.error('Error deleting transactions:', txnError);
       throw new Error(`Failed to delete transactions: ${txnError.message}`);
     }
-    console.log('✓ Transactions deleted');
 
     // 2. Delete all fines
-    console.log('Deleting fines...');
     const { error: finesError } = await supabase.from('fines').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (finesError) {
       console.error('Error deleting fines:', finesError);
       throw new Error(`Failed to delete fines: ${finesError.message}`);
     }
-    console.log('✓ Fines deleted');
 
     // 3. Delete all loans
-    console.log('Deleting loans...');
     const { error: loansError } = await supabase.from('loans').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (loansError) {
       console.error('Error deleting loans:', loansError);
       throw new Error(`Failed to delete loans: ${loansError.message}`);
     }
-    console.log('✓ Loans deleted');
 
     // 4. Delete all campaigns (contribution campaigns)
-    console.log('Deleting campaigns...');
     const { error: campaignsError } = await supabase.from('campaigns').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (campaignsError) {
       console.error('Error deleting campaigns:', campaignsError);
       throw new Error(`Failed to delete campaigns: ${campaignsError.message}`);
     }
-    console.log('✓ Campaigns deleted');
 
     // 5. Delete all accounts (member financial accounts)
-    console.log('Deleting accounts...');
     const { error: accountsError } = await supabase.from('accounts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (accountsError) {
       console.error('Error deleting accounts:', accountsError);
       throw new Error(`Failed to delete accounts: ${accountsError.message}`);
     }
-    console.log('✓ Accounts deleted');
 
     // 6. Delete all documents
-    console.log('Deleting documents...');
     const { error: docsError } = await supabase.from('documents').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (docsError) {
       console.error('Error deleting documents:', docsError);
       throw new Error(`Failed to delete documents: ${docsError.message}`);
     }
-    console.log('✓ Documents deleted');
 
     // 7. Delete all compliance records
-    console.log('Deleting compliance records...');
     const { error: complianceError } = await supabase.from('compliance_records').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (complianceError) {
       console.error('Error deleting compliance records:', complianceError);
       throw new Error(`Failed to delete compliance records: ${complianceError.message}`);
     }
-    console.log('✓ Compliance records deleted');
 
     // 8. Reseed default campaigns
-    console.log('Reseeding default campaigns...');
     await supabase.from('campaigns').insert([
       {
         id: uuidv4(),
@@ -157,7 +140,6 @@ export async function POST(request: NextRequest) {
         is_active: true,
       },
     ]);
-    console.log('✓ Default campaigns reseeded');
 
     // Log successful completion
     await supabase.from('audit_logs').insert({
@@ -172,8 +154,6 @@ export async function POST(request: NextRequest) {
       },
       created_at: new Date().toISOString(),
     });
-
-    console.log('✅ DATA RESET COMPLETED SUCCESSFULLY');
 
     return NextResponse.json({
       success: true,
