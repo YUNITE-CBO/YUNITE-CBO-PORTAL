@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       const completedDate = status === 'complete' ? new Date().toISOString() : null;
 
       // Try to update in compliance_records first (old system)
-      const { error: oldError } = await supabase
+      const { error: oldError, count: oldCount } = await supabase
         .from('compliance_records')
         .update({ 
           status, 
@@ -147,9 +147,19 @@ export async function POST(request: NextRequest) {
         .eq('id', complianceId)
         .eq('member_id', memberId);
 
-      // If not found, try member_compliance (new system)
-      if (oldError) {
-        const { error: newError } = await supabase
+      // If actual error and no rows updated, try new system; if error with rows updated, return error
+      if (oldError && (oldCount === null || oldCount === 0)) {
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to update compliance record in old system'
+        }, { status: 500 });
+      }
+
+      let newError = null;
+      let updatedInNewSystem = false;
+      if (oldCount === null || oldCount === 0) {
+        // Try member_compliance (new system)
+        const { error, count: newCount } = await supabase
           .from('member_compliance')
           .update({ 
             status, 
@@ -160,27 +170,33 @@ export async function POST(request: NextRequest) {
           .eq('id', complianceId)
           .eq('member_id', memberId);
 
+        newError = error;
+        updatedInNewSystem = newCount !== null && newCount > 0;
+
         if (newError) {
-          return NextResponse.json({ 
-            success: false, 
-            error: 'Failed to update compliance record' 
+          return NextResponse.json({
+            success: false,
+            error: 'Failed to update compliance record'
           }, { status: 500 });
         }
       }
 
-      // Log the action
-      await supabase.from('audit_logs').insert({
-        id: uuidv4(),
-        user_id: session.user.id,
-        action: `compliance.${status}`,
-        record_id: complianceId,
-        description: `Compliance ${status} for member ${memberId}`,
-        created_at: new Date().toISOString(),
-      });
+      // Only log audit if a record was actually updated
+      const wasUpdated = (oldCount !== null && oldCount > 0) || updatedInNewSystem;
+      if (wasUpdated) {
+        await supabase.from('audit_logs').insert({
+          id: uuidv4(),
+          user_id: session.user.id,
+          action: `compliance.${status}`,
+          record_id: complianceId,
+          description: `Compliance ${status} for member ${memberId}`,
+          created_at: new Date().toISOString(),
+        });
+      }
 
-      return NextResponse.json({ 
-        success: true, 
-        message: `Compliance marked as ${status}` 
+      return NextResponse.json({
+        success: true,
+        message: wasUpdated ? `Compliance marked as ${status}` : `No compliance record found for ${complianceId}`
       });
     }
 
@@ -197,7 +213,7 @@ export async function POST(request: NextRequest) {
       const completedDate = status === 'complete' ? new Date().toISOString() : null;
 
       // Update all compliance_records for this member
-      await supabase
+      const { error: oldError } = await supabase
         .from('compliance_records')
         .update({ 
           status, 
@@ -207,8 +223,15 @@ export async function POST(request: NextRequest) {
         })
         .eq('member_id', memberId);
 
+      if (oldError) {
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to update compliance records in old system'
+        }, { status: 500 });
+      }
+
       // Update all member_compliance for this member
-      await supabase
+      const { error: newError } = await supabase
         .from('member_compliance')
         .update({ 
           status, 
@@ -218,9 +241,16 @@ export async function POST(request: NextRequest) {
         })
         .eq('member_id', memberId);
 
-      return NextResponse.json({ 
-        success: true, 
-        message: `All compliance records marked as ${status}` 
+      if (newError) {
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to update compliance records in new system'
+        }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `All compliance records marked as ${status}`
       });
     }
 
