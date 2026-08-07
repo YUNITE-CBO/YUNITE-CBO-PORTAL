@@ -260,7 +260,6 @@ export class EnterpriseDocumentService {
     
     if (!bucketExists) {
       // Try to create the bucket
-      console.log(`Creating storage bucket: ${bucket}`);
       const { error: createBucketError } = await supabase.storage.createBucket(bucket, {
         public: false,
       });
