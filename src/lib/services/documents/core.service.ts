@@ -264,7 +264,6 @@ export class EnterpriseDocumentService {
     
     // Try to create 'documents' bucket if it doesn't exist
     if (!availableBuckets.includes('documents')) {
-      console.log(`Creating 'documents' bucket...`);
       const { error: createError } = await supabase.storage.createBucket('documents', {
         public: true, // Make it public for viewing
       });
@@ -290,8 +289,6 @@ export class EnterpriseDocumentService {
     // Get public URL
     const { data: urlData } = supabase.storage.from(activeBucket).getPublicUrl(storagePath);
     const publicUrl = urlData.publicUrl;
-    
-    console.log('Upload successful. Public URL:', publicUrl);
 
     // Determine initial status
     const initialStatus: DocumentStatus = options.behaviorOverrides?.requireVerification 
