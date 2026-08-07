@@ -118,7 +118,6 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error('SMTP test error:', error);
     return NextResponse.json({
       success: false,
       error: 'SMTP test failed',

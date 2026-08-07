@@ -18,6 +18,7 @@ export interface SettingWithCategory {
   value: string;
   description: string | null;
   category: string;
+  config_category_id: string | null;
   category_id: string | null;
   category_name: string | null;
   category_icon: string | null;
