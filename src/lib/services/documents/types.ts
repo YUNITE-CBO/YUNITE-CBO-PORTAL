@@ -69,11 +69,12 @@ export type DocumentStatus =
   | 'draft'           // Initial upload, not submitted
   | 'pending'         // Awaiting review
   | 'under_review'    // Being reviewed
-  | 'approved'        // Approved and verified
+  | 'approved'        // Approved but not yet verified
+  | 'verified'        // Fully verified and confirmed
   | 'rejected'        // Rejected with reason
   | 'expired'         // Past expiration date
   | 'archived'        // Soft deleted/archived
-  | 'deleted';       // Permanently deleted
+  | 'deleted';        // Permanently deleted
 
 // =============================================================================
 // DOCUMENT CATEGORY CONFIGURATION

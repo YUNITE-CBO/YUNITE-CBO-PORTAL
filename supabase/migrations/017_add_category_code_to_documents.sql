@@ -2,6 +2,11 @@
 -- Add missing columns to documents table for enhanced document service
 -- ===================================================================
 
+-- First, update the status CHECK constraint to support enhanced document statuses
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_status_check;
+ALTER TABLE documents ADD CONSTRAINT documents_status_check
+    CHECK (status IN ('draft', 'pending', 'under_review', 'approved', 'rejected', 'verified', 'expired', 'archived', 'deleted'));
+
 -- Core classification columns
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS document_ref TEXT UNIQUE;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS category_code TEXT;
@@ -13,6 +18,7 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS entity_id UUID;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS verified_by UUID REFERENCES users(id);
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS verification_notes TEXT;
 
 -- Expiration tracking
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT FALSE;
@@ -22,6 +28,10 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS reminder_count INTEGER DEFAULT 0;
 -- Audit columns
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by_name TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ip_address TEXT;
+
+-- Access control column
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'authenticated' 
+    CHECK (visibility IN ('public', 'authenticated', 'admin', 'owner'));
 
 -- Additional storage columns (ensure these exist)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_size BIGINT;
@@ -63,3 +73,4 @@ CREATE INDEX IF NOT EXISTS idx_documents_document_ref ON documents(document_ref)
 CREATE INDEX IF NOT EXISTS idx_documents_verified ON documents(is_verified);
 CREATE INDEX IF NOT EXISTS idx_documents_expired ON documents(is_expired);
 CREATE INDEX IF NOT EXISTS idx_documents_archived ON documents(is_archived);
+CREATE INDEX IF NOT EXISTS idx_documents_visibility ON documents(visibility);
