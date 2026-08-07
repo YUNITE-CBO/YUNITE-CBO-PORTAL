@@ -218,9 +218,12 @@ export class EmailService {
   async processQueue(batchSize: number = 10): Promise<{ processed: number; succeeded: number; failed: number }> {
     const supabase = await createServiceClient();
 
-    const configured = await this.initializeTransporter();
-    if (!configured) {
-      console.log('SMTP not configured, skipping queue processing');
+    // Check if any email provider is configured (Mailgun preferred, SMTP fallback)
+    const mailgunConfigured = await this.checkMailgunConfigured();
+    const smtpConfigured = await this.initializeTransporter();
+
+    if (!mailgunConfigured && !smtpConfigured) {
+      console.log('No email provider configured (Mailgun or SMTP), skipping queue processing');
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
