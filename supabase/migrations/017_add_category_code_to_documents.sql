@@ -41,6 +41,10 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS archived_by UUID REFERENCES users(id);
 
+-- Visibility column
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'authenticated' 
+  CHECK (visibility IN ('public', 'authenticated', 'admin', 'owner'));
+
 -- Generate document references for existing documents
 UPDATE documents 
 SET document_ref = 'DOC-' || LEFT(id::text, 8) 
