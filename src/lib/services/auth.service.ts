@@ -338,8 +338,7 @@ export class AuthService {
           full_name: user.full_name || '',
         },
       };
-    } catch (error) {
-      console.error('Error getting session:', error);
+    } catch {
       return null;
     }
   }
