@@ -193,7 +193,6 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
 
   private async notifyMemberReady(memberId: string): Promise<void> {
     // Publish event for notification service to handle
-    console.log(`Member ${memberId} has completed all required documents and is ready for approval`);
   }
 }
 
@@ -273,7 +272,6 @@ export class LoanDocumentHandler implements ModuleDocumentHandler {
 
   private async updateLoanDocumentStatus(loanId: string): Promise<void> {
     const score = await this.calculateComplianceScore(loanId);
-    console.log(`Loan ${loanId} document compliance: ${score}%`);
     // Would update loan record with document status
   }
 }
@@ -315,7 +313,6 @@ export class FinancialDocumentHandler implements ModuleDocumentHandler {
   async onUpload(document: EnterpriseDocument): Promise<void> {
     // Link to transaction if applicable
     if (document.metadata?.transactionId) {
-      console.log(`Financial document ${document.id} linked to transaction ${document.metadata.transactionId}`);
     }
   }
 }
@@ -487,7 +484,6 @@ export class NotificationDocumentHandler implements ModuleDocumentHandler {
   async onUpload(document: EnterpriseDocument): Promise<void> {
     // Link document to notification
     if (document.metadata?.notificationId) {
-      console.log(`Attachment ${document.id} linked to notification ${document.metadata.notificationId}`);
     }
   }
 }
@@ -518,7 +514,6 @@ export class StatementDocumentHandler implements ModuleDocumentHandler {
   async onUpload(document: EnterpriseDocument): Promise<void> {
     // Update statement record if exists
     if (document.metadata?.statementId) {
-      console.log(`Statement ${document.id} registered for ${document.metadata.statementId}`);
     }
   }
 }
