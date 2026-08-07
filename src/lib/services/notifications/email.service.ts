@@ -1,13 +1,21 @@
 /**
- * EMAIL SERVICE - SMTP Email Delivery Engine
+ * EMAIL SERVICE - Unified Email Delivery Engine
  * 
- * Handles all email delivery with retry logic, tracking, and logging.
+ * Handles all email delivery with support for both:
+ * 1. Gmail API (OAuth2) - Recommended for Render Free tier
+ * 2. SMTP - Fallback option
+ * 
+ * Priority: Gmail API > SMTP
+ * 
+ * Architecture:
+ * YUNITE OS → Render Free Backend → HTTPS → Gmail API → info.yunite.ke@gmail.com → Recipient
  */
 
 import nodemailer from 'nodemailer';
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { settingsService } from '../settings.service';
+import { gmailApiAdapter, GmailApiMessage } from './gmail-api.adapter';
 
 export interface EmailMessage {
   to: string;
@@ -31,16 +39,38 @@ export interface EmailDeliveryResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  method?: 'gmail_api' | 'smtp';
 }
 
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
   private isConfigured: boolean = false;
+  private useGmailApi: boolean = false;
+
+  /**
+   * Initialize email service - determines which delivery method to use
+   */
+  private async initialize(): Promise<boolean> {
+    // Check for Gmail API configuration first
+    if (gmailApiAdapter.isGmailApiConfigured()) {
+      const testResult = await gmailApiAdapter.testConnection();
+      if (testResult.success) {
+        console.log('Email service: Using Gmail API (OAuth2) for email delivery');
+        this.useGmailApi = true;
+        this.isConfigured = true;
+        return true;
+      }
+      console.log('Gmail API configured but connection test failed, falling back to SMTP');
+    }
+
+    // Fall back to SMTP
+    return this.initializeSmtpTransporter();
+  }
 
   /**
    * Initialize SMTP transporter
    */
-  private async initializeTransporter(): Promise<boolean> {
+  private async initializeSmtpTransporter(): Promise<boolean> {
     if (this.transporter) return this.isConfigured;
 
     try {
@@ -54,16 +84,18 @@ export class EmailService {
       if (!host || !user) {
         console.error('SMTP not configured - missing host or user');
         this.isConfigured = false;
+        this.useGmailApi = false;
         return false;
       }
 
       if (!password) {
         console.error('SMTP not configured - missing password');
         this.isConfigured = false;
+        this.useGmailApi = false;
         return false;
       }
 
-      console.log('Initializing SMTP transporter with:', { host, port, secure, user, hasPassword: !!password });
+      console.log('Email service: Initializing SMTP transporter with:', { host, port, secure, user, hasPassword: !!password });
 
       this.transporter = nodemailer.createTransport({
         host: host,
@@ -79,21 +111,67 @@ export class EmailService {
       } as any);
 
       this.isConfigured = true;
+      this.useGmailApi = false;
+      console.log('Email service: Using SMTP for email delivery');
       return true;
     } catch (error) {
       console.error('Failed to initialize SMTP transporter:', error);
       this.isConfigured = false;
+      this.useGmailApi = false;
       return false;
     }
   }
 
   /**
-   * Send email directly
+   * Get email delivery method status
+   */
+  getDeliveryMethod(): 'gmail_api' | 'smtp' | 'none' {
+    if (gmailApiAdapter.isGmailApiConfigured()) {
+      return 'gmail_api';
+    }
+    if (this.isConfigured && !this.useGmailApi) {
+      return 'smtp';
+    }
+    return 'none';
+  }
+
+  /**
+   * Send email - automatically selects best delivery method
    */
   async send(message: EmailMessage): Promise<EmailDeliveryResult> {
-    const configured = await this.initializeTransporter();
+    // Check if we should use Gmail API
+    if (gmailApiAdapter.isGmailApiConfigured()) {
+      const gmailMessage: GmailApiMessage = {
+        to: message.to,
+        toName: message.toName,
+        cc: message.cc,
+        bcc: message.bcc,
+        subject: message.subject,
+        htmlBody: message.htmlBody,
+        textBody: message.textBody,
+        replyTo: message.replyTo,
+      };
+
+      const result = await gmailApiAdapter.send(gmailMessage);
+      return {
+        success: result.success,
+        messageId: result.messageId,
+        error: result.error,
+        method: 'gmail_api',
+      };
+    }
+
+    // Fall back to SMTP
+    return this.sendViaSmtp(message);
+  }
+
+  /**
+   * Send email via SMTP
+   */
+  private async sendViaSmtp(message: EmailMessage): Promise<EmailDeliveryResult> {
+    const configured = await this.initializeSmtpTransporter();
     if (!configured || !this.transporter) {
-      return { success: false, error: 'SMTP not configured' };
+      return { success: false, error: 'Email service not configured (neither Gmail API nor SMTP available)' };
     }
 
     // Try database first, then environment variables, then defaults
@@ -124,11 +202,11 @@ export class EmailService {
         attachments: message.attachments,
       });
 
-      console.log('Email sent:', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent via SMTP:', info.messageId);
+      return { success: true, messageId: info.messageId, method: 'smtp' };
     } catch (error: any) {
       console.error('Email send error:', error);
-      return { success: false, error: error.message || 'Failed to send email' };
+      return { success: false, error: error.message || 'Failed to send email', method: 'smtp' };
     }
   }
 
@@ -138,9 +216,9 @@ export class EmailService {
   async processQueue(batchSize: number = 10): Promise<{ processed: number; succeeded: number; failed: number }> {
     const supabase = await createServiceClient();
 
-    const configured = await this.initializeTransporter();
+    const configured = await this.initialize();
     if (!configured) {
-      console.log('SMTP not configured, skipping queue processing');
+      console.log('Email service not configured (neither Gmail API nor SMTP), skipping queue processing');
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
@@ -390,19 +468,35 @@ export class EmailService {
   }
 
   /**
-   * Test SMTP connection
+   * Test email service connection
+   * Tests Gmail API first, then SMTP as fallback
    */
-  async testConnection(): Promise<{ success: boolean; message: string }> {
+  async testConnection(): Promise<{ success: boolean; message: string; method?: 'gmail_api' | 'smtp' }> {
+    // Try Gmail API first
+    if (gmailApiAdapter.isGmailApiConfigured()) {
+      const gmailResult = await gmailApiAdapter.testConnection();
+      if (gmailResult.success) {
+        return { 
+          success: true, 
+          message: `Gmail API connection successful${gmailResult.details?.emailAddress ? ` (${gmailResult.details.emailAddress})` : ''}`,
+          method: 'gmail_api'
+        };
+      }
+      // Continue to SMTP fallback
+      console.log('Gmail API test failed, trying SMTP...');
+    }
+
+    // Fall back to SMTP
     try {
-      const configured = await this.initializeTransporter();
-      if (!configured || !this.transporter) {
-        return { success: false, message: 'SMTP not configured' };
+      const smtpConfigured = await this.initializeSmtpTransporter();
+      if (!smtpConfigured || !this.transporter) {
+        return { success: false, message: 'Neither Gmail API nor SMTP is configured', method: undefined };
       }
 
       await this.transporter.verify();
-      return { success: true, message: 'SMTP connection successful' };
+      return { success: true, message: 'SMTP connection successful', method: 'smtp' };
     } catch (error: any) {
-      return { success: false, message: error.message || 'Connection failed' };
+      return { success: false, message: error.message || 'Connection failed', method: undefined };
     }
   }
 
