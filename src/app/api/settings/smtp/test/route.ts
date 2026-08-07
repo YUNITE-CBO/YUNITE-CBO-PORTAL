@@ -116,14 +116,13 @@ export async function POST(request: NextRequest) {
               <p style="margin: 4px 0;"><strong>Server:</strong> ${host}</p>
               <p style="margin: 4px 0;"><strong>Port:</strong> ${port}</p>
               <p style="margin: 4px 0;"><strong>Secure:</strong> ${secure ? 'Yes' : 'No'}</p>
-              <p style="margin: 4px 0;"><strong>User:</strong> ${user}</p>
             </div>
             <p style="color: #64748b; font-size: 12px;">
               Sent at: ${new Date().toISOString()}
             </p>
           </div>
         `,
-        text: `SMTP Test Successful!\n\nServer: ${host}\nPort: ${port}\nSecure: ${secure ? 'Yes' : 'No'}\nUser: ${user}\n\nSent at: ${new Date().toISOString()}`,
+        text: `SMTP Test Successful!\n\nServer: ${host}\nPort: ${port}\nSecure: ${secure ? 'Yes' : 'No'}\n\nSent at: ${new Date().toISOString()}`,
       });
 
       return NextResponse.json({
@@ -135,7 +134,6 @@ export async function POST(request: NextRequest) {
           host,
           port,
           secure,
-          user,
         }
       });
     } catch (sendError: any) {
