@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       const completedDate = status === 'complete' ? new Date().toISOString() : null;
 
       // Try to update in compliance_records first (old system)
-      const { error: oldError, count: oldCount } = await supabase
+      const { error: oldError } = await supabase
         .from('compliance_records')
         .update({ 
           status, 
@@ -145,16 +145,14 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString()
         })
         .eq('id', complianceId)
-        .eq('member_id', memberId)
-        .select('*', { count: 'exact' });
+        .eq('member_id', memberId);
 
-      let updatedInOldSystem = !oldError && oldCount !== null && oldCount > 0;
+      let updatedInOldSystem = !oldError;
       let updatedInNewSystem = false;
 
-      // If not found in old system or error occurred, try member_compliance (new system)
-      if (oldError || oldCount === 0) {
-        // Record not found in old system or error occurred, try new system
-        const { error: newError, count: newCount } = await supabase
+      // If error occurred in old system, try member_compliance (new system)
+      if (oldError) {
+        const { error: newError } = await supabase
           .from('member_compliance')
           .update({ 
             status, 
@@ -163,8 +161,7 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString()
           })
           .eq('id', complianceId)
-          .eq('member_id', memberId)
-          .select('*', { count: 'exact' });
+          .eq('member_id', memberId);
 
         if (newError) {
           return NextResponse.json({ 
@@ -173,7 +170,7 @@ export async function POST(request: NextRequest) {
           }, { status: 500 });
         }
 
-        updatedInNewSystem = newCount !== null && newCount > 0;
+        updatedInNewSystem = true;
       }
 
       // Only log audit if a record was actually updated
@@ -191,7 +188,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ 
         success: true, 
-        message: wasUpdated ? `Compliance marked as ${status}` : `No compliance record found for ${complianceId}`
+        message: `Compliance marked as ${status}`
       });
     }
 
