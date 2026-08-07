@@ -260,7 +260,6 @@ export class EnterpriseDocumentService {
     
     if (!bucketExists) {
       // Try to create the bucket
-      console.log(`Creating storage bucket: ${bucket}`);
       const { error: createBucketError } = await supabase.storage.createBucket(bucket, {
         public: false,
       });
@@ -287,10 +286,8 @@ export class EnterpriseDocumentService {
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
     const publicUrl = urlData.publicUrl;
 
-    // Determine initial status
-    const initialStatus: DocumentStatus = options.behaviorOverrides?.requireVerification 
-      ? 'pending' 
-      : 'pending';
+    // All documents start as pending (verified by requireVerification flag)
+    const initialStatus: DocumentStatus = 'pending';
 
     // Create document record
     const documentId = uuidv4();
