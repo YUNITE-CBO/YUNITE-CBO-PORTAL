@@ -96,31 +96,30 @@ export async function GET(request: NextRequest) {
 
     // Get document categories for a module
     if (categories && module) {
-      const { createServiceClient } = await import('@/lib/supabase/server');
       const { ModuleConfigurations } = await import('@/lib/services/documents/module-configurations');
       
-      const supabase = await createServiceClient();
-      const { data: dbCategories } = await supabase
-        .from('document_categories')
-        .select('*')
-        .eq('module', module)
-        .eq('is_active', true)
-        .order('sort_order');
-      
-      // Merge with config file values (config takes precedence for limits)
+      // Use config file as the authoritative source for categories
       const config = ModuleConfigurations[module as keyof typeof ModuleConfigurations];
-      const mergedCategories = (dbCategories || []).map(cat => {
-        const configCategory = config?.categories ? 
-          Object.values(config.categories).find(c => c.code === cat.code) : null;
-        
-        return {
-          ...cat,
-          // Override max_file_size_mb from config if available
-          max_file_size_mb: configCategory?.maxFileSizeMb ?? cat.max_file_size_mb,
-        };
-      });
+      if (!config?.categories) {
+        return NextResponse.json({ success: false, error: 'Module not found' }, { status: 404 });
+      }
       
-      return NextResponse.json({ success: true, data: mergedCategories });
+      // Convert config categories to API response format
+      const categoriesData = Object.values(config.categories).map((cat, index) => ({
+        code: cat.code,
+        name: cat.name,
+        description: cat.description,
+        module: module,
+        is_required: cat.isRequired,
+        is_active: true,
+        sort_order: cat.sortOrder ?? index + 1,
+        allowed_mime_types: cat.allowedMimeTypes,
+        max_file_size_mb: cat.maxFileSizeMb ?? 100,
+        expiry_required: cat.expiryRequired ?? false,
+        expiry_years: cat.expiryYears,
+      }));
+      
+      return NextResponse.json({ success: true, data: categoriesData });
     }
 
     // Get member compliance status AND documents
