@@ -509,6 +509,7 @@ export class EnterpriseDocumentService {
       categoryCode?: string;
       status?: DocumentStatus;
       includeArchived?: boolean;
+      includeDeleted?: boolean;
     }
   ): Promise<EnterpriseDocument[]> {
     const supabase = await createServiceClient();
@@ -531,8 +532,10 @@ export class EnterpriseDocumentService {
       query = query.eq('is_archived', false);
     }
 
-    // Exclude soft-deleted documents by default
-    query = query.neq('status', 'deleted');
+    // Exclude soft-deleted documents unless explicitly included
+    if (!options?.includeDeleted) {
+      query = query.neq('status', 'deleted');
+    }
 
     query = query.order('uploaded_at', { ascending: false });
 
