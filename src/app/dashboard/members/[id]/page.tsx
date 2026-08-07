@@ -97,20 +97,29 @@ interface Fine {
 
 interface Document {
   id: string;
+  document_ref: string;
   document_type: string;
   document_name: string;
   file_url: string;
   file_size: number;
+  fileSize?: number;
   mime_type: string;
+  mimeType?: string;
   status: string;
   expiry_date: string | null;
+  expiryDate?: string | null;
   verified_at: string | null;
   verified_by: string | null;
   verification_notes: string | null;
   created_at: string;
+  uploadedAt?: string;
   category_name: string;
   category_code: string;
+  categoryCode?: string;
   is_required: boolean;
+  fileName?: string;
+  publicUrl?: string;
+  file_path?: string;
 }
 
 interface ActivityEvent {
