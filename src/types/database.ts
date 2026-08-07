@@ -594,9 +594,14 @@ export interface Database {
           verification_notes: string | null;
           visibility: 'public' | 'authenticated' | 'admin' | 'owner';
         };
-        Insert: Omit<Database['public']['Tables']['documents']['Row'], 'id' | 'created_at'> & {
+        Insert: Omit<Database['public']['Tables']['documents']['Row'], 'id' | 'created_at' | 'is_verified' | 'is_expired' | 'reminder_sent' | 'reminder_count' | 'visibility'> & {
           id?: string;
           created_at?: string;
+          is_verified?: boolean;
+          is_expired?: boolean;
+          reminder_sent?: boolean;
+          reminder_count?: number;
+          visibility?: 'public' | 'authenticated' | 'admin' | 'owner';
         };
         Update: Partial<Database['public']['Tables']['documents']['Insert']>;
       };
