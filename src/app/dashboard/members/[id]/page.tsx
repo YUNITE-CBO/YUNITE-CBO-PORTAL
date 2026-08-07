@@ -1317,43 +1317,41 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
 
       {actionModal === 'view_document' && selectedDocument && (
         <Modal title="View Document" onClose={() => { setActionModal(null); setSelectedDocument(null); }} className="max-w-4xl">
-          <>
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-sm font-medium text-gray-700">{selectedDocument.originalFileName || selectedDocument.fileName || selectedDocument.original_file_name}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Size: {formatFileSize(selectedDocument.fileSize || selectedDocument.file_size)} |
-                  Type: {selectedDocument.mimeType || selectedDocument.mime_type} |
-                  Uploaded: {formatDate(selectedDocument.uploadedAt || selectedDocument.created_at)}
-                </p>
-              </div>
-              <div className="border rounded-lg overflow-hidden bg-gray-100 min-h-[400px] flex items-center justify-center">
-                {(selectedDocument.mimeType || selectedDocument.mime_type)?.startsWith('image/') ? (
-                  <img
-                    src={selectedDocument.publicUrl || selectedDocument.file_url}
-                    alt={selectedDocument.originalFileName || selectedDocument.fileName || 'Document'}
-                    className="max-w-full max-h-[60vh] object-contain"
-                  />
-                ) : (selectedDocument.mimeType || selectedDocument.mime_type)?.includes('pdf') ? (
-                  <iframe
-                    src={selectedDocument.publicUrl || selectedDocument.file_url}
-                    className="w-full h-[60vh]"
-                    title="Document Preview"
-                  />
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500 mb-4">Preview not available for this file type</p>
-                    <a
-                      href={selectedDocument.publicUrl || selectedDocument.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                    >
-                      Download to View
-                    </a>
-                  </div>
-                )}
-              </div>
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <p className="text-sm font-medium text-gray-700">{selectedDocument.originalFileName || selectedDocument.fileName || selectedDocument.original_file_name}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Size: {formatFileSize(selectedDocument.fileSize || selectedDocument.file_size)} |
+                Type: {selectedDocument.mimeType || selectedDocument.mime_type} |
+                Uploaded: {formatDate(selectedDocument.uploadedAt || selectedDocument.created_at)}
+              </p>
+            </div>
+            <div className="border rounded-lg overflow-hidden bg-gray-100 min-h-[400px] flex items-center justify-center">
+              {(selectedDocument.mimeType || selectedDocument.mime_type)?.startsWith('image/') ? (
+                <img
+                  src={selectedDocument.publicUrl || selectedDocument.file_url}
+                  alt={selectedDocument.originalFileName || selectedDocument.fileName || 'Document'}
+                  className="max-w-full max-h-[60vh] object-contain"
+                />
+              ) : (selectedDocument.mimeType || selectedDocument.mime_type)?.includes('pdf') ? (
+                <iframe
+                  src={selectedDocument.publicUrl || selectedDocument.file_url}
+                  className="w-full h-[60vh]"
+                  title="Document Preview"
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 mb-4">Preview not available for this file type</p>
+                  <a
+                    href={selectedDocument.publicUrl || selectedDocument.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    Download to View
+                  </a>
+                </div>
+              )}
             </div>
             <ModalActions>
               <button onClick={() => { setActionModal(null); setSelectedDocument(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Close</button>
@@ -1361,10 +1359,9 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                 <button onClick={() => { setVerificationForm({ status: 'verified', notes: '' }); setActionModal('verify_document'); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Verify Document</button>
               )}
             </ModalActions>
-          </>
+          </div>
         </Modal>
       )}
-
 
       {(actionModal === 'savings_deposit' || actionModal === 'savings_withdrawal' || actionModal === 'contribution') && (
         <TransactionModal
