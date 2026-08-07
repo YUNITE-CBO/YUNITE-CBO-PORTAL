@@ -168,8 +168,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Log the action
-      await supabase.from('audit_logs').insert({
+      // Log the action (non-blocking - audit failure shouldn't fail the operation)
+      const { error: actionAuditError } = await supabase.from('audit_logs').insert({
         id: uuidv4(),
         user_id: session.user.id,
         action: `compliance.${status}`,
@@ -177,6 +177,9 @@ export async function POST(request: NextRequest) {
         description: `Compliance ${status} for member ${memberId}`,
         created_at: new Date().toISOString(),
       });
+      if (actionAuditError) {
+        console.error('Audit log insert failed (non-critical):', actionAuditError);
+      }
 
       return NextResponse.json({ 
         success: true, 
@@ -197,7 +200,7 @@ export async function POST(request: NextRequest) {
       const completedDate = status === 'complete' ? new Date().toISOString() : null;
 
       // Update all compliance_records for this member
-      await supabase
+      const { error: oldBatchError } = await supabase
         .from('compliance_records')
         .update({ 
           status, 
@@ -207,8 +210,14 @@ export async function POST(request: NextRequest) {
         })
         .eq('member_id', memberId);
 
+      // Get count of updated old compliance records
+      const { count: oldCount } = await supabase
+        .from('compliance_records')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', memberId);
+
       // Update all member_compliance for this member
-      await supabase
+      const { error: newBatchError } = await supabase
         .from('member_compliance')
         .update({ 
           status, 
@@ -218,9 +227,39 @@ export async function POST(request: NextRequest) {
         })
         .eq('member_id', memberId);
 
+      // Get count of updated new compliance records
+      const { count: newCount } = await supabase
+        .from('member_compliance')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', memberId);
+
+      if (oldBatchError || newBatchError) {
+        console.error('Batch update error:', { oldBatchError, newBatchError });
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Failed to update compliance records' 
+        }, { status: 500 });
+      }
+
+      const totalUpdated = (oldCount || 0) + (newCount || 0);
+
+      // Log the batch action (non-blocking - audit failure shouldn't fail the operation)
+      const { error: auditError } = await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        user_id: session.user.id,
+        action: `compliance.batch_${status}`,
+        record_id: memberId,
+        description: `Batch updated ${totalUpdated} compliance records to ${status} for member ${memberId}`,
+        created_at: new Date().toISOString(),
+      });
+      if (auditError) {
+        console.error('Audit log insert failed (non-critical):', auditError);
+      }
+
       return NextResponse.json({ 
         success: true, 
-        message: `All compliance records marked as ${status}` 
+        message: `All compliance records marked as ${status}`,
+        updated_count: totalUpdated
       });
     }
 
@@ -281,8 +320,8 @@ export async function POST(request: NextRequest) {
         .update({ status: 'active' })
         .eq('id', memberId);
 
-      // Log to audit
-      await supabase.from('audit_logs').insert({
+      // Log to audit (non-blocking - audit failure shouldn't fail the operation)
+      const { error: approveAuditError } = await supabase.from('audit_logs').insert({
         id: uuidv4(),
         user_id: session.user.id,
         action: 'member.approved',
@@ -290,6 +329,9 @@ export async function POST(request: NextRequest) {
         description: `Member approved after compliance review`,
         created_at: new Date().toISOString(),
       });
+      if (approveAuditError) {
+        console.error('Audit log insert failed (non-critical):', approveAuditError);
+      }
 
       return NextResponse.json({ success: true, message: 'Member approved successfully' });
     }
@@ -308,8 +350,8 @@ export async function POST(request: NextRequest) {
         })
         .eq('member_id', memberId);
 
-      // Log to audit
-      await supabase.from('audit_logs').insert({
+      // Log to audit (non-blocking - audit failure shouldn't fail the operation)
+      const { error: rejectAuditError } = await supabase.from('audit_logs').insert({
         id: uuidv4(),
         user_id: session.user.id,
         action: 'member.rejected',
@@ -317,6 +359,9 @@ export async function POST(request: NextRequest) {
         description: `Member rejected: ${notes || 'No reason provided'}`,
         created_at: new Date().toISOString(),
       });
+      if (rejectAuditError) {
+        console.error('Audit log insert failed (non-critical):', rejectAuditError);
+      }
 
       return NextResponse.json({ success: true, message: 'Member rejected' });
     }
