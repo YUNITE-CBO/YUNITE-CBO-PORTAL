@@ -197,7 +197,7 @@ const WORKFLOW_STAGES = [
 type ProfileSection = 'overview' | 'documents' | 'compliance' | 'financial' | 'loans' | 'timeline' | 'kyc' | 'committees' | 'settings';
 type ActionModal = 'edit_profile' | 'edit_contact' | 'savings_deposit' | 'savings_withdrawal' | 'contribution' | 'fine' | 
   'approve' | 'reject' | 'suspend' | 'reactivate' | 'archive' |
-  'upload_document' | 'verify_document' | 'view_document' | 'edit_next_of_kin' | 'edit_emergency' | 'edit_employment' | 'edit_preferences' | null;
+  'upload_document' | 'verify_document' | 'view_document' | 'delete_document' | 'edit_next_of_kin' | 'edit_emergency' | 'edit_employment' | 'edit_preferences' | null;
 
 // ============================================
 // MAIN COMPONENT
