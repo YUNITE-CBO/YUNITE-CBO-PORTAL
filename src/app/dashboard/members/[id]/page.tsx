@@ -1290,12 +1290,14 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
 
       {actionModal === 'verify_document' && selectedDocument && (
         <Modal title="Verify Document" onClose={() => { setActionModal(null); setSelectedDocument(null); }}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500">{selectedDocument.category_name}</p>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Verification Status</label><select value={verificationForm.status} onChange={(e) => setVerificationForm({ ...verificationForm, status: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"><option value="verified">Verified</option><option value="rejected">Rejected</option></select></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Notes</label><textarea value={verificationForm.notes} onChange={(e) => setVerificationForm({ ...verificationForm, notes: e.target.value })} placeholder="Add verification notes..." rows={3} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
-          </div>
-          <ModalActions><button onClick={() => { setActionModal(null); setSelectedDocument(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button onClick={handleVerifyDocument} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">{submitting ? 'Processing...' : 'Confirm'}</button></ModalActions>
+          <>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500">{selectedDocument.category_name}</p>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Verification Status</label><select value={verificationForm.status} onChange={(e) => setVerificationForm({ ...verificationForm, status: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"><option value="verified">Verified</option><option value="rejected">Rejected</option></select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Notes</label><textarea value={verificationForm.notes} onChange={(e) => setVerificationForm({ ...verificationForm, notes: e.target.value })} placeholder="Add verification notes..." rows={3} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+            </div>
+            <ModalActions><button onClick={() => { setActionModal(null); setSelectedDocument(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button onClick={handleVerifyDocument} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">{submitting ? 'Processing...' : 'Confirm'}</button></ModalActions>
+          </>
         </Modal>
       )}
 
