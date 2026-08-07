@@ -167,9 +167,7 @@ export class TransactionEngine {
     
     console.log('Reversing transaction:', {
       id: original.id,
-      type: original.transaction_type,
-      amount: original.amount,
-      metadata: original.metadata
+      type: original.transaction_type
     });
 
     if (original.reversed) throw new Error('Already reversed');
@@ -290,7 +288,7 @@ export class TransactionEngine {
         if (loanUpdateError) {
           console.error('Error updating loan:', loanUpdateError);
         } else {
-          console.log('Loan updated:', { newAmountPaid, newAmountDue, newStatus });
+          console.log('Loan updated:', { loanId, newStatus });
         }
       }
     }
@@ -356,7 +354,7 @@ export class TransactionEngine {
         if (fineUpdateError) {
           console.error('Error updating fine:', fineUpdateError);
         } else {
-          console.log('Fine updated:', { priorAmountPaid, newStatus });
+          console.log('Fine updated:', { fineId, newStatus });
         }
       }
     }
@@ -408,7 +406,7 @@ export class TransactionEngine {
 
     // Calculate final balances
     const balances = await this.calculateAllBalances(original.member_id);
-    console.log('Final balances:', balances);
+    console.log('Reversal completed:', { reversal_id: reversal.id, reversal_status: 'success' });
     
     return { reversal, balances };
   }
