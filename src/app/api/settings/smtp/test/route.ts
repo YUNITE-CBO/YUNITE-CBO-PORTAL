@@ -49,10 +49,22 @@ export async function POST(request: NextRequest) {
     try {
       await transporter.verify();
     } catch (connError: any) {
+      let helpfulMessage = connError.message;
+      
+      // Check for common hosting platform blocking issues
+      if (connError.message.includes('timeout') || connError.message.includes('ECONNREFUSED')) {
+        helpfulMessage = `SMTP connection timeout - Your hosting provider may be blocking outbound SMTP connections.\n\n` +
+          `Common solutions:\n` +
+          `1. If using Render Free tier - Upgrade to Starter ($7/month)\n` +
+          `2. Use SendGrid/Mailgun API instead of SMTP\n` +
+          `3. Use AWS SES or Postmark email service\n\n` +
+          `Original error: ${connError.message}`;
+      }
+      
       return NextResponse.json({
         success: false,
         error: 'Connection failed',
-        details: connError.message,
+        details: helpfulMessage,
         stage: 'connection'
       }, { status: 400 });
     }
