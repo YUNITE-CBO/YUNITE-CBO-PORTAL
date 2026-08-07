@@ -227,6 +227,8 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
   
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   
@@ -463,6 +465,33 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       if (data.success) { showMessage('success', `Document ${verificationForm.status}`); setActionModal(null); setSelectedDocument(null); fetchDocuments(); fetchActivities(); }
       else showMessage('error', data.error || 'Failed to verify document');
     } catch { showMessage('error', 'Failed to verify document'); } finally { setSubmitting(false); }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!selectedDocument) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/documents/${selectedDocument.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: deleteReason })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMessage('success', 'Document deleted successfully');
+        setActionModal(null);
+        setSelectedDocument(null);
+        setDeleteReason('');
+        fetchDocuments();
+        fetchActivities();
+      } else {
+        showMessage('error', data.error || 'Failed to delete document');
+      }
+    } catch {
+      showMessage('error', 'Failed to delete document');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -829,6 +858,9 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                         <button onClick={() => { setSelectedDocument(doc); setActionModal('view_document'); }} className="text-xs text-blue-600 hover:text-blue-800">View</button>
                         {isAdmin && doc.status !== 'verified' && (
                           <button onClick={() => { setSelectedDocument(doc); setVerificationForm({ status: 'verified', notes: '' }); setActionModal('verify_document'); }} className="text-xs text-indigo-600 hover:text-indigo-800">Verify</button>
+                        )}
+                        {isAdmin && (
+                          <button onClick={() => { setSelectedDocument(doc); setActionModal('delete_document'); }} className="text-xs text-red-600 hover:text-red-800">Delete</button>
                         )}
                       </div>
                     </div>
@@ -1352,6 +1384,61 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
             {isAdmin && selectedDocument.status !== 'verified' && (
               <button onClick={() => { setVerificationForm({ status: 'verified', notes: '' }); setActionModal('verify_document'); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Verify Document</button>
             )}
+            {isAdmin && (
+              <button onClick={() => { setActionModal('delete_document'); }} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+            )}
+          </ModalActions>
+        </Modal>
+      )}
+
+      {actionModal === 'delete_document' && selectedDocument && (
+        <Modal title="Delete Document" onClose={() => { setActionModal(null); setSelectedDocument(null); setDeleteReason(''); }}>
+          <div className="space-y-4">
+            <div className="flex items-start gap-4 p-4 bg-red-50 rounded-lg border border-red-200">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-medium text-red-900">Confirm Document Deletion</h4>
+                <p className="text-sm text-red-700 mt-1">This action cannot be undone. The document will be permanently removed.</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-3 border">
+              <p className="text-sm font-medium text-gray-900">{selectedDocument.fileName || selectedDocument.document_name}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedDocument.categoryCode || selectedDocument.category_name} • {formatFileSize(selectedDocument.fileSize || selectedDocument.file_size)} • Uploaded {formatDate(selectedDocument.uploadedAt || selectedDocument.created_at)}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason for deletion <span className="text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="Enter reason for deleting this document..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                rows={3}
+              />
+            </div>
+          </div>
+          <ModalActions>
+            <button onClick={() => { setActionModal(null); setSelectedDocument(null); setDeleteReason(''); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onClick={handleDeleteDocument} disabled={deleting} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
+              {deleting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Deleting...
+                </>
+              ) : 'Delete Document'}
+            </button>
           </ModalActions>
         </Modal>
       )}
