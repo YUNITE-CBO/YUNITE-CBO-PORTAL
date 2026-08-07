@@ -268,9 +268,8 @@ export class ConfigurationService {
         user_agent: userAgent || null,
         created_at: new Date().toISOString(),
       });
-    } catch (e) {
+    } catch {
       // Configuration history table may not exist - that's ok
-      console.warn('Failed to record configuration history:', e);
     }
 
     // Also record in audit logs (optional - wrap in try-catch)
@@ -286,9 +285,8 @@ export class ConfigurationService {
         ip_address: ipAddress,
         created_at: new Date().toISOString(),
       });
-    } catch (e) {
+    } catch {
       // Audit logs may fail - that's ok, main update succeeded
-      console.warn('Failed to record audit log:', e);
     }
 
     return { success: true };
