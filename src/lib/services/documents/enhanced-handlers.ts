@@ -42,10 +42,12 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
   async validateUpload(options: DocumentUploadOptions): Promise<{ valid: boolean; error?: string; warnings?: string[] }> {
     const warnings: string[] = [];
     
-    const category = this.config.categories[options.categoryCode as keyof typeof this.config.categories];
-    if (!category) {
+    // Find category by code property, not object key
+    const categoryConfig = Object.values(this.config.categories).find(c => c.code === options.categoryCode);
+    if (!categoryConfig) {
       return { valid: false, error: 'Unknown document category' };
     }
+    const category = categoryConfig;
 
     // Check file size
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
@@ -209,10 +211,11 @@ export class LoanDocumentHandler implements ModuleDocumentHandler {
   private config = LoanDocumentsConfig;
 
   async validateUpload(options: DocumentUploadOptions): Promise<{ valid: boolean; error?: string; warnings?: string[] }> {
-    const category = this.config.categories[options.categoryCode as keyof typeof this.config.categories];
-    if (!category) {
+    const categoryConfig = Object.values(this.config.categories).find(c => c.code === options.categoryCode);
+    if (!categoryConfig) {
       return { valid: false, error: 'Unknown document category' };
     }
+    const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
@@ -289,10 +292,11 @@ export class FinancialDocumentHandler implements ModuleDocumentHandler {
   private config = FinancialDocumentsConfig;
 
   async validateUpload(options: DocumentUploadOptions): Promise<{ valid: boolean; error?: string; warnings?: string[] }> {
-    const category = this.config.categories[options.categoryCode as keyof typeof this.config.categories];
-    if (!category) {
+    const categoryConfig = Object.values(this.config.categories).find(c => c.code === options.categoryCode);
+    if (!categoryConfig) {
       return { valid: false, error: 'Unknown document category' };
     }
+    const category = categoryConfig;
 
     // Set retention period
     const retentionDays = category.retentionDays || this.config.retention?.default || 365;
@@ -330,10 +334,11 @@ export class MeetingDocumentHandler implements ModuleDocumentHandler {
   private config = MeetingDocumentsConfig;
 
   async validateUpload(options: DocumentUploadOptions): Promise<{ valid: boolean; error?: string; warnings?: string[] }> {
-    const category = this.config.categories[options.categoryCode as keyof typeof this.config.categories];
-    if (!category) {
+    const categoryConfig = Object.values(this.config.categories).find(c => c.code === options.categoryCode);
+    if (!categoryConfig) {
       return { valid: false, error: 'Unknown document category' };
     }
+    const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
@@ -397,10 +402,11 @@ export class OrganizationDocumentHandler implements ModuleDocumentHandler {
   private config = OrganizationDocumentsConfig;
 
   async validateUpload(options: DocumentUploadOptions): Promise<{ valid: boolean; error?: string; warnings?: string[] }> {
-    const category = this.config.categories[options.categoryCode as keyof typeof this.config.categories];
-    if (!category) {
+    const categoryConfig = Object.values(this.config.categories).find(c => c.code === options.categoryCode);
+    if (!categoryConfig) {
       return { valid: false, error: 'Unknown document category' };
     }
+    const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
@@ -463,10 +469,11 @@ export class NotificationDocumentHandler implements ModuleDocumentHandler {
   private config = NotificationDocumentsConfig;
 
   async validateUpload(options: DocumentUploadOptions): Promise<{ valid: boolean; error?: string; warnings?: string[] }> {
-    const category = this.config.categories[options.categoryCode as keyof typeof this.config.categories];
-    if (!category) {
+    const categoryConfig = Object.values(this.config.categories).find(c => c.code === options.categoryCode);
+    if (!categoryConfig) {
       return { valid: false, error: 'Unknown document category' };
     }
+    const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
@@ -499,8 +506,8 @@ export class StatementDocumentHandler implements ModuleDocumentHandler {
   private config = StatementDocumentsConfig;
 
   async validateUpload(options: DocumentUploadOptions): Promise<{ valid: boolean; error?: string; warnings?: string[] }> {
-    const category = this.config.categories[options.categoryCode as keyof typeof this.config.categories];
-    if (!category) {
+    const categoryConfig = Object.values(this.config.categories).find(c => c.code === options.categoryCode);
+    if (!categoryConfig) {
       return { valid: false, error: 'Unknown document category' };
     }
 
@@ -530,10 +537,11 @@ export class WelfareDocumentHandler implements ModuleDocumentHandler {
   private config = WelfareDocumentsConfig;
 
   async validateUpload(options: DocumentUploadOptions): Promise<{ valid: boolean; error?: string; warnings?: string[] }> {
-    const category = this.config.categories[options.categoryCode as keyof typeof this.config.categories];
-    if (!category) {
+    const categoryConfig = Object.values(this.config.categories).find(c => c.code === options.categoryCode);
+    if (!categoryConfig) {
       return { valid: false, error: 'Unknown document category' };
     }
+    const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 10 * 1024 * 1024;
