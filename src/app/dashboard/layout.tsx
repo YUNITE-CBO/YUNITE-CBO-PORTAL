@@ -60,6 +60,9 @@ export default function DashboardLayout({
     const fetchNotifications = async () => {
       try {
         const res = await fetch(`/api/notifications?recipient_id=${user.id}&recipient_type=user&limit=10`);
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         const data = await res.json();
         if (data.success) {
           setNotifications(data.data || []);
@@ -91,15 +94,21 @@ export default function DashboardLayout({
   // Mark notification as read
   const markAsRead = async (notificationId: string) => {
     try {
-      await fetch(`/api/notifications/actions`, {
+      const res = await fetch(`/api/notifications/actions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'mark_read', notification_id: notificationId }),
       });
-      setNotifications(prev =>
-        prev.map(n => n.id === notificationId ? { ...n, status: 'read', read_at: new Date().toISOString() } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.success) {
+        setNotifications(prev =>
+          prev.map(n => n.id === notificationId ? { ...n, status: 'read', read_at: new Date().toISOString() } : n)
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
     }
