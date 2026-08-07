@@ -260,13 +260,12 @@ export class EnterpriseDocumentService {
     
     if (!bucketExists) {
       // Try to create the bucket
-      console.log(`Creating storage bucket: ${bucket}`);
       const { error: createBucketError } = await supabase.storage.createBucket(bucket, {
         public: false,
       });
       
       if (createBucketError && createBucketError.message !== 'Bucket already exists') {
-        console.error('Failed to create bucket:', createBucketError);
+        console.error('Failed to create bucket:', createBucketError.message);
         return { success: false, error: `Storage bucket '${bucket}' not found. Please create it in Supabase Dashboard.` };
       }
     }
