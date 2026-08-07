@@ -290,7 +290,7 @@ export class EnterpriseDocumentService {
     // Determine initial status
     const initialStatus: DocumentStatus = options.behaviorOverrides?.requireVerification 
       ? 'pending' 
-      : 'draft';
+      : 'pending';
 
     // Create document record
     const documentId = uuidv4();
