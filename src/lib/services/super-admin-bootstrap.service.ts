@@ -201,8 +201,6 @@ export class SuperAdminBootstrapService {
 
     // Create notification preferences for the new user
     await this.createNotificationPreferences(userId);
-
-    console.log(`[SuperAdminBootstrap] ✅ Super Admin created: ${config.email}`);
     
     return {
       success: true,
@@ -281,8 +279,6 @@ export class SuperAdminBootstrapService {
         };
       }
       
-      console.log(`[SuperAdminBootstrap] ℹ️ Super Admin updated: ${config.email}`, { changes });
-      
       return {
         success: true,
         action: 'updated',
@@ -303,8 +299,6 @@ export class SuperAdminBootstrapService {
     }
     
     // No changes needed
-    console.log(`[SuperAdminBootstrap] ✓ Super Admin verified: ${config.email}`);
-    
     return {
       success: true,
       action: 'verified',

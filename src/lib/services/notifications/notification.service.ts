@@ -83,7 +83,6 @@ export class NotificationService {
         .single();
       
       if (existing) {
-        console.log('Duplicate notification skipped:', data.idempotency_key);
         return { id: existing.id, ref: existing.notification_ref };
       }
     }
