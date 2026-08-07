@@ -51,7 +51,7 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
 
     // Check file size
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxFileSizeMb ?? 50 * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
       return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
     }
@@ -218,7 +218,7 @@ export class LoanDocumentHandler implements ModuleDocumentHandler {
     const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxFileSizeMb ?? 50 * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
       return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
     }
@@ -341,7 +341,7 @@ export class MeetingDocumentHandler implements ModuleDocumentHandler {
     const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxFileSizeMb ?? 50 * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
       return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
     }
@@ -409,7 +409,7 @@ export class OrganizationDocumentHandler implements ModuleDocumentHandler {
     const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxFileSizeMb ?? 50 * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
       return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
     }
@@ -476,7 +476,7 @@ export class NotificationDocumentHandler implements ModuleDocumentHandler {
     const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxFileSizeMb ?? 50 * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
       return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
     }
@@ -544,7 +544,7 @@ export class WelfareDocumentHandler implements ModuleDocumentHandler {
     const category = categoryConfig;
 
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
-    const maxBytes = category.maxFileSizeMb ?? 50 * 1024 * 1024;
+    const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
       return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
     }
