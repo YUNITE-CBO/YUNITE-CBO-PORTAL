@@ -53,7 +53,7 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 100}MB` };
     }
 
     // Check mime type
@@ -220,7 +220,7 @@ export class LoanDocumentHandler implements ModuleDocumentHandler {
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 100}MB` };
     }
 
     const mimeType = options.file instanceof File ? options.file.type : '';
@@ -343,7 +343,7 @@ export class MeetingDocumentHandler implements ModuleDocumentHandler {
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 100}MB` };
     }
 
     return { valid: true };
@@ -411,7 +411,7 @@ export class OrganizationDocumentHandler implements ModuleDocumentHandler {
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 100}MB` };
     }
 
     const mimeType = options.file instanceof File ? options.file.type : '';
@@ -478,7 +478,7 @@ export class NotificationDocumentHandler implements ModuleDocumentHandler {
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 100}MB` };
     }
 
     return { valid: true };
@@ -546,7 +546,7 @@ export class WelfareDocumentHandler implements ModuleDocumentHandler {
     const fileSize = options.file instanceof File ? options.file.size : options.file.length;
     const maxBytes = category.maxFileSizeMb ?? 100 * 1024 * 1024;
     if (fileSize > maxBytes) {
-      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 50}MB` };
+      return { valid: false, error: `File size exceeds maximum of ${category.maxFileSizeMb ?? 100}MB` };
     }
 
     // Mark sensitive documents based on visibility
