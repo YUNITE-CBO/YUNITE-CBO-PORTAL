@@ -79,7 +79,7 @@ export const MemberDocumentsConfig = {
       code: 'member_proof_residence',
       name: 'Proof of Residence',
       description: 'Utility bill or official document showing current address',
-      isRequired: true,
+      isRequired: false,
       maxFileSizeMb: 100,
       allowedMimeTypes: ['image/jpeg', 'image/png', 'application/pdf'],
       lifecycle: ['draft', 'pending', 'approved'],
@@ -91,7 +91,7 @@ export const MemberDocumentsConfig = {
       code: 'member_application_form',
       name: 'Membership Application Form',
       description: 'Signed membership application form',
-      isRequired: true,
+      isRequired: false,
       maxFileSizeMb: 100,
       allowedMimeTypes: ['application/pdf'],
       lifecycle: ['draft', 'pending', 'approved'],
@@ -105,7 +105,7 @@ export const MemberDocumentsConfig = {
       code: 'member_agreement',
       name: 'Member Agreement',
       description: 'Signed membership agreement/contract',
-      isRequired: true,
+      isRequired: false,
       maxFileSizeMb: 100,
       allowedMimeTypes: ['application/pdf'],
       lifecycle: ['draft', 'pending', 'approved'],
@@ -172,8 +172,7 @@ export const MemberDocumentsConfig = {
   
   // Compliance rules
   compliance: {
-    requiredForApproval: ['member_passport_photo', 'member_national_id', 'member_kra_pin', 
-                        'member_proof_residence', 'member_application_form', 'member_agreement'],
+    requiredForApproval: ['member_passport_photo', 'member_national_id', 'member_kra_pin'],
     autoApprovalThreshold: 100, // Percentage
     reminderDays: [30, 7, 1], // Days before expiry to send reminders
   },
