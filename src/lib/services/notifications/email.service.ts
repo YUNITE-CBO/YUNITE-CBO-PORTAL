@@ -1,7 +1,8 @@
 /**
- * EMAIL SERVICE - SMTP Email Delivery Engine
+ * EMAIL SERVICE - Email Delivery Engine
  * 
- * Handles all email delivery with retry logic, tracking, and logging.
+ * Supports both SMTP and Mailgun API for email delivery.
+ * Mailgun is preferred as it works on all hosting platforms.
  */
 
 import nodemailer from 'nodemailer';
@@ -31,14 +32,16 @@ export interface EmailDeliveryResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  provider?: 'smtp' | 'mailgun';
 }
 
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
   private isConfigured: boolean = false;
+  private useMailgun: boolean = false;
 
   /**
-   * Initialize SMTP transporter
+   * Initialize SMTP transporter (fallback)
    */
   private async initializeTransporter(): Promise<boolean> {
     if (this.transporter) return this.isConfigured;
@@ -52,13 +55,13 @@ export class EmailService {
       const password = await settingsService.get('smtp.password') || process.env.SMTP_PASS;
 
       if (!host || !user) {
-        console.error('SMTP not configured - missing host or user');
+        console.log('SMTP not configured');
         this.isConfigured = false;
         return false;
       }
 
       if (!password) {
-        console.error('SMTP not configured - missing password');
+        console.log('SMTP password not configured');
         this.isConfigured = false;
         return false;
       }
@@ -79,6 +82,7 @@ export class EmailService {
       } as any);
 
       this.isConfigured = true;
+      this.useMailgun = false;
       return true;
     } catch (error) {
       console.error('Failed to initialize SMTP transporter:', error);
@@ -88,12 +92,29 @@ export class EmailService {
   }
 
   /**
-   * Send email directly
+   * Check if Mailgun is configured
+   */
+  private async checkMailgunConfigured(): Promise<boolean> {
+    const apiKey = await settingsService.get('mailgun.api_key') || process.env.MAILGUN_API_KEY;
+    const domain = await settingsService.get('mailgun.domain') || process.env.MAILGUN_DOMAIN;
+    return !!(apiKey && domain);
+  }
+
+  /**
+   * Send email directly - uses Mailgun if configured, otherwise SMTP
    */
   async send(message: EmailMessage): Promise<EmailDeliveryResult> {
+    // Try Mailgun first (works on all hosting platforms)
+    const mailgunConfigured = await this.checkMailgunConfigured();
+    
+    if (mailgunConfigured) {
+      return await this.sendViaMailgun(message);
+    }
+
+    // Fall back to SMTP
     const configured = await this.initializeTransporter();
     if (!configured || !this.transporter) {
-      return { success: false, error: 'SMTP not configured' };
+      return { success: false, error: 'No email provider configured. Please set up Mailgun or SMTP.' };
     }
 
     // Try database first, then environment variables, then defaults
@@ -124,11 +145,70 @@ export class EmailService {
         attachments: message.attachments,
       });
 
-      console.log('Email sent:', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent via SMTP:', info.messageId);
+      return { success: true, messageId: info.messageId, provider: 'smtp' };
     } catch (error: any) {
-      console.error('Email send error:', error);
-      return { success: false, error: error.message || 'Failed to send email' };
+      console.error('SMTP send error:', error);
+      return { success: false, error: error.message || 'Failed to send email via SMTP', provider: 'smtp' };
+    }
+  }
+
+  /**
+   * Send email via Mailgun API
+   */
+  private async sendViaMailgun(message: EmailMessage): Promise<EmailDeliveryResult> {
+    try {
+      const formData = (await import('form-data')).default;
+      const Mailgun = (await import('mailgun.js')).default;
+      
+      const apiKey = (await settingsService.get('mailgun.api_key') || process.env.MAILGUN_API_KEY)!;
+      const domain = (await settingsService.get('mailgun.domain') || process.env.MAILGUN_DOMAIN)!;
+
+      const mailgun = new Mailgun(formData);
+      const client = mailgun.client({ username: 'api', key: apiKey });
+
+      const fromEmail = message.from 
+        || await settingsService.get('mailgun.from_email') 
+        || process.env.MAILGUN_FROM_EMAIL 
+        || 'noreply@yunite.ke';
+      const fromName = message.fromName 
+        || await settingsService.get('mailgun.from_name') 
+        || process.env.MAILGUN_FROM_NAME 
+        || 'YUNITE';
+      const replyTo = message.replyTo 
+        || await settingsService.get('mailgun.reply_to') 
+        || process.env.MAILGUN_REPLY_TO 
+        || undefined;
+
+      const from = `"${fromName}" <${fromEmail}>`;
+      const to = message.toName 
+        ? `"${message.toName}" <${message.to}>` 
+        : message.to;
+
+      const data: any = {
+        from,
+        to,
+        subject: message.subject,
+        html: message.htmlBody,
+        text: message.textBody || message.htmlBody.replace(/<[^>]*>/g, ''),
+      };
+
+      if (message.cc?.length) {
+        data.cc = message.cc.join(', ');
+      }
+      if (message.bcc?.length) {
+        data.bcc = message.bcc.join(', ');
+      }
+      if (replyTo) {
+        data['h:Reply-To'] = replyTo;
+      }
+
+      const result = await client.messages.create(domain, data);
+      console.log('Email sent via Mailgun:', result.id);
+      return { success: true, messageId: result.id, provider: 'mailgun' };
+    } catch (error: any) {
+      console.error('Mailgun send error:', error);
+      return { success: false, error: error.message || 'Failed to send email via Mailgun', provider: 'mailgun' };
     }
   }
 
@@ -390,19 +470,51 @@ export class EmailService {
   }
 
   /**
-   * Test SMTP connection
+   * Test email connection (tries Mailgun first, then SMTP)
    */
-  async testConnection(): Promise<{ success: boolean; message: string }> {
+  async testConnection(): Promise<{ success: boolean; message: string; provider?: string }> {
+    // Try Mailgun first
+    const mailgunConfigured = await this.checkMailgunConfigured();
+    
+    if (mailgunConfigured) {
+      try {
+        const formData = (await import('form-data')).default;
+        const Mailgun = (await import('mailgun.js')).default;
+        
+        const apiKey = (await settingsService.get('mailgun.api_key') || process.env.MAILGUN_API_KEY)!;
+        const domain = (await settingsService.get('mailgun.domain') || process.env.MAILGUN_DOMAIN)!;
+
+        const mailgun = new Mailgun(formData);
+        const client = mailgun.client({ username: 'api', key: apiKey });
+
+        const fromEmail = await settingsService.get('mailgun.from_email') || process.env.MAILGUN_FROM_EMAIL || 'test@example.com';
+        const fromName = await settingsService.get('mailgun.from_name') || process.env.MAILGUN_FROM_NAME || 'YUNITE';
+
+        const result = await client.messages.create(domain, {
+          from: `"${fromName}" <${fromEmail}>`,
+          to: [fromEmail],
+          subject: 'YUNITE Mailgun Test Email',
+          html: '<h1>✅ Test Successful!</h1><p>This is a test email from YUNITE via Mailgun.</p>',
+          text: 'Test Successful! This is a test email from YUNITE via Mailgun.',
+        });
+
+        return { success: true, message: `Mailgun connection successful! Test email sent to ${fromEmail}`, provider: 'mailgun' };
+      } catch (error: any) {
+        return { success: false, message: error.message || 'Mailgun connection failed', provider: 'mailgun' };
+      }
+    }
+
+    // Fall back to SMTP
     try {
       const configured = await this.initializeTransporter();
       if (!configured || !this.transporter) {
-        return { success: false, message: 'SMTP not configured' };
+        return { success: false, message: 'No email provider configured. Set up Mailgun or SMTP.', provider: 'none' };
       }
 
       await this.transporter.verify();
-      return { success: true, message: 'SMTP connection successful' };
+      return { success: true, message: 'SMTP connection successful', provider: 'smtp' };
     } catch (error: any) {
-      return { success: false, message: error.message || 'Connection failed' };
+      return { success: false, message: error.message || 'SMTP connection failed', provider: 'smtp' };
     }
   }
 
