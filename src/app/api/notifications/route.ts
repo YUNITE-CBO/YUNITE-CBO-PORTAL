@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { notificationService } from '@/lib/services/notifications';
+import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
 
 const sendNotificationSchema = z.object({
@@ -72,38 +73,16 @@ export async function GET(request: NextRequest) {
 // POST /api/notifications - Send notification
 export async function POST(request: NextRequest) {
   try {
-    // Verify auth token from cookie
-    const cookies = request.headers.get('cookie') || '';
-    const authTokenMatch = cookies.match(/auth_token=([^;]+)/);
-    
-    if (!authTokenMatch) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    // Authenticate and authorize via the centralized RBAC framework.
+    // This replaces hand-rolled cookie parsing / inline JWT verification and
+    // enforces the notifications.create permission (super_admin/admin/staff).
+    const authResult = await requirePermission(request, 'notifications', 'create');
+    if (!authResult.success || !authResult.user) {
+      return authResult.status === 401
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
     }
-
-    const token = authTokenMatch[1];
-    
-    // Verify JWT token
-    try {
-      const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars');
-      const { jwtVerify } = await import('jose');
-      const { payload } = await jwtVerify(token, secret);
-      
-      if (!payload.user_id) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid token payload' },
-          { status: 401 }
-        );
-      }
-    } catch (jwtError) {
-      console.error('JWT verification failed:', jwtError);
-      return NextResponse.json(
-        { success: false, error: 'Invalid or expired token' },
-        { status: 401 }
-      );
-    }
+    const currentUser = authResult.user;
 
     const body = await request.json();
     const validated = sendNotificationSchema.parse(body);
@@ -111,6 +90,11 @@ export async function POST(request: NextRequest) {
     const result = await notificationService.send({
       ...validated,
       scheduled_for: validated.scheduled_for ? new Date(validated.scheduled_for) : undefined,
+      // Attribute the notification to the authenticated sender unless the
+      // caller explicitly provided actor metadata.
+      actor_id: validated.actor_id || currentUser.user_id,
+      actor_type: validated.actor_type || 'user',
+      actor_name: validated.actor_name || currentUser.email,
     });
 
     if (!result) {
