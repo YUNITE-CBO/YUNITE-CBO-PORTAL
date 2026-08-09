@@ -47,17 +47,18 @@ console.log(REDIRECT_URI);
 console.log("");
 
 const server = http.createServer(async (req, res) => {
-  if (!req.url.startsWith("/oauth2callback")) {
-    res.writeHead(404);
-    res.end("Not found");
-    return;
-  }
-
   // All request processing is wrapped in try/catch so an unexpected throw
-  // (e.g. malformed callback URL) is reported and the connection closed,
-  // rather than surfacing as an unhandled promise rejection that hangs the
-  // HTTP client and leaves the process in a broken state.
+  // (e.g. malformed callback URL or a response write on a closed socket)
+  // is reported and the connection closed, rather than surfacing as an
+  // unhandled promise rejection that hangs the HTTP client and leaves the
+  // process in a broken state.
   try {
+    if (!req.url.startsWith("/oauth2callback")) {
+      res.writeHead(404);
+      res.end("Not found");
+      return;
+    }
+
     const url = new URL(req.url, REDIRECT_URI);
     const code = url.searchParams.get("code");
 
