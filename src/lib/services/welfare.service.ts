@@ -6,6 +6,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
+import { ApiError } from '@/lib/api/error';
 import { transactionEngine } from './transaction.engine';
 
 export interface WelfareDepositInput {
@@ -26,7 +27,7 @@ export class WelfareService {
       .eq('reversed', false);
     if (memberId) q = q.eq('member_id', memberId);
     const { data, error } = await q.order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) throw ApiError.server(error.message);
 
     const totals = await this.summary();
     return { transactions: data ?? [], summary: totals };

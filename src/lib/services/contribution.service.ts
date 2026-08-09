@@ -8,6 +8,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
+import { ApiError } from '@/lib/api/error';
 import { transactionEngine, type TransactionType } from './transaction.engine';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -34,7 +35,7 @@ export class ContributionService {
   async listCampaigns() {
     const supabase = await createServiceClient();
     const { data, error } = await supabase.from('contribution_campaigns').select('*').order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) throw ApiError.server(error.message);
     return data ?? [];
   }
 
@@ -54,7 +55,7 @@ export class ContributionService {
       })
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw ApiError.server(error.message);
     return data;
   }
 
@@ -67,7 +68,7 @@ export class ContributionService {
       .eq('reversed', false);
     if (campaignId) q = q.eq('metadata->>campaign_id', campaignId);
     const { data, error } = await q.order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) throw ApiError.server(error.message);
     return data ?? [];
   }
 
@@ -78,7 +79,7 @@ export class ContributionService {
       .select('id')
       .eq('id', input.campaign_id)
       .maybeSingle();
-    if (!campaign) throw new Error('Campaign not found');
+    if (!campaign) throw ApiError.notFound('Campaign not found');
 
     // Ledger movement delegated to the authoritative Transaction Engine.
     const result = await transactionEngine.execute({
@@ -124,7 +125,7 @@ export class ContributionService {
       .in('transaction_type', ['contribution_monthly', 'contribution_special', 'contribution_development'])
       .eq('reversed', false)
       .eq('metadata->>campaign_id', campaignId);
-    if (error) throw new Error(error.message);
+    if (error) throw ApiError.server(error.message);
     const total = (data ?? []).reduce((sum, t) => sum + Number(t.amount), 0);
     const { error: updErr } = await supabase
       .from('contribution_campaigns')

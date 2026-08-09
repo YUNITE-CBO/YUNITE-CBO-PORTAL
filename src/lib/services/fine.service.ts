@@ -7,6 +7,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
+import { ApiError } from '@/lib/api/error';
 import { transactionEngine } from './transaction.engine';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -28,14 +29,14 @@ export class FineService {
     let q = supabase.from('fines').select('*, member:members(first_name, last_name, member_number)');
     if (memberId) q = q.eq('member_id', memberId);
     const { data, error } = await q.order('issued_date', { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) throw ApiError.server(error.message);
     return data ?? [];
   }
 
   async get(fineId: string) {
     const supabase = await createServiceClient();
     const { data, error } = await supabase.from('fines').select('*').eq('id', fineId).maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throw ApiError.server(error.message);
     return data;
   }
 
@@ -61,7 +62,7 @@ export class FineService {
       })
       .select()
       .single();
-    if (error || !fine) throw new Error(`Failed to create fine: ${error?.message}`);
+    if (error || !fine) throw ApiError.server(`Failed to create fine: ${error?.message}`);
 
     // Ledger movement delegated to the authoritative Transaction Engine.
     await transactionEngine.execute({
@@ -81,10 +82,10 @@ export class FineService {
   async pay(fineId: string, amount: number, userId: string) {
     const supabase = await createServiceClient();
     const { data: fine, error } = await supabase.from('fines').select('*').eq('id', fineId).single();
-    if (error || !fine) throw new Error('Fine not found');
+    if (error || !fine) throw ApiError.notFound('Fine not found');
 
     const remaining = Number(fine.amount) - Number(fine.amount_paid);
-    if (amount > remaining) throw new Error(`Amount exceeds remaining fine balance of ${remaining}`);
+    if (amount > remaining) throw ApiError.validation(`Amount exceeds remaining fine balance of ${remaining}`);
 
     // Ledger movement delegated to the authoritative Transaction Engine.
     const result = await transactionEngine.execute({
@@ -117,8 +118,8 @@ export class FineService {
   async waive(fineId: string, reason: string, userId: string) {
     const supabase = await createServiceClient();
     const { data: fine, error } = await supabase.from('fines').select('*').eq('id', fineId).single();
-    if (error || !fine) throw new Error('Fine not found');
-    if (fine.status === 'paid') throw new Error('Cannot waive a fully paid fine');
+    if (error || !fine) throw ApiError.notFound('Fine not found');
+    if (fine.status === 'paid') throw ApiError.conflict('Cannot waive a fully paid fine');
 
     const { data: updated } = await supabase
       .from('fines')
