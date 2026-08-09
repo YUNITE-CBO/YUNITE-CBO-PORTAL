@@ -104,8 +104,17 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500);
         res.end("OAuth authorization failed.");
       } catch (writeError) {
+        // The socket may have been destroyed before we could respond;
+        // ending it is best-effort and must not mask the original error.
         console.error("Failed to send error response:", writeError.message);
+        if (!res.writableEnded) {
+          try { res.end(); } catch {}
+        }
       }
+    } else if (!res.writableEnded) {
+      // Headers were already sent (e.g. writeHead(200) ran before the
+      // throw), so finish the response to avoid leaving the client hanging.
+      try { res.end(); } catch {}
     }
 
     server.close();
