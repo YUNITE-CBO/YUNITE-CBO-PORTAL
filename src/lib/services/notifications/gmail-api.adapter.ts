@@ -301,7 +301,6 @@ export class GmailApiAdapter {
       }
 
       const result = await response.json();
-
       return {
         success: true,
         messageId: result.id,
