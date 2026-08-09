@@ -142,6 +142,26 @@ server.on("error", (error) => {
   process.exit(1);
 });
 
+// Last-resort safety net: if anything escapes the handler try/catch above
+// (e.g. an un-awaited async callback or a throw inside a googleapis
+// internal listener), surface it cleanly instead of crashing as an
+// unhandled rejection that leaves the listening socket open.
+const handleFatal = (label, error) => {
+  console.error("");
+  console.error(`ERROR: ${label}:`);
+  console.error(error?.message || error);
+  console.error("");
+  try {
+    server.close();
+  } catch (_) {
+    // server may already be closed or not yet listening; ignore
+  }
+  process.exit(1);
+};
+
+process.on("uncaughtException", (error) => handleFatal("uncaught exception", error));
+process.on("unhandledRejection", (error) => handleFatal("unhandled promise rejection", error));
+
 server.listen(3000, "localhost", () => {
   console.log("OAuth callback server listening on http://localhost:3000");
 });
