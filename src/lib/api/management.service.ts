@@ -85,8 +85,11 @@ export class ApiManagementService {
         auth_failures_24h: authFail.count ?? 0,
         avg_response_ms_24h: avgResponseMs,
       },
-      top_errors: aggregateField(topErrors.data ?? [], 'error_code').slice(0, 8),
-      requests_by_status: aggregateField(byStatus.data ?? [], 'status_code'),
+      top_errors: aggregateField(topErrors.data ?? [], 'error_code')
+        .slice(0, 8)
+        .map((r) => ({ error_code: r.value, count: r.count })),
+      requests_by_status: aggregateField(byStatus.data ?? [], 'status_code')
+        .map((r) => ({ status: r.value, count: r.count })),
       recent_requests: recent.data ?? [],
     };
   }
@@ -121,6 +124,29 @@ export class ApiManagementService {
     if (error) throw ApiError.server(error.message);
   }
 
+  async getMetrics(hours = 24) {
+    const supabase = await createServiceClient();
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const [reqs, errs, rl, byStatus, avgMs] = await Promise.all([
+      supabase.from('api_request_logs').select('id', { count: 'exact', head: true }).gte('created_at', since),
+      supabase.from('api_request_logs').select('id', { count: 'exact', head: true }).gte('created_at', since).eq('is_error', true),
+      supabase.from('api_request_logs').select('id', { count: 'exact', head: true }).gte('created_at', since).eq('is_rate_limited', true),
+      supabase.from('api_request_logs').select('status_code').gte('created_at', since),
+      supabase.from('api_request_logs').select('duration_ms').gte('created_at', since),
+    ]);
+    const avgResponseMs = avgMs.data && avgMs.data.length
+      ? Math.round(avgMs.data.reduce((s: number, r: { duration_ms: number }) => s + (r.duration_ms || 0), 0) / avgMs.data.length)
+      : 0;
+    return {
+      window_hours: hours,
+      requests: reqs.count ?? 0,
+      errors: errs.count ?? 0,
+      rate_limited: rl.count ?? 0,
+      avg_response_ms: avgResponseMs,
+      requests_by_status: aggregateField(byStatus.data ?? [], 'status_code'),
+    };
+  }
+
   async getLogs(q: LogsQuery) {
     const page = Math.max(1, q.page ?? 1);
     const limit = Math.min(100, Math.max(1, q.limit ?? 50));
@@ -147,13 +173,13 @@ export class ApiManagementService {
   }
 }
 
-function aggregateField(rows: Record<string, unknown>[], field: string): { status?: string; error_code?: string; count: number }[] {
+function aggregateField(rows: Record<string, unknown>[], field: string): { value: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const r of rows) {
     const key = String(r[field] ?? 'unknown');
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  return Array.from(counts, ([k, v]) => ({ [field]: k, count: v } as Record<string, unknown>)) as { status?: string; error_code?: string; count: number }[];
+  return Array.from(counts, ([value, count]) => ({ value, count }));
 }
 
 export const apiManagementService = new ApiManagementService();

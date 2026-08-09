@@ -36,7 +36,9 @@ export interface ApiContext {
   requestId: string;
 }
 
-export type ApiHandler<T = unknown> = (ctx: ApiContext) => Promise<{ data: T; status?: number; pagination?: PaginationMeta }>;
+export type ApiHandler<T = unknown> =
+  | ((ctx: ApiContext) => Promise<{ data: T; status?: number; pagination?: PaginationMeta }>)
+  | ((ctx: ApiContext) => Promise<NextResponse>);
 
 function clientIp(request: NextRequest): string | null {
   return (
@@ -116,6 +118,14 @@ export function createHandler<T>(
 
       // Delegate to the domain handler (which calls existing engines).
       const result = await handler({ request, principal, params, body, requestId });
+
+      // Handlers may return a pre-built NextResponse (e.g. to set cookies).
+      if (result instanceof NextResponse) {
+        attachRequestId(result, requestId);
+        statusCode = result.status;
+        return finalize(request, result, logEntry(requestId, principal, spec, method, path, statusCode, start, request, null, false), start);
+      }
+
       statusCode = result.status ?? 200;
 
       const res = attachRequestId(

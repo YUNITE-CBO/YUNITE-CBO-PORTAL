@@ -74,6 +74,18 @@ export class ApiKeyService {
     return data as ApiClientRecord;
   }
 
+  async getClientBySlug(slug: string): Promise<ApiClientRecord> {
+    const supabase = await createServiceClient();
+    const { data, error } = await supabase
+      .from('api_clients')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw ApiError.server(error.message);
+    if (!data) throw ApiError.notFound('API client not found');
+    return data as ApiClientRecord;
+  }
+
   async createClient(
     input: { name: string; slug: string; client_type?: ApiClientRecord['client_type']; description?: string; default_tier?: ApiClientRecord['default_tier'] },
     createdBy?: string
