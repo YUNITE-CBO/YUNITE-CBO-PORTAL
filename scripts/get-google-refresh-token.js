@@ -95,9 +95,17 @@ const server = http.createServer(async (req, res) => {
     console.error("OAuth callback handling failed:");
     console.error(error.response?.data || error.message);
 
+    // Guard the error-path response writes too: a throw here (e.g. writing
+    // to an already-closed/destroyed socket) would escape the catch and
+    // surface as an unhandled promise rejection, crashing the script - the
+    // same class of issue this handler exists to prevent.
     if (!res.headersSent) {
-      res.writeHead(500);
-      res.end("OAuth authorization failed.");
+      try {
+        res.writeHead(500);
+        res.end("OAuth authorization failed.");
+      } catch (writeError) {
+        console.error("Failed to send error response:", writeError.message);
+      }
     }
 
     server.close();
