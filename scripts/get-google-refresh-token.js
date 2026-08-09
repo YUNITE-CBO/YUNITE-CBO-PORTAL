@@ -53,16 +53,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const url = new URL(req.url, REDIRECT_URI);
-  const code = url.searchParams.get("code");
-
-  if (!code) {
-    res.writeHead(400);
-    res.end("Authorization code missing.");
-    return;
-  }
-
+  // All request processing is wrapped in try/catch so an unexpected throw
+  // (e.g. malformed callback URL) is reported and the connection closed,
+  // rather than surfacing as an unhandled promise rejection that hangs the
+  // HTTP client and leaves the process in a broken state.
   try {
+    const url = new URL(req.url, REDIRECT_URI);
+    const code = url.searchParams.get("code");
+
+    if (!code) {
+      res.writeHead(400);
+      res.end("Authorization code missing.");
+      return;
+    }
+
     const { tokens } = await oauth2Client.getToken(code);
 
     res.writeHead(200, {
@@ -87,14 +91,37 @@ const server = http.createServer(async (req, res) => {
     server.close();
   } catch (error) {
     console.error("");
-    console.error("OAuth token exchange failed:");
+    console.error("OAuth callback handling failed:");
     console.error(error.response?.data || error.message);
 
-    res.writeHead(500);
-    res.end("OAuth authorization failed.");
+    if (!res.headersSent) {
+      res.writeHead(500);
+      res.end("OAuth authorization failed.");
+    }
 
     server.close();
   }
+});
+
+// Handle listener errors (e.g. EADDRINUSE when port 3000 is already taken by
+// `next dev`) so the script exits cleanly with a helpful message instead of
+// crashing via an unhandled 'error' event.
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error("");
+    console.error(`ERROR: Port 3000 is already in use.`);
+    console.error("       This is the default Next.js dev server port.");
+    console.error("       Stop the other process (e.g. `npm run dev`) and re-run");
+    console.error("       this script, or update REDIRECT_URI to use another port");
+    console.error("       in both this script and the Google Cloud Console.");
+    console.error("");
+  } else {
+    console.error("");
+    console.error("ERROR: OAuth callback server failed to start:");
+    console.error(error.message);
+    console.error("");
+  }
+  process.exit(1);
 });
 
 server.listen(3000, "localhost", () => {
