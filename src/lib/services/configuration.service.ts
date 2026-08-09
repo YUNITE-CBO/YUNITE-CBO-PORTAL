@@ -219,21 +219,29 @@ export class ConfigurationService {
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = await createServiceClient();
 
-    // Get current value
-    const { data: current } = await supabase
+    // Get current value. Select only core columns that are guaranteed to
+    // exist on the settings table so a missing optional column (e.g.
+    // is_encrypted) cannot break the entire update.
+    const { data: current, error: fetchError } = await supabase
       .from('settings')
-      .select('value, data_type, is_encrypted')
+      .select('value, data_type')
       .eq('key', key)
-      .single();
+      .maybeSingle();
+
+    if (fetchError) {
+      return { success: false, error: `Failed to read setting: ${fetchError.message}` };
+    }
 
     if (!current) {
-      return { success: false, error: 'Setting not found' };
+      return { success: false, error: `Setting not found: ${key}` };
     }
 
     // Skip if value hasn't changed
     if (current.value === newValue) {
       return { success: true };
     }
+
+    const isEncrypted = current.data_type === 'password';
 
     // Update the setting
     const { error: updateError } = await supabase
@@ -251,8 +259,8 @@ export class ConfigurationService {
 
     // Record in configuration history (optional - table may not exist)
     try {
-      const oldValueMasked = current.is_encrypted ? '********' : current.value;
-      const newValueMasked = current.is_encrypted ? '********' : newValue;
+      const oldValueMasked = isEncrypted ? '********' : current.value;
+      const newValueMasked = isEncrypted ? '********' : newValue;
 
       await supabase.from('configuration_history').insert({
         id: uuidv4(),

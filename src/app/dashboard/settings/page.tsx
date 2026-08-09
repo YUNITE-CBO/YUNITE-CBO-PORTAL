@@ -409,7 +409,13 @@ export default function EnhancedSettingsPage() {
         // Refresh configuration
         await fetchConfiguration();
       } else {
-        setError(data.error || 'Failed to save settings');
+        // Surface the detailed per-setting errors returned by the API
+        // (e.g. "smtp.host: Setting not found") instead of the generic
+        // "Some settings failed to update" message.
+        const detail = Array.isArray(data.details) && data.details.length > 0
+          ? data.details.join('; ')
+          : null;
+        setError(detail ? `${data.error || 'Failed to save settings'}: ${detail}` : (data.error || 'Failed to save settings'));
       }
     } catch (err) {
       setError('Failed to save settings');
@@ -1359,7 +1365,7 @@ export default function EnhancedSettingsPage() {
 
       {/* Alerts */}
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg break-words">
           {error}
         </div>
       )}
