@@ -212,6 +212,13 @@ async function parseParams(
 }
 
 async function parseBody(request: NextRequest): Promise<unknown> {
+  const contentType = request.headers.get('content-type') ?? '';
+  // Multipart and URL-encoded bodies are read by the handler itself (e.g. via
+  // request.formData()). The Request body stream can only be consumed once, so
+  // reading it as text here would make it unusable for the handler downstream.
+  if (contentType.includes('multipart/form-data') || contentType.includes('application/x-www-form-urlencoded')) {
+    return null;
+  }
   try {
     const text = await request.text();
     return text ? JSON.parse(text) : null;

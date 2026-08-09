@@ -2,7 +2,7 @@ import { createHandler } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { apiKeyService } from '@/lib/api/keys.service';
 
-export const POST = createHandler('api.keys.issue', async (ctx) => {
+export const POST = createHandler('api.keys.create', async (ctx) => {
   if (!ctx.principal.userId) throw ApiError.unauthorized('User id required');
   const body = (ctx.body ?? {}) as Record<string, unknown>;
   // Accept either client_id or client_slug for convenience.

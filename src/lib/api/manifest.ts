@@ -112,6 +112,7 @@ export const ENDPOINTS: EndpointSpec[] = [
   { id: 'api.keys.create', method: 'POST', path: '/api/v1/management/keys', module: 'api', action: 'manage', summary: 'Generate an API key', auth: 'required', minRole: 'super_admin' },
   { id: 'api.keys.revoke', method: 'DELETE', path: '/api/v1/management/keys/{id}', module: 'api', action: 'manage', summary: 'Revoke an API key', auth: 'required', minRole: 'super_admin' },
   { id: 'api.logs', method: 'GET', path: '/api/v1/management/logs', module: 'api', action: 'manage', summary: 'API request logs', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.metrics', method: 'GET', path: '/api/v1/management/metrics', module: 'api', action: 'manage', summary: 'API activity metrics', auth: 'required', minRole: 'super_admin' },
 ];
 
 export function findEndpoint(method: string, path: string): EndpointSpec | undefined {
