@@ -1,4 +1,5 @@
 import { createHandler, requireFields } from '@/lib/api/handler';
+import { ApiError } from '@/lib/api/error';
 import { memberRegistrationService } from '@/lib/services/member-registration.service';
 
 export const GET = createHandler('members.list', async (ctx) => {
@@ -14,7 +15,7 @@ export const GET = createHandler('members.list', async (ctx) => {
 
 export const POST = createHandler('members.create', async (ctx) => {
   const data = requireFields<Record<string, unknown>>(ctx.body, ['first_name', 'last_name', 'phone']);
-  if (!ctx.principal.userId) throw new Error('User id required');
+  if (!ctx.principal.userId) throw ApiError.unauthorized('User id required');
   const member = await memberRegistrationService.register(
     {
       first_name: String(data.first_name),

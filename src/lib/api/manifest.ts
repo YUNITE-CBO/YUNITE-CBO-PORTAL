@@ -109,8 +109,9 @@ export const ENDPOINTS: EndpointSpec[] = [
   { id: 'api.clients.create', method: 'POST', path: '/api/v1/management/clients', module: 'api', action: 'manage', summary: 'Create an API client', auth: 'required', minRole: 'super_admin' },
   { id: 'api.clients.update', method: 'PUT', path: '/api/v1/management/clients/{id}', module: 'api', action: 'manage', summary: 'Update an API client', auth: 'required', minRole: 'super_admin' },
   { id: 'api.keys.list', method: 'GET', path: '/api/v1/management/keys', module: 'api', action: 'manage', summary: 'List API keys', auth: 'required', minRole: 'super_admin' },
-  { id: 'api.keys.create', method: 'POST', path: '/api/v1/management/keys', module: 'api', action: 'manage', summary: 'Generate an API key', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.keys.issue', method: 'POST', path: '/api/v1/management/keys', module: 'api', action: 'manage', summary: 'Generate an API key', auth: 'required', minRole: 'super_admin' },
   { id: 'api.keys.revoke', method: 'DELETE', path: '/api/v1/management/keys/{id}', module: 'api', action: 'manage', summary: 'Revoke an API key', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.metrics', method: 'GET', path: '/api/v1/management/metrics', module: 'api', action: 'manage', summary: 'API request metrics', auth: 'required', minRole: 'super_admin' },
   { id: 'api.logs', method: 'GET', path: '/api/v1/management/logs', module: 'api', action: 'manage', summary: 'API request logs', auth: 'required', minRole: 'super_admin' },
 ];
 

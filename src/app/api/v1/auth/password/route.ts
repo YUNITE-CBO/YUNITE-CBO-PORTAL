@@ -4,7 +4,7 @@ import { authService } from '@/lib/services/auth.service';
 
 export const PUT = createHandler('auth.password', async (ctx) => {
   if (!ctx.principal.userId) throw ApiError.unauthorized('Not authenticated');
-  const body = requireFields<Record<string, unknown>>(ctx.body, ['current_password', 'new_password']);
+  const body = requireFields<Record<string, unknown>>(ctx.body, ['current_password', 'new_password', 'confirm_password']);
   if (body.new_password !== body.confirm_password) {
     throw ApiError.validation('New password and confirmation do not match');
   }

@@ -1,4 +1,5 @@
 import { createHandler } from '@/lib/api/handler';
+import { ApiError } from '@/lib/api/error';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export const GET = createHandler('compliance.list', async (ctx) => {
@@ -10,6 +11,6 @@ export const GET = createHandler('compliance.list', async (ctx) => {
   let q = supabase.from('compliance_records').select('*');
   if (memberId) q = q.eq('member_id', memberId);
   const { data, error } = await q.order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throw ApiError.server(error.message);
   return { data: data ?? [] };
 });
