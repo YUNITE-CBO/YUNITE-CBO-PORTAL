@@ -3,6 +3,9 @@ node_modules/
 node_modules/
 .next/
 
+# Build artifacts
+tsconfig.tsbuildinfo
+
 # Environment variables (contains secrets)
 .env
 .env.local

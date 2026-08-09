@@ -40,7 +40,29 @@ export interface EmailDeliveryResult {
   messageId?: string;
   error?: string;
   method?: 'gmail_api' | 'smtp';
+  // When true, the failure is due to misconfiguration and should not be retried.
+  nonRetryable?: boolean;
 }
+
+// Errors that indicate a configuration problem rather than a transient delivery
+// failure. These should fail fast instead of burning retry attempts.
+const CONFIG_ERROR_PATTERNS = [
+  'not configured',
+  'missing credentials',
+  'missing required credentials',
+  'neither gmail api nor smtp',
+  'EAUTH',
+  'invalid_grant', // Gmail OAuth refresh token revoked/invalid
+  'unauthorized_client',
+  'invalid_client',
+];
+
+function isConfigurationError(errorMessage: string): boolean {
+  const msg = (errorMessage || '').toLowerCase();
+  return CONFIG_ERROR_PATTERNS.some((pattern) => msg.includes(pattern.toLowerCase()));
+}
+
+export { isConfigurationError };
 
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
@@ -153,11 +175,22 @@ export class EmailService {
       };
 
       const result = await gmailApiAdapter.send(gmailMessage);
+      // Gmail API "not configured" is a deterministic configuration problem
+      // (partial env vars) and should not be retried. A failed token refresh
+      // (AUTH_FAILED) is left retryable since it may be a transient network
+      // error rather than a revoked credential; deterministic OAuth errors
+      // (invalid_grant / invalid_client / unauthorized_client) are caught by
+      // isConfigurationError on the returned error message.
+      const nonRetryable = !result.success && (
+        result.errorCode === 'NOT_CONFIGURED' ||
+        isConfigurationError(result.error || '')
+      );
       return {
         success: result.success,
         messageId: result.messageId,
         error: result.error,
         method: 'gmail_api',
+        nonRetryable,
       };
     }
 
@@ -171,7 +204,30 @@ export class EmailService {
   private async sendViaSmtp(message: EmailMessage): Promise<EmailDeliveryResult> {
     const configured = await this.initializeSmtpTransporter();
     if (!configured || !this.transporter) {
-      return { success: false, error: 'Email service not configured (neither Gmail API nor SMTP available)' };
+      return {
+        success: false,
+        error: 'Email service not configured (neither Gmail API nor SMTP available)',
+        nonRetryable: true,
+      };
+    }
+
+    // Fail fast: re-verify credentials are actually present. A transporter can
+    // be cached as "configured" while the underlying auth user/pass are empty,
+    // which otherwise surfaces as nodemailer's "Missing credentials for PLAIN"
+    // (EAUTH) only at send time and burns all retry attempts.
+    const authUser = await settingsService.get('smtp.user') || process.env.SMTP_USER;
+    const authPass = await settingsService.get('smtp.password') || process.env.SMTP_PASS;
+    if (!authUser || !authPass) {
+      const missing = !authUser && !authPass
+        ? 'SMTP username and password'
+        : !authUser ? 'SMTP username' : 'SMTP password';
+      console.error(`Email send aborted: ${missing} is missing`);
+      return {
+        success: false,
+        error: `Email service not configured: ${missing} is missing`,
+        method: 'smtp',
+        nonRetryable: true,
+      };
     }
 
     // Try database first, then environment variables, then defaults
@@ -206,7 +262,12 @@ export class EmailService {
       return { success: true, messageId: info.messageId, method: 'smtp' };
     } catch (error: any) {
       console.error('Email send error:', error);
-      return { success: false, error: error.message || 'Failed to send email', method: 'smtp' };
+      return {
+        success: false,
+        error: error.message || 'Failed to send email',
+        method: 'smtp',
+        nonRetryable: isConfigurationError(error?.message || ''),
+      };
     }
   }
 
@@ -287,7 +348,7 @@ export class EmailService {
           await this.logDelivery(email, 'sent', result.messageId);
           succeeded++;
         } else {
-          await this.handleEmailFailure(email, result.error || 'Unknown error', supabase);
+          await this.handleEmailFailure(email, result.error || 'Unknown error', supabase, result.nonRetryable);
           failed++;
         }
       } catch (error: any) {
@@ -305,12 +366,19 @@ export class EmailService {
   private async handleEmailFailure(
     email: any,
     errorMessage: string,
-    supabase: any
+    supabase: any,
+    nonRetryable: boolean = false
   ): Promise<void> {
     const maxRetries = email.max_retries || 3;
     const newRetryCount = (email.retry_count || 0) + 1;
 
-    if (newRetryCount >= maxRetries) {
+    // Configuration errors (missing credentials, revoked OAuth token, etc.) are
+    // not transient: retrying will fail identically. Fail fast instead of
+    // burning all retry attempts, so the email surfaces as failed immediately
+    // and can be retried later via retryFailed() once credentials are fixed.
+    const shouldFailImmediately = nonRetryable || isConfigurationError(errorMessage);
+
+    if (shouldFailImmediately || newRetryCount >= maxRetries) {
       // Mark as failed
       await supabase
         .from('email_queue')
