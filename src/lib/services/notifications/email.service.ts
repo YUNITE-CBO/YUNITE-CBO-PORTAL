@@ -77,12 +77,11 @@ export class EmailService {
     if (gmailApiAdapter.isGmailApiConfigured()) {
       const testResult = await gmailApiAdapter.testConnection();
       if (testResult.success) {
-        console.log('Email service: Using Gmail API (OAuth2) for email delivery');
         this.useGmailApi = true;
         this.isConfigured = true;
         return true;
       }
-      console.log('Gmail API configured but connection test failed, falling back to SMTP');
+      // Gmail API configured but connection test failed; fall back to SMTP.
     }
 
     // Fall back to SMTP
@@ -117,8 +116,6 @@ export class EmailService {
         return false;
       }
 
-      console.log('Email service: Initializing SMTP transporter with:', { host, port, secure, user, hasPassword: !!password });
-
       this.transporter = nodemailer.createTransport({
         host: host,
         port: port,
@@ -134,7 +131,6 @@ export class EmailService {
 
       this.isConfigured = true;
       this.useGmailApi = false;
-      console.log('Email service: Using SMTP for email delivery');
       return true;
     } catch (error) {
       console.error('Failed to initialize SMTP transporter:', error);
@@ -258,7 +254,6 @@ export class EmailService {
         attachments: message.attachments,
       });
 
-      console.log('Email sent via SMTP:', info.messageId);
       return { success: true, messageId: info.messageId, method: 'smtp' };
     } catch (error: any) {
       console.error('Email send error:', error);
@@ -279,7 +274,6 @@ export class EmailService {
 
     const configured = await this.initialize();
     if (!configured) {
-      console.log('Email service not configured (neither Gmail API nor SMTP), skipping queue processing');
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
@@ -551,7 +545,6 @@ export class EmailService {
         };
       }
       // Continue to SMTP fallback
-      console.log('Gmail API test failed, trying SMTP...');
     }
 
     // Fall back to SMTP

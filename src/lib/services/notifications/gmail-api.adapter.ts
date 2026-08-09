@@ -166,7 +166,6 @@ export class GmailApiAdapter {
       };
 
       this.isConfigured = true;
-      console.log('Gmail API adapter initialized successfully');
       return true;
     } catch (error) {
       console.error('Failed to initialize Gmail API adapter:', error);
@@ -227,8 +226,13 @@ export class GmailApiAdapter {
 
   /**
    * Send email via Gmail API
+   *
+   * On a 401 response the cached access token is cleared and the send is
+   * retried exactly once with a freshly minted token. `isRetry` guards that
+   * single retry so a persistently failing credential cannot cause unbounded
+   * recursion (and an eventual stack overflow / uncaught exception).
    */
-  async send(message: GmailApiMessage): Promise<GmailApiDeliveryResult> {
+  async send(message: GmailApiMessage, isRetry = false): Promise<GmailApiDeliveryResult> {
     if (!await this.initialize()) {
       return { 
         success: false, 
@@ -275,14 +279,18 @@ export class GmailApiAdapter {
         
         // Handle specific error codes
         if (response.status === 401) {
-          // Clear cached token and retry once
+          // Token rejected or expired mid-flight: invalidate and retry once.
+          if (isRetry) {
+            return {
+              success: false,
+              error: 'Gmail API authentication failed after retry',
+              errorCode: 'AUTH_FAILED',
+            };
+          }
           this.accessToken = null;
           this.tokenExpiry = 0;
-          
-          const retryToken = await this.getAccessToken();
-          if (retryToken) {
-            return this.send(message);
-          }
+          // Retry exactly once with a freshly minted access token.
+          return this.send(message, true);
         }
 
         return { 
@@ -293,8 +301,7 @@ export class GmailApiAdapter {
       }
 
       const result = await response.json();
-      console.log('Email sent via Gmail API:', result.id);
-      
+
       return {
         success: true,
         messageId: result.id,
