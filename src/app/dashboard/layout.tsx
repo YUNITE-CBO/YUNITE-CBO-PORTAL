@@ -224,6 +224,19 @@ export default function DashboardLayout({
                     {sidebarOpen && <span>User Management</span>}
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/dashboard/api-docs"
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      pathname === '/dashboard/api-docs'
+                        ? 'bg-red-700 text-white'
+                        : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-xl">📖</span>
+                    {sidebarOpen && <span>API Documentation</span>}
+                  </Link>
+                </li>
               </>
             )}
           </ul>

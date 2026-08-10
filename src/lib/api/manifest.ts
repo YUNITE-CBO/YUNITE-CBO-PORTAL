@@ -105,13 +105,17 @@ export const ENDPOINTS: EndpointSpec[] = [
   // ----- API Management (super_admin only) -----
   { id: 'api.overview', method: 'GET', path: '/api/v1/management/overview', module: 'api', action: 'manage', summary: 'API health & activity overview', auth: 'required', minRole: 'super_admin' },
   { id: 'api.endpoints', method: 'GET', path: '/api/v1/management/endpoints', module: 'api', action: 'manage', summary: 'Endpoint registry', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.endpoints.update', method: 'PUT', path: '/api/v1/management/endpoints/{endpointId}', module: 'api', action: 'manage', summary: 'Toggle/override an endpoint (active & rate limit)', auth: 'required', minRole: 'super_admin' },
   { id: 'api.clients.list', method: 'GET', path: '/api/v1/management/clients', module: 'api', action: 'manage', summary: 'List API clients', auth: 'required', minRole: 'super_admin' },
   { id: 'api.clients.create', method: 'POST', path: '/api/v1/management/clients', module: 'api', action: 'manage', summary: 'Create an API client', auth: 'required', minRole: 'super_admin' },
-  { id: 'api.clients.update', method: 'PUT', path: '/api/v1/management/clients/{id}', module: 'api', action: 'manage', summary: 'Update an API client', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.clients.get', method: 'GET', path: '/api/v1/management/clients/{id}', module: 'api', action: 'manage', summary: 'Get an API client with its permission scopes', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.clients.update', method: 'PUT', path: '/api/v1/management/clients/{id}', module: 'api', action: 'manage', summary: 'Update an API client (name/status/tier/description)', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.clients.permissions', method: 'PUT', path: '/api/v1/management/clients/{id}/permissions', module: 'api', action: 'manage', summary: 'Replace an API client permission scopes', auth: 'required', minRole: 'super_admin' },
   { id: 'api.keys.list', method: 'GET', path: '/api/v1/management/keys', module: 'api', action: 'manage', summary: 'List API keys', auth: 'required', minRole: 'super_admin' },
-  { id: 'api.keys.create', method: 'POST', path: '/api/v1/management/keys', module: 'api', action: 'manage', summary: 'Generate an API key', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.keys.create', method: 'POST', path: '/api/v1/management/keys', module: 'api', action: 'manage', summary: 'Generate an API key (raw key shown once)', auth: 'required', minRole: 'super_admin' },
   { id: 'api.keys.revoke', method: 'DELETE', path: '/api/v1/management/keys/{id}', module: 'api', action: 'manage', summary: 'Revoke an API key', auth: 'required', minRole: 'super_admin' },
   { id: 'api.logs', method: 'GET', path: '/api/v1/management/logs', module: 'api', action: 'manage', summary: 'API request logs', auth: 'required', minRole: 'super_admin' },
+  { id: 'api.metrics', method: 'GET', path: '/api/v1/management/metrics', module: 'api', action: 'manage', summary: 'Aggregate gateway metrics for a time window', auth: 'required', minRole: 'super_admin' },
 ];
 
 export function findEndpoint(method: string, path: string): EndpointSpec | undefined {
@@ -128,3 +132,22 @@ export function findEndpoint(method: string, path: string): EndpointSpec | undef
 export function endpointById(id: string): EndpointSpec | undefined {
   return ENDPOINTS.find((e) => e.id === id);
 }
+
+/**
+ * Distinct permission scopes (module.action) grantable to an API-key client,
+ * derived from the endpoint manifest. Excludes the super_admin-only API
+ * management scopes (api.manage), which are never granted to external clients.
+ * Drives the scope selector in the API management UI.
+ */
+export const AVAILABLE_SCOPES: { module: string; action: string; label: string }[] = (() => {
+  const seen = new Set<string>();
+  const out: { module: string; action: string; label: string }[] = [];
+  for (const e of ENDPOINTS) {
+    if (e.module === 'api') continue; // management scopes are internal
+    const key = `${e.module}.${e.action}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ module: e.module, action: e.action, label: key });
+  }
+  return out.sort((a, b) => (a.label < b.label ? -1 : 1));
+})();

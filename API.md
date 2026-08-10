@@ -734,3 +734,135 @@ Get audit log entries.
 Current API Version: **1.0.1**  
 System: YUNITE Enterprise Operating System  
 Documentation: This file
+
+
+---
+
+# YUNITE API Gateway (/api/v1)
+
+The YUNITE API is the single controlled, versioned, secured, and observable
+boundary for the YUNITE ecosystem:
+
+```
+Application -> YUNITE API (/api/v1) -> Existing Services -> Database
+```
+
+The gateway orchestrates existing authoritative engines (Transaction Engine,
+Loan Service, etc.) - it never bypasses the ledger or duplicates calculations.
+
+## Entry Points
+
+| Purpose            | URL                              |
+|-------------------|----------------------------------|
+| Health             | `GET /api/v1/health`             |
+| Login              | `POST /api/v1/auth/login`        |
+| Docs index (JSON)  | `GET /api/v1/docs`               |
+| OpenAPI 3.0 (JSON) | `GET /api/v1/docs/openapi.json`   |
+| Swagger UI         | `/dashboard/api-docs`            |
+| Management         | `GET /api/v1/management/overview` (super_admin) |
+
+## Authentication
+
+A single boundary resolves every request to a principal:
+
+- **Session auth** - the admin portal sends the `auth_token` httpOnly cookie (JWT).
+- **API key auth** - external clients send `Authorization: Bearer yk_live_<token>`.
+
+Both funnel through the same permission model:
+- Session auth uses the role-based matrix (`super_admin` bypasses).
+- API-key auth uses the explicit `module.action` scopes granted to the client.
+
+### Obtaining an API key (super_admin only)
+
+1. Create an API client: `POST /api/v1/management/clients`
+2. Grant scopes: `PUT /api/v1/management/clients/{id}/permissions`
+3. Generate a key: `POST /api/v1/management/keys` - the raw key is shown **once** and stored only as a SHA-256 hash.
+
+Keys are prefixed `yk_live_` (live) or `yk_test_` (test). Revoke with
+`DELETE /api/v1/management/keys/{id}`.
+
+## Response envelope
+
+```json
+{ "success": true, "data": {}, "meta": { "request_id": "..." } }
+```
+
+```json
+{ "success": false, "error": { "code": "forbidden", "message": "..." }, "meta": { "request_id": "..." } }
+```
+
+Every response carries an `x-request-id` header. Supply your own `X-Request-Id`
+(8-64 alphanumeric chars) to correlate a request across logs.
+
+## Error codes
+
+`validation_error` (400) - `unauthorized` (401) - `forbidden` (403) -
+`not_found` (404) - `method_not_allowed` (405) - `conflict` (409) -
+`rate_limited` (429) - `client_inactive` (403) - `endpoint_disabled` (404) -
+`server_error` (500) - `service_unavailable` (503)
+
+## Rate limiting
+
+Tier-based token bucket per client, 60-second window:
+
+| Tier       | Default req/min |
+|------------|-----------------|
+| public     | 30              |
+| standard   | 120             |
+| privileged | 600             |
+
+Per-endpoint overrides may apply (managed by super_admin). Rate-limited
+responses return 429 with a `Retry-After: 60` header.
+
+## Grantable scopes
+
+API-key clients are granted explicit `module.action` scopes. The available
+(non-management) scopes are derived from the endpoint manifest (see
+`GET /api/v1/docs` for the live list), e.g. `members.read`, `members.create`,
+`transactions.create`, `transactions.reverse`, `loans.approve`, `fines.pay`,
+`documents.upload`, `settings.read`, `settings.update`, etc. The internal
+`api.manage` scopes are never granted to external clients.
+
+## API Management (super_admin only)
+
+All under `/api/v1/management/*`:
+
+| Method | Path                                  | Purpose                              |
+|--------|---------------------------------------|--------------------------------------|
+| GET    | `/management/overview`                | Health & 24h activity                |
+| GET    | `/management/endpoints`               | Endpoint registry (with overrides)   |
+| PUT    | `/management/endpoints/{endpointId}`  | Toggle/override an endpoint          |
+| GET    | `/management/clients`                 | List API clients                     |
+| POST   | `/management/clients`                 | Create an API client                 |
+| GET    | `/management/clients/{id}`            | Client with its permission scopes    |
+| PUT    | `/management/clients/{id}`            | Update a client (name/status/tier)   |
+| PUT    | `/management/clients/{id}/permissions` | Replace client permission scopes     |
+| GET    | `/management/keys`                    | List API keys                        |
+| POST   | `/management/keys`                    | Generate an API key (shown once)     |
+| DELETE | `/management/keys/{id}`               | Revoke an API key                    |
+| GET    | `/management/logs`                    | Request logs (filterable)            |
+| GET    | `/management/metrics`                 | Aggregate metrics for a time window  |
+
+The same management surface is available to super admins in the portal under
+**Settings -> System Configuration -> API Keys**.
+
+## Security notes
+
+- API keys are stored only as a SHA-256 hash; the raw key is shown once at
+  generation and never persisted or logged.
+- Request logs store operational metadata only - no request bodies, auth
+  headers, cookies, or key material.
+- The OpenAPI document and docs index contain no secrets and are public.
+- The management surface is `super_admin`-only, enforced by the gateway
+  manifest and the role-based authorization framework.
+
+## Integration guide (for AI / bots / third parties)
+
+1. Read `GET /api/v1/docs` or the Swagger UI at `/dashboard/api-docs` to
+   discover the contract.
+2. Obtain an API key from a YUNITE super admin (out of band).
+3. Authenticate with `Authorization: Bearer <key>`.
+4. Only call endpoints within your granted scopes; `403 forbidden` means your
+   client lacks the required `module.action` scope.
+5. Honor `429` responses and the `Retry-After` header.
+6. Correlate requests with `X-Request-Id` and the echoed `x-request-id`.

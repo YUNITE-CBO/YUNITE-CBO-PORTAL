@@ -30,3 +30,34 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.
 - Commits use `openhands` author + `Co-authored-by: openhands <openhands@all-hands.dev>`.
+
+## YUNITE API Gateway (`/api/v1`)
+- The gateway exposes existing business engines through one controlled boundary.
+  Every `/api/v1` route is a thin file that calls `createHandler(endpointId, handler)`
+  from `src/lib/api/handler.ts`. The wrapper applies: request-id, endpoint
+  active check, principal resolution (session cookie OR `Authorization: Bearer
+  yk_...`), authorization, rate limiting, execution, error handling, and request
+  logging (operational metadata only - no secrets).
+- **Endpoint manifest** (`src/lib/api/manifest.ts`) is the single source of truth
+  for endpoint metadata (id, method, path, module, action, auth, minRole,
+  financial, rateLimitPerMinute). Adding an endpoint = add a manifest entry AND
+  its route file. The `createHandler('id')` id MUST exist in the manifest or the
+  wrapper throws 500 "Unknown endpoint". `tests/api-gateway-consistency.test.ts`
+  guards this - run it after touching any v1 route.
+- **Auth/permissions**: session auth reuses the role matrix in
+  `src/lib/auth/authorization.ts` (super_admin bypasses). API-key auth uses the
+  explicit `module.action` scopes granted to the client
+  (`api_client_permissions`). The `api.*` management endpoints are
+  `super_admin`-only (the `api` module is intentionally NOT in the PERMISSIONS
+  matrix, so only super_admin - which bypasses - can access them).
+- **API keys** are stored only as SHA-256 hashes (`hashApiKey`); the raw key is
+  shown once at generation. Prefixes: `yk_live_` / `yk_test_`.
+- **API settings UI**: Settings -> System Configuration -> API Keys
+  (`src/components/settings/ApiSettingsSection.tsx`) drives the
+  `/api/v1/management/*` surface (clients, keys, scopes, endpoint overrides,
+  logs, overview). Super_admin only; the section renders a restricted notice for
+  others. Gateway-level toggles also live as `api.*` rows in the `settings`
+  table under the `api` configuration category (migration 024).
+- **API docs**: OpenAPI 3.0 at `GET /api/v1/docs/openapi.json` (generated from
+  the manifest via `src/lib/api/openapi.ts`), docs index at `GET /api/v1/docs`,
+  Swagger UI at `/dashboard/api-docs`. See `API.md` (YUNITE API Gateway section).

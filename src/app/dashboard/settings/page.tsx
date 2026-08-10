@@ -12,6 +12,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import ApiSettingsSection from '@/components/settings/ApiSettingsSection';
 
 interface Setting {
   id: string;
@@ -113,7 +114,7 @@ type ResetStep =
   | 'complete'
   | 'failed';
 
-type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'system' | 'membership' | 'history';
+type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'system' | 'membership' | 'history' | 'api';
 
 export default function EnhancedSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -571,7 +572,8 @@ export default function EnhancedSettingsPage() {
                   {category.code === 'branding' && '🎨'}
                   {category.code === 'system' && '⚙️'}
                   {category.code === 'membership' && '👥'}
-                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'system', 'membership'].includes(category.code) && '⚙️'}
+                  {category.code === 'api' && '🔑'}
+                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'system', 'membership', 'api'].includes(category.code) && '⚙️'}
                 </span>
               </div>
               {getStatusBadge(category.configuration_status)}
@@ -1392,6 +1394,27 @@ export default function EnhancedSettingsPage() {
         renderHistory()
       ) : activeSection === 'overview' ? (
         renderOverview()
+      ) : activeSection === 'api' ? (
+        isSuperAdmin ? (
+          <ApiSettingsSection onBack={() => setActiveSection('overview')} />
+        ) : (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🔒</span>
+              <div>
+                <h3 className="font-semibold text-yellow-900">Restricted Access</h3>
+                <p className="text-sm text-yellow-800 mt-1">
+                  API Keys &amp; Gateway management is only available to Super Administrators.
+                  {currentUser ? (
+                    <> Your current role is <span className="font-medium">{currentUser.role || 'user'}</span>.</>
+                  ) : (
+                    <> You may need to log in with a Super Administrator account.</>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        )
       ) : activeSection === 'system' ? (
         renderSystemSection()
       ) : activeSection === 'smtp' && currentCategory ? (

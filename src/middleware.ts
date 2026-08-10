@@ -26,6 +26,15 @@ const protectedPaths = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // The YUNITE API gateway (/api/v1/*) performs its own complete authentication
+  // (session cookie OR Bearer API key), authorization, rate limiting, and
+  // request logging. Let it handle auth itself so API-key clients (which do not
+  // carry a session cookie) can reach POST/PUT/DELETE endpoints. The older
+  // cookie-only check below would otherwise 401 them before the gateway runs.
+  if (pathname.startsWith('/api/v1')) {
+    return NextResponse.next();
+  }
+
   // Allow public paths
   if (publicReadPaths.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
