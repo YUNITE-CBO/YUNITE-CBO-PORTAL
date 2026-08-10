@@ -190,6 +190,20 @@ export default function ApiSettingsSection({ onBack }: { onBack: () => void }) {
     }
   }, []);
 
+  const loadScopes = useCallback(async () => {
+    try {
+      const scopeData = await api<{ available_scopes: Scope[] } | Scope[]>('/api/v1/docs').then((d) =>
+        Array.isArray(d) ? d : (d as { available_scopes: Scope[] }).available_scopes
+      );
+      setScopes(scopeData);
+    } catch (e) {
+      // Non-fatal: scope editor will render an empty-state hint. The /api/v1/docs
+      // endpoint is public, so a failure here is unusual but must not break the
+      // rest of the console.
+      console.warn('Failed to load available scopes', e);
+    }
+  }, []);
+
   const loadEndpoints = useCallback(async () => {
     setLoading(true);
     try {
@@ -226,6 +240,13 @@ export default function ApiSettingsSection({ onBack }: { onBack: () => void }) {
       setLoading(false);
     }
   }, []);
+
+  // Scopes back the client Permission Scopes editor and are needed on any tab
+  // (they're consumed from the Clients tab, not the Endpoints tab). /api/v1/docs
+  // is public, so load once on mount instead of tying it to the Endpoints tab.
+  useEffect(() => {
+    loadScopes();
+  }, [loadScopes]);
 
   useEffect(() => {
     setError(null);
@@ -569,7 +590,9 @@ export default function ApiSettingsSection({ onBack }: { onBack: () => void }) {
                     <span className="text-xs text-gray-500">{clientScopes.size} selected</span>
                   </div>
                   <div className="max-h-64 overflow-y-auto border rounded-lg p-3 grid grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50">
-                    {scopes.map((s) => (
+                    {scopes.length === 0 ? (
+                      <p className="col-span-full text-sm text-gray-500">Loading available scopes…</p>
+                    ) : scopes.map((s) => (
                       <label key={s.label} className="flex items-center gap-2 text-sm">
                         <input type="checkbox" checked={clientScopes.has(s.label)} onChange={() => toggleScope(s.label)} className="h-4 w-4" />
                         <code className="text-gray-700">{s.label}</code>

@@ -85,6 +85,10 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   grants become dead/typo rows that never match `authorize()`. The scope editor
   in `ApiSettingsSection.tsx` is shown on both create and edit
   (`showScopesEditor`); hiding it on create silently produces scopeless clients.
+  The scope list is fetched from the public `GET /api/v1/docs`
+  (`available_scopes`) and loaded once on mount via `loadScopes` — do NOT tie
+  scope loading to the Endpoints tab; the editor renders on the Clients tab and
+  empty scopes there = a "0 selected" editor with no checkboxes.
 - **API settings UI**: Settings -> System Configuration -> API Keys
   (`src/components/settings/ApiSettingsSection.tsx`) drives the
   `/api/v1/management/*` surface (clients, keys, scopes, endpoint overrides,

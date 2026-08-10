@@ -264,6 +264,27 @@ describe('YUNITE API gateway consistency', () => {
       const createFn = ui.slice(createFnStart, createFnEnd);
       expect(createFn).toMatch(/setShowScopesEditor\(true\)/);
     });
+
+    it('ApiSettingsSection loads available scopes on mount (not only on the Endpoints tab)', () => {
+      // The Permission Scopes editor is rendered on the Clients tab, so the
+      // scope list must be populated regardless of which tab is active. Tying
+      // scope loading to the Endpoints tab leaves scopes empty when the operator
+      // opens New/Edit Client from the Clients tab, rendering zero checkboxes.
+      const ui = fs.readFileSync(
+        path.join(__dirname, '..', 'src', 'components', 'settings', 'ApiSettingsSection.tsx'),
+        'utf8'
+      );
+      // There must be a dedicated scope loader.
+      expect(ui).toMatch(/const loadScopes = useCallback/);
+      // It must be invoked by a mount-only effect (independent of `tab`).
+      const mountEffectIdx = ui.indexOf('loadScopes();');
+      expect(mountEffectIdx).toBeGreaterThan(-1);
+      const mountEffectBlock = ui.slice(ui.lastIndexOf('useEffect', mountEffectIdx), mountEffectIdx);
+      // The mount effect must NOT key on `tab` (the tab-keyed effect is separate).
+      expect(mountEffectBlock).not.toMatch(/\btab\b/);
+      // The scope grid must degrade gracefully when scopes are still loading.
+      expect(ui).toMatch(/scopes\.length === 0/);
+    });
   });
 
   describe('session-auth authorization honors manifest minRole', () => {
