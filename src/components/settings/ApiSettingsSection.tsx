@@ -241,7 +241,9 @@ export default function ApiSettingsSection({ onBack }: { onBack: () => void }) {
     setClientForm({ name: '', slug: '', client_type: 'third_party', description: '', default_tier: 'standard' });
     setClientScopes(new Set());
     setShowClientForm(true);
-    setShowScopesEditor(false);
+    // Scopes are grantable at creation time too; hiding the editor here would
+    // silently create a scopeless client that the operator must then edit.
+    setShowScopesEditor(true);
   };
 
   const openEditClient = async (client: ApiClient) => {

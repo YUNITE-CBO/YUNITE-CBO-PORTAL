@@ -17,6 +17,8 @@ import * as path from 'path';
 import { ENDPOINTS, AVAILABLE_SCOPES } from '@/lib/api/manifest';
 import { applyCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
 import { NextRequest, NextResponse } from 'next/server';
+import { parseScopeList, isGrantableScope } from '@/lib/api/scopes';
+import { ApiError } from '@/lib/api/error';
 
 const V1_ROUTES_DIR = path.join(__dirname, '..', 'src', 'app', 'api', 'v1');
 
@@ -179,6 +181,87 @@ describe('YUNITE API gateway consistency', () => {
 
     it('returns null preflight when no allowlist is configured', () => {
       expect(corsPreflightResponse(makeRequest('https://app.vercel.app'))).toBeNull();
+    });
+  });
+
+  describe('permission scope validation', () => {
+    it('AVAILABLE_SCOPES is non-empty and all entries are grantable', () => {
+      expect(AVAILABLE_SCOPES.length).toBeGreaterThan(0);
+      for (const s of AVAILABLE_SCOPES) {
+        expect(isGrantableScope(s.label)).toBe(true);
+      }
+    });
+
+    it('members.lookup is a grantable scope (the lookup use case)', () => {
+      expect(isGrantableScope('members.lookup')).toBe(true);
+    });
+
+    it('parseScopeList accepts valid scopes and splits module/action', () => {
+      const out = parseScopeList(['members.lookup', 'members.read', 'transactions.read']);
+      expect(out).toEqual([
+        { module: 'members', action: 'lookup' },
+        { module: 'members', action: 'read' },
+        { module: 'transactions', action: 'read' },
+      ]);
+    });
+
+    it('parseScopeList tolerates empty/whitespace entries', () => {
+      expect(parseScopeList(['members.lookup', '', '  '])).toEqual([
+        { module: 'members', action: 'lookup' },
+      ]);
+    });
+
+    it('parseScopeList rejects non-array input', () => {
+      expect(() => parseScopeList('members.lookup')).toThrow();
+      expect(() => parseScopeList(undefined)).toThrow();
+    });
+
+    it('parseScopeList rejects malformed scope strings', () => {
+      expect(() => parseScopeList(['nomodule'])).toThrow();
+      expect(() => parseScopeList(['.noaction'])).toThrow();
+      expect(() => parseScopeList(['nomodule.'])).toThrow();
+    });
+
+    it('parseScopeList rejects scopes not in AVAILABLE_SCOPES (typos / api.manage)', () => {
+      expect(() => parseScopeList(['members.readx'])).toThrow();
+      expect(() => parseScopeList(['api.manage'])).toThrow();
+      expect(() => parseScopeList(['members.read', 'fakescope.do'])).toThrow();
+    });
+
+    it('parseScopeList throws ApiError validation errors', () => {
+      try {
+        parseScopeList(['nope.nope']);
+        throw new Error('should have thrown');
+      } catch (e) {
+        expect(e).toBeInstanceOf(ApiError);
+        expect((e as ApiError).code).toBe('validation_error');
+      }
+    });
+
+    it('the management create/permissions routes import parseScopeList (validated grants)', () => {
+      const createRoute = fs.readFileSync(
+        path.join(V1_ROUTES_DIR, 'management', 'clients', 'route.ts'),
+        'utf8'
+      );
+      const permsRoute = fs.readFileSync(
+        path.join(V1_ROUTES_DIR, 'management', 'clients', '[id]', 'permissions', 'route.ts'),
+        'utf8'
+      );
+      expect(createRoute).toMatch(/parseScopeList/);
+      expect(permsRoute).toMatch(/parseScopeList/);
+    });
+
+    it('ApiSettingsSection shows the scope editor on client creation', () => {
+      const ui = fs.readFileSync(
+        path.join(__dirname, '..', 'src', 'components', 'settings', 'ApiSettingsSection.tsx'),
+        'utf8'
+      );
+      // openCreateClient must set showScopesEditor true (not false), otherwise a
+      // newly created client silently starts with zero grantable scopes.
+      const createFnStart = ui.indexOf('const openCreateClient');
+      const createFnEnd = ui.indexOf('};', createFnStart);
+      const createFn = ui.slice(createFnStart, createFnEnd);
+      expect(createFn).toMatch(/setShowScopesEditor\(true\)/);
     });
   });
 });

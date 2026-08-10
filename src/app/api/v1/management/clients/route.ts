@@ -1,6 +1,7 @@
 import { createHandler } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { apiKeyService } from '@/lib/api/keys.service';
+import { parseScopeList } from '@/lib/api/scopes';
 
 export const GET = createHandler('api.clients.list', async () => {
   const clients = await apiKeyService.listClients();
@@ -23,15 +24,10 @@ export const POST = createHandler('api.clients.create', async (ctx) => {
   );
 
   // Grant requested permission scopes (array of "module.action" strings).
-  const permissions = Array.isArray(body.permissions) ? (body.permissions as string[]) : [];
+  // Validated against the manifest so only real scopes are stored.
+  const permissions = parseScopeList(body.permissions);
   if (permissions.length) {
-    await apiKeyService.setClientPermissions(
-      client.id,
-      permissions.map((p) => {
-        const [module, action] = p.split('.');
-        return { module, action };
-      })
-    );
+    await apiKeyService.setClientPermissions(client.id, permissions);
   }
   return { data: client, status: 201 };
 });

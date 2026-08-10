@@ -67,6 +67,15 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   matrix, so only super_admin - which bypasses - can access them).
 - **API keys** are stored only as SHA-256 hashes (`hashApiKey`); the raw key is
   shown once at generation. Prefixes: `yk_live_` / `yk_test_`.
+- **Permission scopes**: a scope is `module.action` derived from the endpoint
+  manifest. `AVAILABLE_SCOPES` (manifest.ts) dedups by `module.action` and
+  excludes the internal `api` module → **37 distinct grantable scopes**. Grants
+  MUST be validated against `AVAILABLE_SCOPES` via `parseScopeList`
+  (`src/lib/api/scopes.ts`) before storing in `api_client_permissions`; the
+  `api_client_permissions` table is free-form TEXT with no FK, so unvalidated
+  grants become dead/typo rows that never match `authorize()`. The scope editor
+  in `ApiSettingsSection.tsx` is shown on both create and edit
+  (`showScopesEditor`); hiding it on create silently produces scopeless clients.
 - **API settings UI**: Settings -> System Configuration -> API Keys
   (`src/components/settings/ApiSettingsSection.tsx`) drives the
   `/api/v1/management/*` surface (clients, keys, scopes, endpoint overrides,
