@@ -13,6 +13,13 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   (run via Supabase SQL Editor at https://sprlwlxjhhmazxpflhnb.supabase.co/project/-/sql)
 
 ## Known Gotchas
+- **Session id linkage**: The JWT `session_id` MUST equal the `user_sessions.id`
+  of the row created at login. `src/lib/api/principal.ts` resolves sessions by
+  `user_sessions.id` using the JWT's `session_id`; if they diverge the gateway
+  throws "Session has been revoked" for every authenticated `/api/v1` request
+  (including the API Keys & Gateway settings UI). AuthService.login() generates
+  one session id and passes it to both generateToken (JWT) and createSession
+  (row id). Do not reintroduce independent uuidv4() calls for these.
 - `tests/auth.test.ts` and `tests/integration.test.ts` declare duplicate top-level
   identifiers (API_BASE_URL, TEST_EMAIL, CookieJar). `tsc --noEmit` reports these but
   they are pre-existing and harmless to the build. Filter them with `grep -v tests/`.
