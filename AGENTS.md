@@ -59,12 +59,21 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   its route file. The `createHandler('id')` id MUST exist in the manifest or the
   wrapper throws 500 "Unknown endpoint". `tests/api-gateway-consistency.test.ts`
   guards this - run it after touching any v1 route.
-- **Auth/permissions**: session auth reuses the role matrix in
-  `src/lib/auth/authorization.ts` (super_admin bypasses). API-key auth uses the
-  explicit `module.action` scopes granted to the client
-  (`api_client_permissions`). The `api.*` management endpoints are
-  `super_admin`-only (the `api` module is intentionally NOT in the PERMISSIONS
-  matrix, so only super_admin - which bypasses - can access them).
+- **Auth/permissions**: `authorize()` (`src/lib/api/principal.ts`) is the
+  gateway's single authorization boundary. For **session (cookie)** auth it
+  honors the manifest endpoint's `minRole` via the role hierarchy
+  (`getRoleLevel` from `src/lib/auth/authorization.ts`); super_admin bypasses.
+  Endpoints with no `minRole` (the `auth.*` own-session/profile/password
+  surface) are identity-scoped, so any authenticated session user is allowed.
+  The legacy `PERMISSIONS` matrix in `authorization.ts` is NOT consulted by
+  the gateway — it omits `compliance`, `statements`, `dashboard`, and `auth`,
+  which previously caused false 403s for non-super_admin portal users. Do not
+  reintroduce `hasPermission` delegation in `authorize()`; the manifest
+  `minRole` is the source of truth (guarded by
+  `tests/api-gateway-consistency.test.ts` → "session-auth authorization
+  honors manifest minRole"). API-key auth uses the explicit `module.action`
+  scopes granted to the client (`api_client_permissions`). The `api.*`
+  management endpoints are `super_admin`-only (minRole `super_admin`).
 - **API keys** are stored only as SHA-256 hashes (`hashApiKey`); the raw key is
   shown once at generation. Prefixes: `yk_live_` / `yk_test_`.
 - **Permission scopes**: a scope is `module.action` derived from the endpoint

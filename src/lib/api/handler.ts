@@ -103,7 +103,7 @@ export function createHandler<T>(
 
       // Authorization (skip for public endpoints).
       if (spec.auth !== 'public') {
-        authorize(principal, spec.module, spec.action);
+        authorize(principal, spec.module, spec.action, spec.minRole);
       }
 
       // Rate limiting (apply override or manifest limit).

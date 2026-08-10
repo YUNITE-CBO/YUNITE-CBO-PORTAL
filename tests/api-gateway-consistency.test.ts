@@ -19,6 +19,7 @@ import { applyCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
 import { NextRequest, NextResponse } from 'next/server';
 import { parseScopeList, isGrantableScope } from '@/lib/api/scopes';
 import { ApiError } from '@/lib/api/error';
+import { authorize, type ApiPrincipal } from '@/lib/api/principal';
 
 const V1_ROUTES_DIR = path.join(__dirname, '..', 'src', 'app', 'api', 'v1');
 
@@ -262,6 +263,120 @@ describe('YUNITE API gateway consistency', () => {
       const createFnEnd = ui.indexOf('};', createFnStart);
       const createFn = ui.slice(createFnStart, createFnEnd);
       expect(createFn).toMatch(/setShowScopesEditor\(true\)/);
+    });
+  });
+
+  describe('session-auth authorization honors manifest minRole', () => {
+    function sessionPrincipal(role: string): ApiPrincipal {
+      return {
+        authMode: 'session',
+        clientId: '00000000-0000-0000-0000-000000000001',
+        clientName: 'admin-portal',
+        clientType: 'admin_portal',
+        clientTier: 'privileged',
+        userId: 'u-1',
+        userEmail: 'staff@example.org',
+        role,
+      };
+    }
+
+    function endpointMinRole(module: string, action: string) {
+      const e = ENDPOINTS.find((x) => x.module === module && x.action === action);
+      return e?.minRole;
+    }
+
+    it('every non-public endpoint with a declared minRole authorizes a session user at that role', () => {
+      // For each manifest endpoint that is not public and declares a minRole,
+      // a session principal at exactly that role must be authorized.
+      for (const e of ENDPOINTS) {
+        if (e.auth === 'public' || !e.minRole) continue;
+        const role = e.minRole as NonNullable<typeof e.minRole>;
+        expect(() => authorize(sessionPrincipal(role), e.module, e.action, role)).not.toThrow();
+      }
+    });
+
+    it('modules missing from the legacy matrix (compliance, statements, dashboard) now allow viewer per minRole', () => {
+      // Previously these threw 403 because hasPermission returned false for
+      // modules absent from PERMISSIONS. minRole is now the source of truth.
+      expect(() => authorize(sessionPrincipal('viewer'), 'compliance', 'read', 'viewer')).not.toThrow();
+      expect(() => authorize(sessionPrincipal('viewer'), 'statements', 'read', 'viewer')).not.toThrow();
+      expect(() => authorize(sessionPrincipal('viewer'), 'dashboard', 'read', 'viewer')).not.toThrow();
+    });
+
+    it('compliance.update requires staff (viewer denied)', () => {
+      expect(() => authorize(sessionPrincipal('staff'), 'compliance', 'update', 'staff')).not.toThrow();
+      expect(() => authorize(sessionPrincipal('viewer'), 'compliance', 'update', 'staff')).toThrow();
+    });
+
+    it('identity-scoped auth.* endpoints (no minRole) allow any authenticated session user', () => {
+      // auth.session / auth.profile are own-session endpoints; a viewer must
+      // not be 403'd on their own profile/session.
+      expect(() => authorize(sessionPrincipal('viewer'), 'auth', 'session')).not.toThrow();
+      expect(() => authorize(sessionPrincipal('viewer'), 'auth', 'profile')).not.toThrow();
+      expect(() => authorize(sessionPrincipal('staff'), 'auth', 'password')).not.toThrow();
+    });
+
+    it('super_admin bypasses every check', () => {
+      expect(() => authorize(sessionPrincipal('super_admin'), 'compliance', 'update', 'staff')).not.toThrow();
+      expect(() => authorize(sessionPrincipal('super_admin'), 'api', 'manage', 'super_admin')).not.toThrow();
+    });
+
+    it('viewer is denied staff/admin-only endpoints per minRole', () => {
+      expect(() => authorize(sessionPrincipal('viewer'), 'members', 'create', 'staff')).toThrow();
+      expect(() => authorize(sessionPrincipal('viewer'), 'settings', 'update', 'admin')).toThrow();
+    });
+
+    it('contributions campaigns.create is admin-only per manifest minRole', () => {
+      // The manifest declares minRole: 'admin' for campaign creation; staff
+      // must be denied even though the legacy matrix had contributions.create
+      // at staff level.
+      expect(() => authorize(sessionPrincipal('admin'), 'contributions', 'create', 'admin')).not.toThrow();
+      expect(() => authorize(sessionPrincipal('staff'), 'contributions', 'create', 'admin')).toThrow();
+    });
+
+    it('the handler passes the manifest minRole to authorize', () => {
+      const handler = fs.readFileSync(
+        path.join(__dirname, '..', 'src', 'lib', 'api', 'handler.ts'),
+        'utf8'
+      );
+      expect(handler).toMatch(/authorize\(principal,\s*spec\.module,\s*spec\.action,\s*spec\.minRole\)/);
+    });
+
+    it('every required endpoint resolves a minRole (or is identity-scoped auth.*)', () => {
+      // Guardrail: no required endpoint silently falls through with an
+      // unintended missing minRole except the auth.* own-session surface.
+      for (const e of ENDPOINTS) {
+        if (e.auth !== 'required') continue;
+        if (e.module === 'auth') continue; // identity-scoped
+        expect(e.minRole).toBeTruthy();
+        expect(endpointMinRole(e.module, e.action)).toBeTruthy();
+      }
+    });
+
+    it('anonymous principals are never authorized', () => {
+      const anon: ApiPrincipal = {
+        authMode: 'anonymous',
+        clientId: '00000000-0000-0000-0000-000000000002',
+        clientName: 'anonymous',
+        clientType: 'third_party',
+        clientTier: 'public',
+      };
+      expect(() => authorize(anon, 'members', 'read', 'viewer')).toThrow();
+    });
+
+    it('API-key clients use the explicit scope set, not minRole', () => {
+      const key: ApiPrincipal = {
+        authMode: 'api_key',
+        clientId: 'c-1',
+        clientName: 'ext',
+        clientType: 'third_party',
+        clientTier: 'standard',
+        keyId: 'k-1',
+        clientPermissions: new Set(['members.read']),
+      };
+      expect(() => authorize(key, 'members', 'read', 'viewer')).not.toThrow();
+      // minRole is irrelevant for api-key clients; granted scope is what matters.
+      expect(() => authorize(key, 'members', 'create', 'staff')).toThrow();
     });
   });
 });

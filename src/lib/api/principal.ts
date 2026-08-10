@@ -20,7 +20,9 @@
 import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { createServiceClient } from '@/lib/supabase/server';
+import { getRoleLevel } from '@/lib/auth/authorization';
 import { ApiError } from './error';
+import type { EndpointSpec } from './manifest';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
@@ -242,23 +244,35 @@ export async function resolvePrincipal(
 }
 
 /**
- * Authorize a principal against a module.action permission.
+ * Authorize a principal against an endpoint.
  *
- * Session auth uses the existing role-based permission matrix (super_admin
- * bypasses). API-key auth uses the client's explicitly granted scopes.
+ * Session auth: the endpoint manifest's `minRole` is the single source of
+ * truth, enforced via the role hierarchy (super_admin bypasses). Endpoints
+ * with no `minRole` (e.g. the `auth.*` own-session/profile endpoints) are
+ * identity-scoped, not role-scoped, so any authenticated session user is
+ * allowed. The legacy PERMISSIONS matrix is intentionally NOT consulted here:
+ * it omits several manifest modules (compliance, statements, dashboard, auth),
+ * which previously caused non-super_admin portal users to receive 403s on
+ * endpoints whose manifest declares `minRole: 'viewer'`.
+ *
+ * API-key auth: the client's explicitly granted `module.action` scopes.
  */
-export function authorize(principal: ApiPrincipal, module: string, action: string): void {
+export function authorize(
+  principal: ApiPrincipal,
+  module: string,
+  action: string,
+  minRole?: EndpointSpec['minRole']
+): void {
   if (principal.authMode === 'anonymous') {
     throw ApiError.unauthorized('Authentication required');
   }
 
   if (principal.authMode === 'session') {
     if (principal.role === 'super_admin') return;
-    // Reuse the legacy role-based matrix to avoid a second source of truth.
-    // Imported lazily to avoid a circular import at module load.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { hasPermission } = require('@/lib/auth/authorization') as typeof import('@/lib/auth/authorization');
-    if (!hasPermission(principal.role || '', module, action)) {
+    // No minRole => identity-scoped endpoint (own session/profile/password).
+    // Any authenticated portal user may access it.
+    if (!minRole) return;
+    if (getRoleLevel(principal.role || '') < getRoleLevel(minRole)) {
       throw ApiError.forbidden(`Insufficient permissions for ${module}.${action}`);
     }
     return;
