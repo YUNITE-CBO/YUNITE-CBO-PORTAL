@@ -15,6 +15,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ENDPOINTS, AVAILABLE_SCOPES } from '@/lib/api/manifest';
+import { applyCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
+import { NextRequest, NextResponse } from 'next/server';
 
 const V1_ROUTES_DIR = path.join(__dirname, '..', 'src', 'app', 'api', 'v1');
 
@@ -105,5 +107,78 @@ describe('YUNITE API gateway consistency', () => {
     expect(v1BypassIdx).toBeGreaterThan(-1);
     expect(genericApiIdx).toBeGreaterThan(-1);
     expect(v1BypassIdx).toBeLessThan(genericApiIdx);
+  });
+
+  it('middleware wires CORS preflight + headers for /api/v1', () => {
+    const mw = fs.readFileSync(
+      path.join(__dirname, '..', 'src', 'middleware.ts'),
+      'utf8'
+    );
+    expect(mw).toMatch(/corsPreflightResponse/);
+    expect(mw).toMatch(/applyCorsHeaders/);
+    expect(mw).toMatch(/OPTIONS/);
+  });
+
+  describe('cors helper', () => {
+    function makeRequest(origin: string | null): NextRequest {
+      const headers = new Headers();
+      if (origin) headers.set('origin', origin);
+      return new NextRequest('https://gateway.test/api/v1/members/lookup', {
+        method: 'GET',
+        headers,
+      });
+    }
+
+    afterEach(() => {
+      delete process.env.YUNITE_API_CORS_ORIGINS;
+    });
+
+    it('emits no CORS headers when no allowlist is configured (locked down)', () => {
+      const res = applyCorsHeaders(NextResponse.json({ ok: true }), makeRequest('https://app.vercel.app'));
+      expect(res.headers.get('access-control-allow-origin')).toBeNull();
+    });
+
+    it('reflects an allowlisted origin with credentials', () => {
+      process.env.YUNITE_API_CORS_ORIGINS = 'https://app.vercel.app';
+      const res = applyCorsHeaders(NextResponse.json({ ok: true }), makeRequest('https://app.vercel.app'));
+      expect(res.headers.get('access-control-allow-origin')).toBe('https://app.vercel.app');
+      expect(res.headers.get('access-control-allow-credentials')).toBe('true');
+      expect(res.headers.get('vary')).toContain('Origin');
+    });
+
+    it('does not reflect an origin that is not in the allowlist', () => {
+      process.env.YUNITE_API_CORS_ORIGINS = 'https://app.vercel.app';
+      const res = applyCorsHeaders(NextResponse.json({ ok: true }), makeRequest('https://evil.test'));
+      expect(res.headers.get('access-control-allow-origin')).toBeNull();
+    });
+
+    it('supports wildcard mode without credentials', () => {
+      process.env.YUNITE_API_CORS_ORIGINS = '*';
+      const res = applyCorsHeaders(NextResponse.json({ ok: true }), makeRequest('https://anything.test'));
+      expect(res.headers.get('access-control-allow-origin')).toBe('*');
+      expect(res.headers.get('access-control-allow-credentials')).toBeNull();
+    });
+
+    it('builds a 204 preflight with methods/headers/max-age for allowlisted origins', () => {
+      process.env.YUNITE_API_CORS_ORIGINS = 'https://app.vercel.app';
+      const req = new NextRequest('https://gateway.test/api/v1/members/lookup', {
+        method: 'OPTIONS',
+        headers: new Headers({
+          origin: 'https://app.vercel.app',
+          'access-control-request-method': 'GET',
+          'access-control-request-headers': 'authorization',
+        }),
+      });
+      const res = corsPreflightResponse(req)!;
+      expect(res.status).toBe(204);
+      expect(res.headers.get('access-control-allow-origin')).toBe('https://app.vercel.app');
+      expect(res.headers.get('access-control-allow-methods')).toContain('GET');
+      expect(res.headers.get('access-control-allow-headers')).toContain('Authorization');
+      expect(res.headers.get('access-control-max-age')).toBeTruthy();
+    });
+
+    it('returns null preflight when no allowlist is configured', () => {
+      expect(corsPreflightResponse(makeRequest('https://app.vercel.app'))).toBeNull();
+    });
   });
 });

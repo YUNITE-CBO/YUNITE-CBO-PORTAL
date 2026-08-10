@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { applyCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
 
 // Public read-only API paths (dashboard frontend can access without auth)
 const publicReadPaths = [
@@ -31,8 +32,15 @@ export async function middleware(request: NextRequest) {
   // request logging. Let it handle auth itself so API-key clients (which do not
   // carry a session cookie) can reach POST/PUT/DELETE endpoints. The older
   // cookie-only check below would otherwise 401 them before the gateway runs.
+  //
+  // CORS is applied here for every /api/v1 response (preflight + actual),
+  // governed by the YUNITE_API_CORS_ORIGINS env var. With the env unset the
+  // gateway stays same-origin only (no CORS headers).
   if (pathname.startsWith('/api/v1')) {
-    return NextResponse.next();
+    if (request.method === 'OPTIONS') {
+      return corsPreflightResponse(request) ?? NextResponse.next();
+    }
+    return applyCorsHeaders(NextResponse.next(), request);
   }
 
   // Allow public paths

@@ -20,6 +20,14 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   (including the API Keys & Gateway settings UI). AuthService.login() generates
   one session id and passes it to both generateToken (JWT) and createSession
   (row id). Do not reintroduce independent uuidv4() calls for these.
+- **CORS on the gateway** (`src/lib/api/cors.ts`, wired in `src/middleware.ts`):
+  cross-origin `/api/v1` access is opt-in via the `YUNITE_API_CORS_ORIGINS` env
+  var (comma-separated exact origins). Unset = same-origin only (no CORS
+  headers, locked down). Set a single `*` = any origin but NO credentials
+  (API-key-only integrations). Otherwise reflect allowlisted origins with
+  `Access-Control-Allow-Credentials: true` (cookie + Bearer both work). Preflight
+  (`OPTIONS`) is handled in middleware; actual responses get headers via
+  `applyCorsHeaders`. `tests/api-gateway-consistency.test.ts` guards this.
 - `tests/auth.test.ts` and `tests/integration.test.ts` declare duplicate top-level
   identifiers (API_BASE_URL, TEST_EMAIL, CookieJar). `tsc --noEmit` reports these but
   they are pre-existing and harmless to the build. Filter them with `grep -v tests/`.
