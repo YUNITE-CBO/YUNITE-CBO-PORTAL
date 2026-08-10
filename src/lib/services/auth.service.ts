@@ -173,11 +173,16 @@ export class AuthService {
       })
       .eq('id', user.id);
 
+    // Generate a single session id used both in the JWT payload and as the
+    // user_sessions row id. The gateway (src/lib/api/principal.ts) looks up the
+    // session row by this id, so the two MUST match.
+    const sessionId = uuidv4();
+
     // Generate JWT token
-    const token = await this.generateToken(user);
+    const token = await this.generateToken(user, sessionId);
 
     // Create session record
-    await this.createSession(user.id, token, ipAddress, userAgent, deviceInfo);
+    await this.createSession(user.id, token, sessionId, ipAddress, userAgent, deviceInfo);
 
     // Log successful login
     await this.logLoginActivity(user.id, normalizedEmail, 'login_success', true, undefined, ipAddress, userAgent, deviceInfo);
@@ -541,9 +546,7 @@ export class AuthService {
 
   // ==================== Private Methods ====================
 
-  private async generateToken(user: Record<string, unknown>): Promise<string> {
-    const sessionId = uuidv4();
-    
+  private async generateToken(user: Record<string, unknown>, sessionId: string): Promise<string> {
     return new SignJWT({
       user_id: user.id,
       email: user.email,
@@ -559,6 +562,7 @@ export class AuthService {
   private async createSession(
     userId: string,
     token: string,
+    sessionId: string,
     ipAddress?: string,
     userAgent?: string,
     deviceInfo?: DeviceInfo
@@ -567,7 +571,10 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + SESSION_DURATION_HOURS);
 
+    // Store the session row with id = sessionId so the gateway can look it up
+    // by the session_id carried in the JWT (see src/lib/api/principal.ts).
     await supabase.from('user_sessions').insert({
+      id: sessionId,
       user_id: userId,
       session_token: token,
       ip_address: ipAddress || null,
