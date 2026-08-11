@@ -22,7 +22,7 @@
  * settings page also gates the tab, but this is defense-in-depth).
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 
 interface WorkflowSetting {
   key: string;
@@ -50,8 +50,31 @@ interface AutomationRun {
   details: Record<string, unknown> | null;
 }
 
+interface StepResult {
+  step: string;
+  items_processed: number;
+  notifications_created: number;
+  emails_sent: number;
+  emails_skipped: number;
+  errors: string[];
+  skipped_reason?: string;
+}
+
 interface Props {
   onBack: () => void;
+}
+
+// Extract the per-step results (and their error messages) from a run's
+// `details` JSON, which the runner persists as { steps: StepResult[], ... }.
+function runSteps(details: Record<string, unknown> | null): StepResult[] {
+  if (!details) return [];
+  const steps = (details as { steps?: StepResult[] }).steps;
+  return Array.isArray(steps) ? steps : [];
+}
+
+// Collect every non-empty error message across all steps of a run.
+function runStepErrors(details: Record<string, unknown> | null): string[] {
+  return runSteps(details).flatMap((s) => s.errors || []);
 }
 
 // Group the workflow.* settings into labeled sections for the UI.
@@ -85,6 +108,8 @@ export default function WorkflowsSettingsSection({ onBack }: Props) {
   const [runsLoading, setRunsLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const [triggerResult, setTriggerResult] = useState<string | null>(null);
+  const [triggerErrors, setTriggerErrors] = useState<string[] | null>(null);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -173,15 +198,22 @@ export default function WorkflowsSettingsSection({ onBack }: Props) {
       const data = await res.json();
       if (data.success) {
         const r = data.data;
-        setTriggerResult(
-          `Tick completed in ${r.duration_ms}ms — items: ${r.totals.items_processed}, notifications: ${r.totals.notifications_created}, emails sent: ${r.totals.emails_sent}, skipped: ${r.totals.emails_skipped}, errors: ${r.totals.errors_count}.`
-        );
+        // The tick result exposes per-step errors directly in `steps`;
+        // the persisted DB row nests them under `details.steps`.
+        const stepErrors: string[] = Array.isArray(r.steps)
+          ? r.steps.flatMap((s: StepResult) => s.errors || [])
+          : runStepErrors(r.details);
+        const summary = `Tick completed in ${r.duration_ms}ms — items: ${r.totals.items_processed}, notifications: ${r.totals.notifications_created}, emails sent: ${r.totals.emails_sent}, skipped: ${r.totals.emails_skipped}, errors: ${r.totals.errors_count}.`;
+        setTriggerResult(summary);
+        setTriggerErrors(stepErrors);
         await loadRuns();
       } else {
         setTriggerResult(`Failed: ${data.error || 'unknown error'}`);
+        setTriggerErrors(null);
       }
     } catch (e: any) {
       setTriggerResult(`Failed: ${e?.message || 'network error'}`);
+      setTriggerErrors(null);
     } finally {
       setTriggering(false);
     }
@@ -230,6 +262,13 @@ export default function WorkflowsSettingsSection({ onBack }: Props) {
       {triggerResult && (
         <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm">
           {triggerResult}
+          {triggerErrors && triggerErrors.length > 0 && (
+            <ul className="mt-2 space-y-1 text-red-700">
+              {triggerErrors.map((msg, i) => (
+                <li key={i} className="break-words">⚠️ {msg}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
       {error && (
@@ -349,37 +388,89 @@ export default function WorkflowsSettingsSection({ onBack }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {runs.map((r) => (
-                  <tr key={r.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="py-2 pr-3">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColor(r.status)}`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
-                      {new Date(r.started_at).toLocaleString()}
-                    </td>
-                    <td className="py-2 pr-3 text-gray-600">
-                      {r.duration_ms != null ? `${r.duration_ms}ms` : '—'}
-                    </td>
-                    <td className="py-2 pr-3 text-gray-600">{r.items_processed}</td>
-                    <td className="py-2 pr-3 text-gray-600">{r.notifications_created}</td>
-                    <td className="py-2 pr-3 text-gray-600">
-                      {r.emails_sent}
-                      {r.emails_skipped > 0 && (
-                        <span className="text-gray-400"> ({r.emails_skipped} skipped)</span>
+                {runs.map((r) => {
+                  const stepErrs = runStepErrors(r.details);
+                  const steps = runSteps(r.details);
+                  const hasDetail = stepErrs.length > 0 || steps.some((s) => s.skipped_reason) || r.error_message;
+                  const isOpen = expandedRunId === r.id;
+                  return (
+                    <Fragment key={r.id}>
+                      <tr className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="py-2 pr-3">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColor(r.status)}`}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
+                          {new Date(r.started_at).toLocaleString()}
+                        </td>
+                        <td className="py-2 pr-3 text-gray-600">
+                          {r.duration_ms != null ? `${r.duration_ms}ms` : '—'}
+                        </td>
+                        <td className="py-2 pr-3 text-gray-600">{r.items_processed}</td>
+                        <td className="py-2 pr-3 text-gray-600">{r.notifications_created}</td>
+                        <td className="py-2 pr-3 text-gray-600">
+                          {r.emails_sent}
+                          {r.emails_skipped > 0 && (
+                            <span className="text-gray-400"> ({r.emails_skipped} skipped)</span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {hasDetail ? (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedRunId(isOpen ? null : r.id)}
+                              className={`underline ${r.errors_count > 0 ? 'text-red-600' : 'text-gray-500'} hover:text-red-700`}
+                            >
+                              {r.errors_count > 0 ? `${r.errors_count} ▾` : 'details ▾'}
+                            </button>
+                          ) : r.errors_count > 0 ? (
+                            <span className="text-red-600">{r.errors_count}</span>
+                          ) : (
+                            <span className="text-gray-400">0</span>
+                          )}
+                        </td>
+                        <td className="py-2 text-gray-500 text-xs">{r.trigger}</td>
+                      </tr>
+                      {isOpen && hasDetail && (
+                        <tr className="bg-gray-50">
+                          <td colSpan={8} className="px-4 py-3">
+                            <div className="space-y-2 text-xs">
+                              {r.error_message && (
+                                <div className="text-red-700 break-words">
+                                  <span className="font-semibold">Run error: </span>{r.error_message}
+                                </div>
+                              )}
+                              {steps.map((s) => {
+                                const errs = s.errors || [];
+                                if (!errs.length && !s.skipped_reason) return null;
+                                return (
+                                  <div key={s.step} className="space-y-1">
+                                    <div className="font-semibold text-gray-700">
+                                      Step: {s.step}
+                                      {s.skipped_reason && (
+                                        <span className="ml-2 text-gray-500 font-normal">(skipped: {s.skipped_reason})</span>
+                                      )}
+                                    </div>
+                                    {errs.length > 0 ? (
+                                      <ul className="pl-4 space-y-0.5 text-red-700">
+                                        {errs.map((msg, i) => (
+                                          <li key={i} className="break-words">⚠️ {msg}</li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <div className="pl-4 text-gray-500">No errors.</div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {r.errors_count > 0 ? (
-                        <span className="text-red-600">{r.errors_count}</span>
-                      ) : (
-                        <span className="text-gray-400">0</span>
-                      )}
-                    </td>
-                    <td className="py-2 text-gray-500 text-xs">{r.trigger}</td>
-                  </tr>
-                ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
