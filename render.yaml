@@ -64,6 +64,50 @@ services:
       # ===================================================================
       # END SUPER ADMIN CONFIGURATION
       # ===================================================================
+      # ===================================================================
+      # WORKFLOW & AUTOMATION ENGINE
+      # ===================================================================
+      # Shared secret protecting /api/cron/automation. MUST match the
+      # CRON_SECRET on the yunite-automation-tick cron service. Generate
+      # with: openssl rand -hex 32
+      # ===================================================================
+      - key: CRON_SECRET
+        sync: false
 
 # Auto-deploy hook - configure in GitHub Secrets as RENDER_DEPLOY_HOOK_URL
 # To get your deploy hook URL: Render Dashboard → Your Service → Settings → Deploy Hooks
+
+# ===================================================================
+# WORKFLOW & AUTOMATION ENGINE - cron ticker
+# ===================================================================
+# The automation engine (migration 025 + src/lib/services/automation) is
+# event-driven for user actions but time-driven work (due schedules,
+# weekly/monthly statements, overdue reminders, email retries) needs a
+# clock. This cron service pokes the CRON_SECRET-protected endpoint every
+# 5 minutes. Without it, processDueSchedules() and statement generation
+# are dead code (they have no other caller).
+#
+# REQUIRED env var on the web service (set in Render Dashboard):
+#   CRON_SECRET - any long random string. The cron command below must use
+#                 the SAME value. Generate one with:
+#                 openssl rand -hex 32
+# ===================================================================
+  - type: cron
+    name: yunite-automation-tick
+    runtime: node
+    schedule: "*/5 * * * *"
+    region: oregon
+    plan: free
+    buildCommand: 'true'   # nothing to build; curl is used at runtime
+    startCommand: 'curl -fsS -m 120 -H "X-Cron-Secret: ${CRON_SECRET}" "${AUTOMATION_ENDPOINT}" || true'
+    envVars:
+      # The public URL of the yunite-enterprise-os web service + cron route.
+      # Set AUTOMATION_ENDPOINT in Render Dashboard to:
+      #   https://<your-render-web-service>.onrender.com/api/cron/automation
+      # (Replace with your actual web service URL.)
+      - key: AUTOMATION_ENDPOINT
+        sync: false
+      # MUST match the CRON_SECRET set on the yunite-enterprise-os web service.
+      - key: CRON_SECRET
+        sync: false
+

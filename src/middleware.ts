@@ -16,6 +16,11 @@ const publicReadPaths = [
   '/api/contributions',
   '/api/settings',
   '/api/audit',
+  // The automation cron route authenticates via CRON_SECRET (header/query),
+  // not a session cookie (Render cron cannot carry one). Listed here so the
+  // cookie-based auth check below does not 401 it before it can verify the
+  // shared secret itself.
+  '/api/cron/automation',
 ];
 
 // Protected paths (require authentication)

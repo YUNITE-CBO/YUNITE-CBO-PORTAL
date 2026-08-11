@@ -42,6 +42,92 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
 - Optional audit/history inserts (`configuration_history`, `audit_logs`) are wrapped in
   try-catch and only `console.warn` on failure; they must never fail the main setting update.
 
+## Workflow & Automation Engine (existing infrastructure + gaps)
+A substantial notification/automation stack already exists in
+`src/lib/services/notifications/` but has critical dead-code gaps:
+- **Event service** (`event.service.ts`): `notificationEventService.emit(event)`
+  is event-driven and LIVE — called from `member-registration.service.ts`,
+  `loan.service.ts`, `transaction.engine.ts`, and `/api/members/[id]`. Logs to
+  `notification_event_logs`, matches `EVENT_TEMPLATE_MAPPINGS` (member/savings/
+  loan/fine/contribution), resolves recipients, calls `notificationService.sendFromTemplate`.
+  Helpers: `emitMemberRegistered`, `emitLoanApplication`, `emitSavingsDeposit`.
+- **Schedule service** (`schedule.service.ts`): `scheduleService.processDueSchedules()`
+  + `executeSchedule()` reads `notification_schedules` where `next_run_at <= now`,
+  resolves recipients (`all_members`/`active_members`/`admins`/`loans_overdue`/
+  `welfare_pending`), sends from template, advances `next_run_at`. **BUT
+  `processDueSchedules()` HAS ZERO CALLERS** — there is no cron/Vercel cron/Render
+  cron (`render.yaml` has no cron block) and no `node-cron`. Schedules never fire.
+- **Statement service** (`statement.service.ts`, 957 lines): generates member/
+  org/loan/savings statements into `notification_statements` with
+  opening/closing/transactions. Already supports member_weekly/member_monthly/
+  organization_summary. `buildOrgSummary` exists. **No forecast engine** (only
+  historical).
+- **Notification service** (`notification.service.ts`): `sendFromTemplate(code,
+  recipient, variables, opts)` sends in-app + enqueues `email_queue` row.
+- **API routes** all exist: `notifications/events`, `notifications/schedules`,
+  `notifications/statements`, `notifications/templates`, `notifications/preferences`,
+  `notifications/actions` (email queue processing), `audit`.
+- **Settings UI** (`src/app/dashboard/settings/page.tsx`, 1487 lines): renders
+  `configuration_categories` with config-status badges. The "Workflow — Not Set"
+  the user sees = the `workflow` config category seeded in migration 007
+  (line ~142: `('workflow','Workflow','Approval workflows and automation',
+  'git-branch','#0891B2',13)`). Shows "Not Set" because no `settings` rows under it
+  have values.
+- **Approval workflow**: `member_approval_workflow` table (migration 007) is a real
+  stage machine (documentation→review→approval→completed/rejected) for member
+  registration. `members.workflow_stage` + `update_member_workflow_stage()` fn.
+  No generalized approval engine for loans/transaction reversals.
+- **Meetings**: `meetings` + `meeting_attendance` tables exist (migration 004) but
+  NO service/route/UI — purely schema. No meeting events in EVENT_TEMPLATE_MAPPINGS.
+- **Schema conflict (must reconcile)**: migrations 005 and 012 define CONFLICTING
+  columns for `notification_statements`, `notification_event_logs`,
+  `notification_preferences`, `email_queue`, `notification_delivery_history`.
+  Services assume the richer 005 schema (`recipient_email`/`title`/`summary`/
+  `generated_data`/`schedule_id` on statements; `event_id`/`status`/`received_at`
+  on event_logs; `owner_type`/`owner_id` on preferences). A reconciliation migration
+  is needed before building on top — verify live DB columns first.
+- **Missing for a real engine**: (1) a cron/scheduler runtime to call
+  `processDueSchedules()`; (2) a `member_financial_obligations` view/table
+  centralizing loan+savings+membership+welfare+fines with due/upcoming/overdue/
+  partial/paid/waived status; (3) configurable reminder lead times
+  (7/3/1-day-before); (4) a unified `automation_runs` history table
+  (statements generated / emails sent / no-email skipped); (5) email retry logic;
+  (6) financial forecast engine (30/90-day); (7) super-admin alert center with
+  critical/warning/info tiers.
+- **Phase 1 IMPLEMENTED** (the clock + foundation): migration
+  `025_workflow_automation_engine.sql` reconciles the 005/012 schema conflicts
+  with idempotent `ADD COLUMN IF NOT EXISTS`, adds `automation_runs` (unified
+  history) + `automation_locks` (row mutex vs overlapping cron) + the
+  `member_financial_obligations` VIEW (loans+fines; contributions/welfare later),
+  seeds `workflow.*` toggles + reminder lead times under the `workflow` config
+  category, seeds default weekly/monthly statement schedules, and 7 new
+  templates (statement.weekly/monthly, loan.payment_due/overdue, fine.outstanding,
+  admin.obligation_overdue, admin.financial_forecast).
+  `src/lib/services/automation/runner.service.ts` = `automationRunner.tick()`
+  orchestrator: acquires a 5-min TTL lock, runs `emailService.processQueue()` +
+  `scheduleService.processDueSchedules()` + obligations reminders + weekly/monthly
+  statement cadence, each gated by `workflow.*` toggles and wrapped so one step's
+  failure can't abort others, all logged to `automation_runs`. The obligations step
+  reads the view and emits overdue/due-today reminders through the LIVE
+  `notificationService.sendFromTemplate` with per-day idempotency keys.
+  `/api/cron/automation` (GET+POST) is `CRON_SECRET`-protected (header or query),
+  added to `publicReadPaths` in `src/middleware.ts` (it cannot use session auth
+  since Render cron carries no cookie). `render.yaml` adds a `cron` service
+  (`yunite-automation-tick`, `*/5 * * * *`) that curls the endpoint with the
+  `X-Cron-Secret` header, plus `CRON_SECRET` env var on the web service.
+  **Deploy steps**: run migration 025 in Supabase SQL Editor; set `CRON_SECRET`
+  (same value) on both the web service and cron service in Render Dashboard;
+  set `AUTOMATION_ENDPOINT` to `https://<web-service>.onrender.com/api/cron/automation`.
+- **Still to build (Phases 2-5)**: (P2) configurable 7/3/1-day-before + overdue
+  repeat logic in the obligations step (currently overdue+due-today only);
+  contributions/welfare rows in the obligations view; (P3) financial forecast
+  engine (30/90-day) + super-admin alert tiers (critical/warning/info); (P4)
+  replace the "Workflow — Not Set" badge in `dashboard/settings/page.tsx` with a
+  real WorkflowsSettingsSection control panel + Automation History view reading
+  `automation_runs`; (P5) meetings service/route/UI on the existing `meetings`
+  table + meeting events in EVENT_TEMPLATE_MAPPINGS + generalized approval
+  workflows for loans/transaction reversals.
+
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.
 - Commits use `openhands` author + `Co-authored-by: openhands <openhands@all-hands.dev>`.
