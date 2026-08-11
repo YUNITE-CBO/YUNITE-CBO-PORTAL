@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const requestedLimit = parseInt(searchParams.get('limit') || '20', 10);
+    const limit = Math.min(Math.max(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 20, 1), 100);
     const runType = searchParams.get('type');
 
     const supabase = await createServiceClient();

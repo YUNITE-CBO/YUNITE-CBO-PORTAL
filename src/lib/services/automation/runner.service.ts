@@ -72,7 +72,7 @@ class AutomationRunner {
     // 1. Acquire lock; bail if another tick is still running.
     const locked = await this.acquireLock(runId);
     if (!locked) {
-      return this.finish(runId, 'skipped', startedAt, steps, undefined, 'another tick is already running');
+      return this.finish(runId, 'skipped', startedAt, steps, undefined, 'another tick is already running', trigger);
     }
 
     try {
@@ -80,7 +80,7 @@ class AutomationRunner {
       //    (skipped) run so the admin can see the clock is alive.
       const enabled = await this.getBoolSetting('workflow.automation.enabled', true);
       if (!enabled) {
-        return this.finish(runId, 'skipped', startedAt, steps, undefined, 'automation master switch is off');
+        return this.finish(runId, 'skipped', startedAt, steps, undefined, 'automation master switch is off', trigger);
       }
 
       // 3. Run each step independently. Failures in one must not abort others.
@@ -89,9 +89,9 @@ class AutomationRunner {
       steps.push(await this.runStep('obligations', () => this.processObligationsReminders()));
       steps.push(await this.runStep('statements', () => this.processStatementCadence()));
 
-      return this.finish(runId, 'completed', startedAt, steps);
+      return this.finish(runId, 'completed', startedAt, steps, undefined, undefined, trigger);
     } catch (error: any) {
-      return this.finish(runId, 'failed', startedAt, steps, error?.message || String(error));
+      return this.finish(runId, 'failed', startedAt, steps, error?.message || String(error), undefined, trigger);
     } finally {
       await this.releaseLock(runId);
     }
@@ -667,7 +667,8 @@ class AutomationRunner {
     startedAt: Date,
     steps: AutomationStepResult[],
     errorMessage?: string,
-    skipReason?: string
+    skipReason?: string,
+    trigger: 'cron' | 'manual' = 'cron'
   ): Promise<AutomationTickResult> {
     const finishedAt = new Date();
     const durationMs = finishedAt.getTime() - startedAt.getTime();
@@ -693,7 +694,7 @@ class AutomationRunner {
         started_at: startedAt.toISOString(),
         finished_at: finishedAt.toISOString(),
         duration_ms: durationMs,
-        trigger: 'cron',
+        trigger,
         items_processed: totals.items_processed,
         notifications_created: totals.notifications_created,
         emails_sent: totals.emails_sent,
