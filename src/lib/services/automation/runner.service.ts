@@ -29,6 +29,7 @@ import { scheduleService } from '../notifications/schedule.service';
 import { statementService } from '../notifications/statement.service';
 import { emailService } from '../notifications/email.service';
 import { settingsService } from '../settings.service';
+import { financialForecastService } from './forecast.service';
 
 export interface AutomationStepResult {
   step: string;
@@ -87,7 +88,9 @@ class AutomationRunner {
       steps.push(await this.runStep('email_queue', () => this.processEmailQueue()));
       steps.push(await this.runStep('schedule', () => this.processDueSchedules()));
       steps.push(await this.runStep('obligations', () => this.processObligationsReminders()));
+      steps.push(await this.runStep('meetings', () => this.processMeetingReminders()));
       steps.push(await this.runStep('statements', () => this.processStatementCadence()));
+      steps.push(await this.runStep('forecast', () => this.processForecastAndAlerts()));
 
       return this.finish(runId, 'completed', startedAt, steps);
     } catch (error: any) {
@@ -381,6 +384,147 @@ class AutomationRunner {
   }
 
   // -----------------------------------------------------------------
+  // STEP: meeting reminders (Phase 5)
+  //
+  // Parses workflow.meetings.reminder_offsets (e.g. "7d,3d,1d,2h") and fires
+  // a reminder to all active members for each scheduled meeting whose start
+  // time is exactly one offset away. "Exactly" is windowed to the cron tick
+  // interval (~5 min): a reminder fires when now is within [offset, offset+6min)
+  // before the meeting start. Per-meeting+per-offset+per-day idempotency
+  // prevents duplicate sends across re-runs.
+  // -----------------------------------------------------------------
+  private async processMeetingReminders(): Promise<AutomationStepResult> {
+    const errors: string[] = [];
+    let itemsProcessed = 0;
+    let notificationsCreated = 0;
+    let emailsSkipped = 0;
+
+    try {
+      const remindersOn = await this.getBoolSetting('workflow.meetings.reminders', true);
+      if (!remindersOn) {
+        return { step: 'meetings', items_processed: 0, notifications_created: 0, emails_sent: 0, emails_skipped: 0, errors, skipped_reason: 'meeting reminders off' };
+      }
+
+      const emailChannelOn = await this.getBoolSetting('workflow.channels.email', true);
+      const orgName = (await settingsService.get('organization.name')) || 'YUNITE CBO';
+      const offsetsRaw = (await settingsService.get('workflow.meetings.reminder_offsets')) || '7d,3d,1d,2h';
+      const offsetsMin = this.parseOffsets(offsetsRaw); // minutes before start
+
+      const supabase = await createServiceClient();
+
+      // Pull scheduled meetings in the next 10 days (covers the 7d offset + buffer).
+      const lookAhead = new Date();
+      lookAhead.setDate(lookAhead.getDate() + 10);
+      const { data: meetings, error } = await supabase
+        .from('meetings')
+        .select('id, meeting_title, meeting_number, scheduled_date, start_time, venue, agenda, status')
+        .eq('status', 'scheduled')
+        .gte('scheduled_date', new Date().toISOString())
+        .lte('scheduled_date', lookAhead.toISOString());
+
+      if (error) {
+        errors.push(`meetings query: ${error.message}`);
+        return { step: 'meetings', items_processed: 0, notifications_created: 0, emails_sent: 0, emails_skipped: 0, errors };
+      }
+
+      if (!meetings?.length) {
+        return { step: 'meetings', items_processed: 0, notifications_created: 0, emails_sent: 0, emails_skipped: 0, errors };
+      }
+
+      // Active members (reminder recipients)
+      const { data: members } = await supabase
+        .from('members')
+        .select('id, email, phone, first_name, last_name')
+        .eq('status', 'active');
+      const activeMembers = (members || []).filter((m: any) => m.email);
+
+      const now = Date.now();
+      const todayKey = new Date().toISOString().split('T')[0];
+      const TICK_WINDOW_MIN = 6; // fire if within [offset, offset+6min) before start
+
+      for (const meeting of meetings) {
+        itemsProcessed++;
+        // Resolve the effective start: scheduled_date carries the date+time;
+        // fall back to start_time if scheduled_date is date-only.
+        const startMs = this.meetingStartMs(meeting);
+        if (!startMs) continue;
+
+        // Find which offset(s) match the current tick window.
+        const minsUntil = Math.round((startMs - now) / 60000);
+        const matchedOffsets = offsetsMin.filter(
+          (off) => minsUntil <= off && minsUntil > off - TICK_WINDOW_MIN
+        );
+        if (matchedOffsets.length === 0) continue;
+
+        const dateStr = new Date(startMs).toLocaleString('en-GB', {
+          weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        });
+
+        for (const offset of matchedOffsets) {
+          for (const member of activeMembers) {
+            const name = `${member.first_name} ${member.last_name}`;
+            const idemKey = `mtg-${meeting.id}-${offset}m-${todayKey}-${member.id}`;
+            const result = await this.notifyFromTemplate('meeting.reminder', {
+              id: member.id,
+              type: 'member',
+              email: emailChannelOn ? member.email : undefined,
+              phone: member.phone || undefined,
+              name,
+            }, {
+              organization_name: orgName,
+              member_name: name,
+              meeting_title: meeting.meeting_title,
+              meeting_date: dateStr,
+              venue: meeting.venue || '',
+              agenda: meeting.agenda || '',
+            }, idemKey);
+            if (result) notificationsCreated++;
+            if (!emailChannelOn || !member.email) emailsSkipped++;
+          }
+        }
+      }
+    } catch (error: any) {
+      errors.push(`meetings: ${error?.message || String(error)}`);
+    }
+
+    return {
+      step: 'meetings',
+      items_processed: itemsProcessed,
+      notifications_created: notificationsCreated,
+      emails_sent: 0,
+      emails_skipped: emailsSkipped,
+      errors,
+    };
+  }
+
+  /**
+   * Parse "7d,3d,1d,2h" → [10080, 4320, 1440, 120] (minutes before start).
+   * Ignores malformed entries.
+   */
+  private parseOffsets(raw: string): number[] {
+    const out: number[] = [];
+    for (const part of raw.split(',')) {
+      const m = part.trim().match(/^(\d+)([dh])$/i);
+      if (!m) continue;
+      const n = parseInt(m[1], 10);
+      const unit = m[2].toLowerCase();
+      out.push(unit === 'd' ? n * 1440 : n * 60);
+    }
+    return out.sort((a, b) => b - a); // largest first
+  }
+
+  /**
+   * Resolve a meeting's start time to epoch ms. Uses start_time if present,
+   * otherwise scheduled_date (which usually carries the time component).
+   */
+  private meetingStartMs(meeting: any): number | null {
+    const candidate = meeting.start_time || meeting.scheduled_date;
+    if (!candidate) return null;
+    const ms = new Date(candidate).getTime();
+    return isNaN(ms) ? null : ms;
+  }
+
+  // -----------------------------------------------------------------
   // STEP: weekly/monthly statement cadence
   // Uses the fully-written statementService.generateAndDeliver() per member.
   // The cadence (which day to run) is read from workflow.statements.* settings.
@@ -533,6 +677,116 @@ class AutomationRunner {
     }
 
     return { itemsProcessed: 1, notificationsCreated, emailsSent, emailsSkipped, errors };
+  }
+
+  // -----------------------------------------------------------------
+  // STEP: financial forecast + super-admin alert tiers (Phase 3)
+  //
+  // On the monthly statement day, generate the 30/90-day forecast and email
+  // it to super admins via the admin.financial_forecast template. Then
+  // evaluate the alert tiers (critical/warning/info) and emit in-app alerts
+  // for any that fire. Gated by workflow.alerts.financial_forecast and
+  // workflow.alerts.super_admin respectively. Off-cadence ticks skip.
+  // -----------------------------------------------------------------
+  private async processForecastAndAlerts(): Promise<AutomationStepResult> {
+    const errors: string[] = [];
+    let itemsProcessed = 0;
+    let notificationsCreated = 0;
+    let emailsSkipped = 0;
+
+    try {
+      const forecastOn = await this.getBoolSetting('workflow.alerts.financial_forecast', true);
+      const alertsOn = await this.getBoolSetting('workflow.alerts.super_admin', true);
+      if (!forecastOn && !alertsOn) {
+        return { step: 'forecast', items_processed: 0, notifications_created: 0, emails_sent: 0, emails_skipped: 0, errors, skipped_reason: 'forecast + alert toggles off' };
+      }
+
+      const emailChannelOn = await this.getBoolSetting('workflow.channels.email', true);
+      const now = new Date();
+      const monthlyDay = await this.getNumberSetting('workflow.statements.monthly_day', 1);
+      const orgName = (await settingsService.get('organization.name')) || 'YUNITE CBO';
+      const todayKey = now.toISOString().split('T')[0];
+
+      // Forecast email only on the monthly statement day (avoid spamming daily)
+      const isMonthlyDay = now.getDate() === monthlyDay;
+
+      if (forecastOn && isMonthlyDay) {
+        try {
+          const forecast = await financialForecastService.generate();
+          itemsProcessed++;
+          const idemKey = `forecast-${todayKey}`;
+          const result = await this.notifyAdmins('admin.financial_forecast', {
+            organization_name: orgName,
+            period: forecast.period,
+            currency: forecast.currency,
+            expected_income: forecast.forecast_30d.expected_income.toLocaleString(),
+            expected_expenses: forecast.forecast_30d.expected_expenses.toLocaleString(),
+            expected_loan_collections: forecast.forecast_30d.expected_loan_collections.toLocaleString(),
+            expected_contributions: forecast.forecast_30d.expected_contributions.toLocaleString(),
+            net_30d: forecast.forecast_30d.net.toLocaleString(),
+            net_90d: forecast.forecast_90d.net.toLocaleString(),
+          }, idemKey, emailChannelOn);
+          if (result) notificationsCreated++;
+          if (!emailChannelOn) emailsSkipped++;
+        } catch (e: any) {
+          errors.push(`forecast generate: ${e?.message || String(e)}`);
+        }
+      } else if (forecastOn && !isMonthlyDay) {
+        // Not the monthly day — skip the email but still allow alerts below.
+      }
+
+      // Alert tiers: evaluate every tick (cheap), emit in-app only.
+      if (alertsOn) {
+        try {
+          const alerts = await financialForecastService.generateAlerts();
+          for (const alert of alerts) {
+            itemsProcessed++;
+            const idemKey = `alert-${alert.tier}-${alert.title}-${todayKey}`;
+            // Reuse the admin.obligation_overdue template shape for critical/warning
+            // by sending a generic admin notification. We use admin.financial_forecast
+            // template only for the forecast; alerts go as raw notifications.
+            const { notificationService } = await import('../notifications/notification.service');
+            const supabase = await createServiceClient();
+            const { data: admins } = await supabase
+              .from('users')
+              .select('id, full_name, email')
+              .in('role', ['admin', 'super_admin'])
+              .eq('is_active', true);
+
+            for (const admin of admins || []) {
+              const result = await notificationService.send({
+                category_code: 'automation',
+                subject: `[${alert.tier.toUpperCase()}] ${alert.title}`,
+                body: alert.message,
+                priority: alert.tier === 'critical' ? 'urgent' : alert.tier === 'warning' ? 'high' : 'normal',
+                recipient_type: 'user',
+                recipient_id: admin.id,
+                recipient_email: emailChannelOn ? admin.email : undefined,
+                recipient_name: admin.full_name,
+                source_module: 'automation',
+                source_action: `automation.alert.${alert.tier}`,
+                idempotency_key: `${idemKey}-${admin.id}`,
+              } as any);
+              if (result) notificationsCreated++;
+              if (!emailChannelOn) emailsSkipped++;
+            }
+          }
+        } catch (e: any) {
+          errors.push(`alerts generate: ${e?.message || String(e)}`);
+        }
+      }
+    } catch (error: any) {
+      errors.push(`forecast: ${error?.message || String(error)}`);
+    }
+
+    return {
+      step: 'forecast',
+      items_processed: itemsProcessed,
+      notifications_created: notificationsCreated,
+      emails_sent: 0,
+      emails_skipped: emailsSkipped,
+      errors,
+    };
   }
 
   // -----------------------------------------------------------------

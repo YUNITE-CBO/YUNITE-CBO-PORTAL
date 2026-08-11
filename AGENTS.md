@@ -151,6 +151,30 @@ A substantial notification/automation stack already exists in
   Two new session-authenticated routes: `GET /api/automation/runs` (history,
   admin+) and `POST /api/automation/trigger` (manual tick, admin+) — the latter
   lets admins force a tick without the CRON_SECRET the cron route needs.
+- **Phase 3 IMPLEMENTED** (forecast + alert tiers): `forecast.service.ts`
+  `financialForecastService.generate()` blends trailing-90-day actuals
+  (avg daily net extrapolated forward) with known upcoming loan repayments
+  (monthly_repayment × months, capped at remaining) and expected monthly
+  contributions/welfare (settings × active member count) into 30/90-day
+  projections + current cash position. `generateAlerts()` derives
+  critical/warning/info tiers (negative cash position = critical; negative 30d
+  projection = critical; overdue obligations/defaulted loans = warning; pending
+  approvals = info). Wired into the runner as a 5th step
+  `processForecastAndAlerts()`: forecast emailed to super admins on the monthly
+  statement day via `admin.financial_forecast`; alert tiers evaluated every tick
+  and emitted as in-app notifications (per-day idempotent). Exported from the
+  automation barrel.
+- **Phase 5 IMPLEMENTED** (meetings): `meetings.service.ts` (create/update +
+  broadcast to all active members on create/update/cancel, gated by
+  `workflow.meetings.notifications`). `runner.service.ts` gained a `processMeetingReminders()`
+  step: parses `workflow.meetings.reminder_offsets` (e.g. "7d,3d,1d,2h") via
+  `parseOffsets()` and fires `meeting.reminder` to active members when now is
+  within a tick window (~6 min) of an offset before a meeting's start; per
+  meeting+offset+member+day idempotency. API routes: `GET/POST /api/meetings`
+  and `GET/PUT /api/meetings/[id]` (admin+ for write). Migration 027 seeds
+  meeting.created/cancelled/reminder templates + a `meetings` notification
+  category. Note: there is no meetings dashboard page yet — only the API +
+  service + reminders. A full meetings UI page is a follow-on.
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.
