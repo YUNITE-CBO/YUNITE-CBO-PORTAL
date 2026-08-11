@@ -209,12 +209,18 @@ export class ScheduleService {
     const supabase = await createServiceClient();
     const runs: ScheduleRun[] = [];
 
-    // Get all active schedules that are due
+    // Get all active schedules that are due. Schedules without a template_id
+    // are excluded: the schedule executor sends via sendFromTemplate, which
+    // requires a template, so a template-less schedule cannot run here. The
+    // runner's own cadence steps (e.g. statement generation) drive those
+    // schedules directly and never attach a template to the row — picking
+    // them up here only produced "Template not found or inactive" errors.
     const { data: schedules } = await supabase
       .from('notification_schedules')
       .select('*')
       .eq('is_active', true)
       .lte('next_run_at', new Date().toISOString())
+      .not('template_id', 'is', null)
       .or(`end_date.is.null,end_date.gte.${new Date().toISOString().split('T')[0]}`);
 
     if (!schedules?.length) return runs;
