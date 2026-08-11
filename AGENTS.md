@@ -127,6 +127,30 @@ A substantial notification/automation stack already exists in
   `automation_runs`; (P5) meetings service/route/UI on the existing `meetings`
   table + meeting events in EVENT_TEMPLATE_MAPPINGS + generalized approval
   workflows for loans/transaction reversals.
+- **Phase 2 IMPLEMENTED** (obligations engine completed): migration
+  `026_obligations_contributions_welfare.sql` replaces the
+  `member_financial_obligations` view to add contributions + welfare rows
+  (expected from `contributions.monthly_default` / `welfare.monthly_amount`
+  settings; paid from current-month `contribution_monthly` /
+  `welfare_deposit` transactions; due_date = last day of month), adds a
+  `last_day_of_month()` SQL helper, a reminder-lookup index on `notifications`,
+  and 4 new templates (contribution.due/overdue, welfare.due/overdue).
+  `runner.service.ts` `processObligationsReminders()` refactored with
+  `decideReminder()` + `templateFor()`: upcoming reminders fire on configurable
+  lead days (7/3/1), due-today fires, overdue repeats every
+  `overdue_repeat_days` (default 7) via `days_overdue % repeat === 0` (no per-row
+  DB lookback needed). Per-day idempotency keys still guard same-tick de-dup.
+- **Phase 4 IMPLEMENTED** (settings UI): `WorkflowsSettingsSection.tsx`
+  component replaces the generic "Workflow — Not Set" badge with a real control
+  panel — toggle switches for every `workflow.*` boolean, number inputs for lead
+  times/cadence days, grouped into Engine/Channels/Reminders/Statements/Meetings/
+  Alerts sections, saved via `PUT /api/configuration` (same audit framework as
+  the rest of settings). Includes an Automation History table reading
+  `automation_runs` and a "Run Now" button. Wired into the settings page:
+  `workflow` added to `ActiveSection` type + category icon + render branch.
+  Two new session-authenticated routes: `GET /api/automation/runs` (history,
+  admin+) and `POST /api/automation/trigger` (manual tick, admin+) — the latter
+  lets admins force a tick without the CRON_SECRET the cron route needs.
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.

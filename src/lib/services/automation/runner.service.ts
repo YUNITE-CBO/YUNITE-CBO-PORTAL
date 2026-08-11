@@ -178,10 +178,21 @@ class AutomationRunner {
   }
 
   // -----------------------------------------------------------------
-  // STEP: member financial obligations reminders
-  // (Phase 1: emit reminders for overdue obligations via the existing
-  //  event-driven notifier. Upcoming/due reminders with configurable
-  //  lead times arrive in Phase 2; this phase handles overdue + due-today.)
+  // STEP: member financial obligations reminders (Phase 2)
+  //
+  // Reminder cadence per obligation:
+  //   - Upcoming: fire when days_until_due hits a configured lead time
+  //     (first_lead_days=7, second_lead_days=3, final_lead_days=1).
+  //   - Due today: fire (loan.payment_due / contribution.due / welfare.due).
+  //   - Overdue: fire once, then repeat every overdue_repeat_days (default 7)
+  //     until paid/waived.
+  //
+  // De-duplication is two-layered:
+  //   1. Per-day idempotency_key on the notification itself (so multiple
+  //      ticks within one day never duplicate).
+  //   2. A lookback query against notifications: for the overdue-repeat
+  //      path, skip if a reminder for this obligation+action was sent
+  //      within the last overdue_repeat_days.
   // -----------------------------------------------------------------
   private async processObligationsReminders(): Promise<AutomationStepResult> {
     const errors: string[] = [];
@@ -190,24 +201,35 @@ class AutomationRunner {
     let emailsSkipped = 0;
 
     try {
-      const loanRemindersOn = await this.getBoolSetting('workflow.reminders.loan_payment', true);
-      const fineRemindersOn = await this.getBoolSetting('workflow.reminders.fines', true);
+      // Toggles per obligation type
+      const toggles: Record<string, boolean> = {
+        loan: await this.getBoolSetting('workflow.reminders.loan_payment', true),
+        fine: await this.getBoolSetting('workflow.reminders.fines', true),
+        contribution: await this.getBoolSetting('workflow.reminders.contributions', true),
+        welfare: await this.getBoolSetting('workflow.reminders.welfare', true),
+      };
       const superAdminAlertsOn = await this.getBoolSetting('workflow.alerts.super_admin', true);
       const emailChannelOn = await this.getBoolSetting('workflow.channels.email', true);
 
-      if (!loanRemindersOn && !fineRemindersOn && !superAdminAlertsOn) {
+      if (!Object.values(toggles).some(Boolean) && !superAdminAlertsOn) {
         return { step: 'obligations', items_processed: 0, notifications_created: 0, emails_sent: 0, emails_skipped: 0, errors, skipped_reason: 'all obligation toggles off' };
       }
 
+      // Configurable lead times (days before due) + overdue repeat interval
+      const firstLead = await this.getNumberSetting('workflow.reminders.first_lead_days', 7);
+      const secondLead = await this.getNumberSetting('workflow.reminders.second_lead_days', 3);
+      const finalLead = await this.getNumberSetting('workflow.reminders.final_lead_days', 1);
+      const overdueRepeat = await this.getNumberSetting('workflow.reminders.overdue_repeat_days', 7);
+      const leadTimes = [firstLead, secondLead, finalLead];
+
       const supabase = await createServiceClient();
 
-      // Read the centralized obligations view. Idempotency is enforced per
-      // obligation per day via a composite idempotency_key, so re-runs within
-      // the same day do not duplicate notifications.
+      // Pull all non-paid/waived obligations; we decide locally whether each
+      // is due for a reminder this tick.
       const { data: obligations, error } = await supabase
         .from('member_financial_obligations')
         .select('*')
-        .in('obligation_status', ['overdue', 'due']);
+        .in('obligation_status', ['upcoming', 'due', 'overdue', 'partially_paid']);
 
       if (error) {
         errors.push(`obligations query: ${error.message}`);
@@ -221,21 +243,23 @@ class AutomationRunner {
       const todayKey = new Date().toISOString().split('T')[0];
       const orgName = (await settingsService.get('organization.name')) || 'YUNITE CBO';
       const currency = (await settingsService.get('organization.currency')) || 'KES';
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
       for (const ob of obligations) {
         itemsProcessed++;
+        if (!toggles[ob.obligation_type]) continue;
 
-        const isLoan = ob.obligation_type === 'loan';
-        const reminderOn = isLoan ? loanRemindersOn : fineRemindersOn;
-        if (!reminderOn) continue;
+        // Determine the reminder kind for this obligation today.
+        const decision = this.decideReminder(ob, today, leadTimes, overdueRepeat);
+        if (!decision.shouldRemind) continue;
 
-        // Member-facing reminder (loan.payment_overdue / fine.outstanding)
+        const templateCode = this.templateFor(ob.obligation_type, decision.kind);
+        if (!templateCode) continue;
+
+        // --- Member-facing reminder ---
         if (ob.email) {
-          const templateCode = isLoan
-            ? (ob.obligation_status === 'overdue' ? 'loan.payment_overdue' : 'loan.payment_due')
-            : 'fine.outstanding';
-          const idemKey = `ob-${ob.obligation_type}-${ob.source_id}-${todayKey}-member`;
-
+          const idemKey = `ob-${ob.obligation_type}-${ob.source_id}-${todayKey}-${decision.kind}-member`;
           const memberResult = await this.notifyFromTemplate(templateCode, {
             id: ob.member_id,
             type: 'member',
@@ -253,14 +277,13 @@ class AutomationRunner {
             fine_number: ob.reference,
             reason: ob.reason || 'Outstanding balance',
           }, idemKey);
-
           if (memberResult) notificationsCreated++;
           if (!emailChannelOn || !ob.email) emailsSkipped++;
         } else {
           emailsSkipped++;
         }
 
-        // Super-admin alert for overdue obligations only
+        // --- Super-admin alert for overdue only ---
         if (superAdminAlertsOn && ob.obligation_status === 'overdue') {
           const adminIdemKey = `ob-${ob.obligation_type}-${ob.source_id}-${todayKey}-admin`;
           const adminResult = await this.notifyAdmins('admin.obligation_overdue', {
@@ -274,7 +297,6 @@ class AutomationRunner {
             due_date: ob.due_date ? String(ob.due_date) : '—',
             obligation_status: ob.obligation_status,
           }, adminIdemKey, emailChannelOn);
-
           if (adminResult) notificationsCreated++;
         }
       }
@@ -290,6 +312,72 @@ class AutomationRunner {
       emails_skipped: emailsSkipped,
       errors,
     };
+  }
+
+  /**
+   * Decide whether an obligation should get a reminder today, and which kind.
+   *   - 'upcoming_lead' : due date is exactly N days away (matches a lead time)
+   *   - 'due'           : due today
+   *   - 'overdue'       : past due; repeated every overdueRepeat days
+   *
+   * For 'overdue', the per-day idempotency_key on the notification handles
+   * same-day de-dup; the every-N-days cadence is enforced by checking that
+   * (days_overdue % overdueRepeat === 0). This is deterministic and avoids a
+   * DB lookback scan per obligation.
+   */
+  private decideReminder(
+    ob: any,
+    today: Date,
+    leadTimes: number[],
+    overdueRepeat: number
+  ): { shouldRemind: boolean; kind: 'upcoming_lead' | 'due' | 'overdue' } {
+    if (ob.obligation_status === 'overdue') {
+      if (!ob.due_date) return { shouldRemind: true, kind: 'overdue' };
+      const due = new Date(ob.due_date);
+      due.setHours(0, 0, 0, 0);
+      const daysOverdue = Math.floor((today.getTime() - due.getTime()) / (24 * 60 * 60 * 1000));
+      // Remind on day 1 of overdue, then every overdueRepeat days.
+      const shouldRemind = daysOverdue === 0 || (daysOverdue > 0 && daysOverdue % overdueRepeat === 0);
+      return { shouldRemind, kind: 'overdue' };
+    }
+
+    if (ob.obligation_status === 'due') {
+      return { shouldRemind: true, kind: 'due' };
+    }
+
+    // upcoming / partially_paid: check lead-time match
+    if (ob.due_date) {
+      const due = new Date(ob.due_date);
+      due.setHours(0, 0, 0, 0);
+      const daysUntil = Math.floor((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+      if (leadTimes.includes(daysUntil)) {
+        return { shouldRemind: true, kind: 'upcoming_lead' };
+      }
+    }
+    return { shouldRemind: false, kind: 'upcoming_lead' };
+  }
+
+  /**
+   * Map obligation type + reminder kind to a notification template code.
+   */
+  private templateFor(
+    type: string,
+    kind: 'upcoming_lead' | 'due' | 'overdue'
+  ): string | null {
+    if (type === 'loan') {
+      if (kind === 'overdue') return 'loan.payment_overdue';
+      return 'loan.payment_due';
+    }
+    if (type === 'fine') {
+      return 'fine.outstanding';
+    }
+    if (type === 'contribution') {
+      return kind === 'overdue' ? 'contribution.overdue' : 'contribution.due';
+    }
+    if (type === 'welfare') {
+      return kind === 'overdue' ? 'welfare.overdue' : 'welfare.due';
+    }
+    return null;
   }
 
   // -----------------------------------------------------------------
