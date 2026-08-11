@@ -13,7 +13,17 @@ interface VerifyResult {
 
 async function verifyRef(ref: string): Promise<VerifyResult> {
   if (!ref) return { success: false, verified: false, error: 'Reference required' };
-  const record = await documentExportService.verifyByRef(ref);
+  let record;
+  try {
+    record = await documentExportService.verifyByRef(ref);
+  } catch {
+    return {
+      success: false,
+      verified: false,
+      error: 'Verification is temporarily unavailable. Please try again later.',
+      organization: ORG_IDENTITY.name,
+    };
+  }
   if (!record) {
     return {
       success: false,
