@@ -21,7 +21,7 @@
 -- ===================================================================
 -- Helper: last day of current month
 -- ===================================================================
-CREATE OR REPLACE FUNCTION IF NOT EXISTS last_day_of_month(d DATE DEFAULT CURRENT_DATE)
+CREATE OR REPLACE FUNCTION last_day_of_month(d DATE DEFAULT CURRENT_DATE)
 RETURNS DATE AS $$
     SELECT (date_trunc('month', d) + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
 $$ LANGUAGE SQL IMMUTABLE;
