@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 
 interface Notification {
   id: string;
   notification_ref: string;
-  subject: string;
-  body: string;
+  subject?: string;
+  body?: string;
+  title?: string;
+  message?: string;
   priority: string;
   recipient_name: string;
   recipient_email: string;
@@ -77,6 +80,7 @@ interface SelectedRecipient {
 
 export default function NotificationsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -515,16 +519,20 @@ export default function NotificationsPage() {
               
               <div className="space-y-3">
                 {notifications.slice(0, 5).map((notification) => (
-                  <div key={notification.id} className="p-4 rounded-lg border bg-gray-50">
+                  <Link
+                    key={notification.id}
+                    href={`/dashboard/notifications/${notification.id}`}
+                    className="block p-4 rounded-lg border bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium text-gray-900">{notification.subject}</h3>
+                          <h3 className="font-medium text-gray-900">{notification.subject || notification.title || '(no subject)'}</h3>
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${getPriorityColor(notification.priority)}`}>
                             {notification.priority}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600">{notification.body}</p>
+                        <p className="text-sm text-gray-600 line-clamp-2">{notification.body || notification.message || ''}</p>
                         <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                           <span>📅 {formatDate(notification.created_at)}</span>
                           <span>📁 {notification.source_module}</span>
@@ -534,7 +542,7 @@ export default function NotificationsPage() {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
 
@@ -563,9 +571,9 @@ export default function NotificationsPage() {
                   </thead>
                   <tbody>
                     {notifications.map((notification) => (
-                      <tr key={notification.id} className="border-b hover:bg-gray-50">
+                      <tr key={notification.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/dashboard/notifications/${notification.id}`)}>
                         <td className="py-3 px-4">
-                          <p className="font-medium text-gray-900">{notification.subject}</p>
+                          <p className="font-medium text-gray-900">{notification.subject || notification.title || '(no subject)'}</p>
                           <p className="text-sm text-gray-500">{notification.notification_ref}</p>
                         </td>
                         <td className="py-3 px-4">

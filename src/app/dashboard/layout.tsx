@@ -7,8 +7,10 @@ import { useAuth, formatRole, getRoleBadgeColor } from '@/lib/auth';
 
 interface Notification {
   id: string;
-  subject: string;
-  body: string;
+  subject?: string;
+  body?: string;
+  title?: string;
+  message?: string;
   status: string;
   created_at: string;
   read_at: string | null;
@@ -326,14 +328,16 @@ export default function DashboardLayout({
                         </div>
                       ) : (
                         notifications.map((notification) => (
-                          <div 
+                          <Link
                             key={notification.id}
+                            href={`/dashboard/notifications/${notification.id}`}
                             onClick={() => {
+                              setShowNotifications(false);
                               if (notification.status !== 'read') {
                                 markAsRead(notification.id);
                               }
                             }}
-                            className={`p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${
+                            className={`block p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${
                               notification.status !== 'read' ? 'bg-blue-50/50' : ''
                             }`}
                           >
@@ -341,13 +345,15 @@ export default function DashboardLayout({
                               <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${notification.status !== 'read' ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
                               <div className="flex-1 min-w-0">
                                 <p className={`text-sm font-medium ${notification.status !== 'read' ? 'text-gray-900' : 'text-gray-600'}`}>
-                                  {notification.subject}
+                                  {notification.subject || notification.title || '(no subject)'}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{notification.body}</p>
+                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                  {notification.body || notification.message || ''}
+                                </p>
                                 <p className="text-xs text-gray-400 mt-2">{formatNotificationTime(notification.created_at)}</p>
                               </div>
                             </div>
-                          </div>
+                          </Link>
                         ))
                       )}
                     </div>

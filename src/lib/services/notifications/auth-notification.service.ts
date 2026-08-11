@@ -239,6 +239,9 @@ export class AuthNotificationService {
     await supabase.from('notifications').insert({
       id: uuidv4(),
       notification_ref: `NTF-${Date.now()}-${uuidv4().split('-')[0]}`,
+      subject: subject,
+      body: body,
+      // Legacy title/message kept populated for older consumers.
       title: subject,
       message: body,
       priority: 'normal',

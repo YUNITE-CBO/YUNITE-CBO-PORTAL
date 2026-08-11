@@ -31,6 +31,20 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
 - `tests/auth.test.ts` and `tests/integration.test.ts` declare duplicate top-level
   identifiers (API_BASE_URL, TEST_EMAIL, CookieJar). `tsc --noEmit` reports these but
   they are pre-existing and harmless to the build. Filter them with `grep -v tests/`.
+- **Notification content (subject/body)**: migration 004 created `notifications`
+  with legacy `title`/`message` (NOT NULL). Migration 005 intended `subject`/`body`
+  but its `CREATE TABLE IF NOT EXISTS` was skipped (table existed) and its ALTERs
+  never added `subject`/`body`, so the service + frontend (which read
+  `subject`/`body`) rendered blank notification content in the bell dropdown and
+  notifications page — only the unread count (from `status`) worked. Migration 028
+  reconciles this: adds `subject`/`body`, backfills from `title`/`message`, and a
+  trigger keeps `title`/`message` in sync with `subject`/`body` for any legacy
+  consumer. The service + `auth-notification.service.ts` now insert both pairs.
+  A new `GET /api/notifications/[id]` route (session-scoped: recipient or
+  super_admin only; optional `?mark_read=true`) and `/dashboard/notifications/[id]`
+  page let users open the full body of a notification. The bell dropdown rows and
+  the notifications list/history rows now link to that detail page and auto
+  mark-read on open. Deploy step: run migration 028 in Supabase SQL Editor.
 - The `settings` table's optional columns from migration 007 (`is_encrypted`,
   `is_public`, `data_type`, `display_order`, `help_text`, etc.) were only
   partially applied on the live DB. Selecting a non-existent column makes
