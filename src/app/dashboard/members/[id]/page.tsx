@@ -231,6 +231,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   const [deleteReason, setDeleteReason] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [generatingStatement, setGeneratingStatement] = useState(false);
   
   // Form states
   const [profileForm, setProfileForm] = useState({
@@ -269,6 +270,40 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       }
     } catch (err) {
       console.error('Failed to check admin access:', err);
+    }
+  };
+
+  /** Generate & download a certified member statement of account. */
+  const generateStatement = async (format: 'pdf' | 'csv' = 'pdf') => {
+    setGeneratingStatement(true);
+    try {
+      const url = new URL('/api/reports/generate', window.location.origin);
+      url.searchParams.set('type', 'member_statement');
+      url.searchParams.set('format', format);
+      url.searchParams.set('date_range', 'all_time');
+      url.searchParams.set('member_id', id);
+      const res = await fetch(url.toString());
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error || `Failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get('Content-Disposition') || '';
+      const m = disp.match(/filename="?([^"]+)"?/i);
+      const filename = m ? m[1] : `member_statement_${id}.${format}`;
+      const objUrl = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = objUrl;
+      a.download = filename;
+      window.document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objUrl);
+      setMessage({ type: 'success', text: `Statement ${res.headers.get('X-Document-Ref') || ''} generated & downloaded.` });
+    } catch (e) {
+      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to generate statement' });
+    } finally {
+      setGeneratingStatement(false);
     }
   };
 
@@ -667,7 +702,27 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
-                  {isAdmin && <button onClick={() => setActionModal('edit_profile')} className="text-indigo-600 hover:text-indigo-800 text-sm">Edit</button>}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => generateStatement('pdf')}
+                      disabled={generatingStatement}
+                      title="Generate & download a certified member statement of account (PDF)"
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg text-white disabled:opacity-50"
+                      style={{ background: '#0B2A4A' }}
+                    >
+                      {generatingStatement ? '⏳ …' : '📑 Statement (PDF)'}
+                    </button>
+                    <button
+                      onClick={() => generateStatement('csv')}
+                      disabled={generatingStatement}
+                      title="Generate & download statement data (CSV)"
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50"
+                      style={{ borderColor: '#22C55E', color: '#0B2A4A' }}
+                    >
+                      CSV
+                    </button>
+                    {isAdmin && <button onClick={() => setActionModal('edit_profile')} className="text-indigo-600 hover:text-indigo-800 text-sm">Edit</button>}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <InfoCard label="Full Name" value={`${member.first_name} ${member.last_name}`} />

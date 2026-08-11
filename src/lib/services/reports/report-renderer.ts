@@ -1,0 +1,655 @@
+/**
+ * REPORT HTML RENDERER
+ *
+ * Builds fully self-contained, branded HTML documents for every report type.
+ * Each document carries:
+ *   - A bank-style letterhead (logo + org identity, navy/green theme)
+ *   - The report title, period, and meta block
+ *   - The report body (tables / summaries) generated from live data
+ *   - A digital certification stamp (inline SVG) with document ref + hash
+ *   - A footer with copyright + verification reference
+ *
+ * The output HTML is injected straight into the headless browser for PDF
+ * rendering and is also served directly for on-screen preview/print.
+ */
+
+import crypto from 'crypto';
+import {
+  ORG_IDENTITY,
+  BRAND_COLORS,
+  LOGO_SVG,
+  STAMP_SVG,
+  VERIFY_BASE_URL,
+  formatMoney,
+  formatDate,
+  formatDateTime,
+} from './brand';
+import {
+  ReportContext,
+  FinancialSummaryData,
+  MemberRow,
+  LoanRow,
+  TransactionRow,
+  ContributionRow,
+  FineRow,
+  MemberStatementData,
+  WelfareData,
+  OrgSummaryData,
+} from './report-data.service';
+
+export interface RenderedDocument {
+  ref: string;
+  hash: string;
+  html: string;
+  title: string;
+  generatedAt: string;
+}
+
+const TRANSACTION_TYPE_LABELS: Record<string, string> = {
+  savings_deposit: 'Savings Deposit',
+  savings_monthly: 'Savings (Monthly)',
+  savings_special: 'Savings (Special)',
+  savings_development: 'Savings (Development)',
+  savings_withdrawal: 'Savings Withdrawal',
+  savings_disbursement: 'Savings Disbursement',
+  contribution_monthly: 'Monthly Contribution',
+  contribution_special: 'Special Contribution',
+  contribution_development: 'Development Contribution',
+  contribution_withdrawal: 'Contribution Withdrawal',
+  contribution_disbursement: 'Contribution Disbursement',
+  welfare_deposit: 'Welfare Contribution',
+  welfare_monthly: 'Welfare (Monthly)',
+  welfare_special: 'Welfare (Special)',
+  welfare_withdrawal: 'Welfare Withdrawal',
+  welfare_disbursement: 'Welfare Disbursement',
+  fine_posting: 'Fine Posting',
+  fine_payment: 'Fine Payment',
+  loan_disbursement: 'Loan Disbursement',
+  loan_repayment: 'Loan Repayment',
+  registration_fee: 'Registration Fee',
+  annual_fee: 'Annual Fee',
+  reversal: 'Reversal',
+};
+
+const LOAN_STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  disbursed: 'Disbursed',
+  active: 'Active',
+  completed: 'Completed',
+  defaulted: 'Defaulted',
+};
+
+const FINE_TYPE_LABELS: Record<string, string> = {
+  meeting_absence: 'Meeting Absence',
+  late_payment: 'Late Payment',
+  penalty: 'Penalty',
+  manual: 'Manual',
+  missing_meeting: 'Missing Meeting',
+  non_compliance: 'Non-Compliance',
+  documentation: 'Documentation',
+  misconduct: 'Misconduct',
+  share_shortfall: 'Share Shortfall',
+  loan_default: 'Loan Default',
+  other: 'Other',
+};
+
+const STATUS_BADGE: Record<string, string> = {
+  active: '#16A34A',
+  pending: '#D97706',
+  suspended: '#DC2626',
+  withdrawn: '#6B7280',
+  deceased: '#6B7280',
+  approved: '#16A34A',
+  disbursed: '#2563EB',
+  completed: '#16A34A',
+  defaulted: '#DC2626',
+  paid: '#16A34A',
+  partial: '#D97706',
+  waived: '#6B7280',
+};
+
+function esc(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function statusBadge(status: string): string {
+  const color = STATUS_BADGE[status] || '#6B7280';
+  return `<span class="badge" style="background:${color}1A;color:${color};border-color:${color}33">${esc(status)}</span>`;
+}
+
+function genRef(type: string): string {
+  const prefix = 'YP-DOC';
+  const code = type.replace(/_/g, '-').toUpperCase().slice(0, 12);
+  const stamp = Date.now().toString(36).toUpperCase().slice(-6);
+  const rand = crypto.randomBytes(3).toString('hex').toUpperCase();
+  return `${prefix}/${code}/${stamp}${rand}`;
+}
+
+function computeHash(ref: string, type: string, generatedAt: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(`${ref}|${type}|${generatedAt}|${ORG_IDENTITY.name}`)
+    .digest('hex')
+    .slice(0, 16)
+    .toUpperCase();
+}
+
+function letterhead(): string {
+  const org = ORG_IDENTITY;
+  return `
+  <header class="letterhead">
+    <div class="lh-row">
+      <div class="lh-logo">${LOGO_SVG}</div>
+      <div class="lh-org">
+        <h1>${esc(org.name)}</h1>
+        <p class="lh-tagline">${esc(org.tagline)} · Reg. ${esc(org.registrationNumber)}</p>
+        <p class="lh-contacts">
+          ${esc(org.address)}, ${esc(org.city)}, ${esc(org.country)}<br/>
+          ${esc(org.email)} · ${esc(org.phone)} · ${esc(org.website)}
+        </p>
+      </div>
+    </div>
+    <div class="lh-accent"></div>
+  </header>`;
+}
+
+function footer(ref: string, hash: string, generatedAt: string, generatedBy?: string): string {
+  const verifyUrl = `${VERIFY_BASE_URL.replace(/\/$/, '')}/verify/${encodeURIComponent(ref)}`;
+  const by = generatedBy ? ` · Generated by ${esc(generatedBy)}` : '';
+  return `
+  <footer class="doc-footer">
+    <div class="footer-rule"></div>
+    <div class="footer-row">
+      <div class="footer-copy">${ORG_IDENTITY.copyright}</div>
+    </div>
+    <div class="footer-meta">
+      <span>Doc Ref: <strong>${esc(ref)}</strong></span>
+      <span>Auth Hash: <strong>${esc(hash)}</strong></span>
+      <span>Generated: ${esc(generatedAt)}${by}</span>
+      <span>Verify: ${esc(verifyUrl)}</span>
+    </div>
+  </footer>`;
+}
+
+function certificationStamp(ref: string, hash: string, issuedDate: string): string {
+  const verifyUrl = `${VERIFY_BASE_URL.replace(/\/$/, '')}/verify/${encodeURIComponent(ref)}`;
+  const svg = STAMP_SVG
+    .replace('__REF__', esc(ref))
+    .replace('__DATE__', esc(issuedDate))
+    .replace('__HASH__', esc(hash))
+    .replace('__VERIFY_URL__', esc(verifyUrl));
+  return `<div class="cert-stamp" aria-label="Certification stamp">${svg}</div>`;
+}
+
+function baseStyles(): string {
+  const c = BRAND_COLORS;
+  return `
+  <style>
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 14mm 14mm 18mm 14mm; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: ${c.ink};
+      background: ${c.paper};
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .doc { max-width: 190mm; margin: 0 auto; padding: 0; }
+
+    /* Letterhead */
+    .letterhead { padding-bottom: 6px; }
+    .lh-row { display: flex; align-items: center; gap: 16px; }
+    .lh-logo { flex: 0 0 240px; }
+    .lh-logo svg { width: 240px; height: 64px; }
+    .lh-org { flex: 1; text-align: right; }
+    .lh-org h1 { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; color: ${c.navy}; letter-spacing: .5px; }
+    .lh-tagline { margin: 2px 0 4px; font-size: 10px; color: ${c.navy}; opacity: .8; letter-spacing: .5px; }
+    .lh-contacts { margin: 0; font-size: 9px; color: ${c.muted}; line-height: 1.45; }
+    .lh-accent { height: 4px; margin-top: 10px; border-radius: 3px; background: linear-gradient(90deg, ${c.navy} 0%, ${c.navy} 62%, ${c.green} 62%, ${c.green} 100%); }
+
+    /* Title block */
+    .title-block { margin: 18px 0 4px; }
+    .title-block .eyebrow { font-size: 9px; letter-spacing: 3px; color: ${c.green}; font-weight: 700; text-transform: uppercase; }
+    .title-block h2 { margin: 4px 0 6px; font-family: Georgia, 'Times New Roman', serif; font-size: 22px; color: ${c.navy}; }
+    .title-block .subtitle { font-size: 10px; color: ${c.muted}; }
+
+    /* Meta block */
+    .meta-block { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 16px; padding: 10px 12px; border: 1px solid ${c.line}; border-left: 4px solid ${c.green}; border-radius: 6px; background: ${c.zebra}; }
+    .meta-block .meta-item { font-size: 9.5px; color: ${c.ink}; }
+    .meta-block .meta-item span { color: ${c.muted}; }
+    .meta-block .meta-item strong { color: ${c.navy}; }
+
+    /* Summary cards */
+    .kpi-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 18px; }
+    .kpi { flex: 1 1 28%; min-width: 120px; border: 1px solid ${c.line}; border-radius: 8px; padding: 10px 12px; background: ${c.paper}; }
+    .kpi .kpi-label { font-size: 9px; color: ${c.muted}; text-transform: uppercase; letter-spacing: .6px; }
+    .kpi .kpi-value { font-size: 16px; font-weight: 700; color: ${c.navy}; margin-top: 2px; }
+    .kpi.green .kpi-value { color: ${c.green}; }
+    .kpi .kpi-sub { font-size: 9px; color: ${c.muted}; margin-top: 2px; }
+
+    /* Tables */
+    table.data { width: 100%; border-collapse: collapse; margin: 6px 0 14px; font-size: 10px; }
+    table.data thead th { background: ${c.navy}; color: #fff; padding: 7px 8px; text-align: left; font-size: 9.5px; letter-spacing: .4px; text-transform: uppercase; }
+    table.data thead th.num, table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    table.data tbody td { padding: 6px 8px; border-bottom: 1px solid ${c.line}; }
+    table.data tbody tr:nth-child(even) td { background: ${c.zebra}; }
+    table.data tfoot td { padding: 7px 8px; font-weight: 700; border-top: 2px solid ${c.navy}; background: ${c.greenSoft}; }
+    .pos { color: #16A34A; font-weight: 600; }
+    .neg { color: #DC2626; font-weight: 600; }
+
+    .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 8.5px; font-weight: 700; border: 1px solid; text-transform: capitalize; }
+
+    .section-title { font-family: Georgia, 'Times New Roman', serif; color: ${c.navy}; font-size: 13px; margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid ${c.line}; }
+
+    /* Member statement specifics */
+    .member-card { display: flex; gap: 18px; border: 1px solid ${c.line}; border-radius: 8px; padding: 12px 14px; background: ${c.zebra}; margin: 8px 0 14px; }
+    .member-card .mc-label { font-size: 9px; color: ${c.muted}; text-transform: uppercase; }
+    .member-card .mc-value { font-size: 11px; font-weight: 600; color: ${c.navy}; }
+    .balance-strip { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+    .balance-box { flex: 1 1 22%; border: 1px solid ${c.line}; border-radius: 8px; padding: 10px; }
+    .balance-box .bb-label { font-size: 9px; color: ${c.muted}; text-transform: uppercase; }
+    .balance-box .bb-value { font-size: 15px; font-weight: 700; color: ${c.navy}; margin-top: 2px; }
+    .balance-box.open { border-left: 4px solid ${c.navy}; }
+    .balance-box.close { border-left: 4px solid ${c.green}; }
+    .balance-box.credit { border-left: 4px solid #16A34A; }
+    .balance-box.debit { border-left: 4px solid #DC2626; }
+
+    /* Stamp + certification */
+    .stamp-wrap { display: flex; justify-content: flex-end; margin: 20px 0 8px; }
+    .cert-stamp svg { width: 220px; height: 110px; }
+    .cert-line { font-size: 8.5px; color: ${c.muted}; text-align: right; margin: 4px 0 0; }
+
+    /* Footer */
+    .doc-footer { margin-top: 22px; }
+    .footer-rule { height: 3px; background: linear-gradient(90deg, ${c.green} 0%, ${c.navy} 100%); border-radius: 2px; }
+    .footer-row { padding: 8px 0 4px; }
+    .footer-copy { font-size: 8px; color: ${c.muted}; line-height: 1.4; }
+    .footer-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 8px; color: ${c.muted}; }
+    .footer-meta strong { color: ${c.navy}; }
+
+    .empty-note { padding: 14px; border: 1px dashed ${c.line}; border-radius: 8px; text-align: center; color: ${c.muted}; font-size: 10px; margin: 8px 0; }
+    .page-break { page-break-before: always; }
+    @media print { .no-print { display: none; } }
+  </style>`;
+}
+
+function reportMetaBlock(ctx: ReportContext, ref: string): string {
+  const meta = ctx.generatedBy;
+  return `
+  <div class="meta-block">
+    <div class="meta-item"><span>Report Type:</span> <strong>${esc(ctx.type.replace(/_/g, ' '))}</strong></div>
+    <div class="meta-item"><span>Period:</span> <strong>${esc(ctx.period.label)}</strong></div>
+    <div class="meta-item"><span>Date Issued:</span> <strong>${formatDate(new Date())}</strong></div>
+    <div class="meta-item"><span>Document Ref:</span> <strong>${esc(ref)}</strong></div>
+    ${meta ? `<div class="meta-item"><span>Generated By:</span> <strong>${esc(meta.name)} (${esc(meta.role)})</strong></div>` : ''}
+    <div class="meta-item"><span>Currency:</span> <strong>${esc(ORG_IDENTITY.currency)}</strong></div>
+  </div>`;
+}
+
+function kpi(label: string, value: string, sub?: string, green = false): string {
+  return `<div class="kpi${green ? ' green' : ''}">
+    <div class="kpi-label">${esc(label)}</div>
+    <div class="kpi-value">${esc(value)}</div>
+    ${sub ? `<div class="kpi-sub">${esc(sub)}</div>` : ''}
+  </div>`;
+}
+
+function signed(amount: number, prefix = ''): string {
+  const cls = amount >= 0 ? 'pos' : 'neg';
+  return `<span class="${cls}">${prefix}${formatMoney(amount)}</span>`;
+}
+
+function renderFinancialSummary(data: FinancialSummaryData): string {
+  const f = data;
+  return `
+  ${kpi('Total Savings', formatMoney(f.savings.balance))}
+  ${kpi('Total Contributions', formatMoney(f.contributions.balance))}
+  ${kpi('Welfare Fund', formatMoney(f.welfare.balance))}
+  ${kpi('Fines Outstanding', formatMoney(f.fines.balance))}
+  ${kpi('Loans Disbursed', formatMoney(f.loans.disbursed))}
+  ${kpi('Loans Outstanding', formatMoney(f.loans.outstanding), '', true)}
+
+  <h3 class="section-title">Account Balances</h3>
+  <table class="data">
+    <thead><tr><th>Account Type</th><th class="num">Inflow (Deposits)</th><th class="num">Outflow</th><th class="num">Balance</th></tr></thead>
+    <tbody>
+      <tr><td>Savings</td><td class="num">${formatMoney(f.savings.deposits)}</td><td class="num">${formatMoney(f.savings.withdrawals)}</td><td class="num">${formatMoney(f.savings.balance)}</td></tr>
+      <tr><td>Contributions</td><td class="num">${formatMoney(f.contributions.deposits)}</td><td class="num">${formatMoney(f.contributions.withdrawals)}</td><td class="num">${formatMoney(f.contributions.balance)}</td></tr>
+      <tr><td>Welfare</td><td class="num">${formatMoney(f.welfare.deposits)}</td><td class="num">${formatMoney(f.welfare.disbursements)}</td><td class="num">${formatMoney(f.welfare.balance)}</td></tr>
+      <tr><td>Fines</td><td class="num">${formatMoney(f.fines.posted)}</td><td class="num">${formatMoney(f.fines.paid)}</td><td class="num">${formatMoney(f.fines.balance)}</td></tr>
+      <tr><td>Loans</td><td class="num">${formatMoney(f.loans.disbursed)}</td><td class="num">${formatMoney(f.loans.repaid)}</td><td class="num">${formatMoney(f.loans.outstanding)}</td></tr>
+    </tbody>
+    <tfoot>
+      <tr><td>Totals</td><td class="num">${formatMoney(f.totals.inflow)}</td><td class="num">${formatMoney(f.totals.outflow)}</td><td class="num">${signed(f.totals.net)}</td></tr>
+    </tfoot>
+  </table>`;
+}
+
+function renderMemberList(members: MemberRow[], total: number): string {
+  if (!members.length) return `<div class="empty-note">No members on record.</div>`;
+  const rows = members
+    .map(
+      (m, i) => `<tr>
+      <td>${i + 1}</td>
+      <td>${esc(m.member_number)}</td>
+      <td>${esc(m.first_name)} ${esc(m.last_name)}</td>
+      <td>${esc(m.phone)}</td>
+      <td>${esc(m.email)}</td>
+      <td>${esc(m.occupation)}</td>
+      <td>${formatDate(m.registration_date)}</td>
+      <td>${statusBadge(m.status)}</td>
+    </tr>`,
+    )
+    .join('');
+  return `
+  <p class="subtitle">Total registered members: <strong>${total}</strong></p>
+  <table class="data">
+    <thead><tr><th>#</th><th>Member No.</th><th>Name</th><th>Phone</th><th>Email</th><th>Occupation</th><th>Reg. Date</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderLoanReport(loans: LoanRow[], total: number): string {
+  if (!loans.length) return `<div class="empty-note">No loans on record.</div>`;
+  const rows = loans
+    .map(
+      (l) => `<tr>
+      <td>${esc(l.loan_number)}</td>
+      <td>${esc(l.member_name)}<br/><span style="color:${BRAND_COLORS.muted};font-size:8px">${esc(l.member_number)}</span></td>
+      <td>${esc(l.loan_type)}</td>
+      <td class="num">${formatMoney(l.principal)}</td>
+      <td class="num">${esc(l.interest_rate)}%</td>
+      <td class="num">${formatMoney(l.total_amount)}</td>
+      <td class="num">${formatMoney(l.amount_paid)}</td>
+      <td class="num">${formatMoney(l.amount_due)}</td>
+      <td>${statusBadge(l.status)}</td>
+    </tr>`,
+    )
+    .join('');
+  const totalPrincipal = loans.reduce((s, l) => s + l.principal, 0);
+  const totalPaid = loans.reduce((s, l) => s + l.amount_paid, 0);
+  const totalDue = loans.reduce((s, l) => s + l.amount_due, 0);
+  return `
+  <p class="subtitle">Total loans: <strong>${total}</strong></p>
+  <table class="data">
+    <thead><tr><th>Loan No.</th><th>Member</th><th>Type</th><th class="num">Principal</th><th class="num">Rate</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Due</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="3">Totals</td><td class="num">${formatMoney(totalPrincipal)}</td><td></td><td></td><td class="num">${formatMoney(totalPaid)}</td><td class="num">${formatMoney(totalDue)}</td><td></td></tr></tfoot>
+  </table>`;
+}
+
+function renderTransactionReport(transactions: TransactionRow[], total: number): string {
+  if (!transactions.length) return `<div class="empty-note">No transactions in the selected period.</div>`;
+  const rows = transactions
+    .map(
+      (t) => `<tr${t.reversed ? ' style="opacity:.5"' : ''}>
+      <td>${formatDateTime(t.posted_at)}</td>
+      <td>${esc(t.transaction_ref)}</td>
+      <td>${esc(t.member_name)}<br/><span style="color:${BRAND_COLORS.muted};font-size:8px">${esc(t.member_number)}</span></td>
+      <td>${esc(TRANSACTION_TYPE_LABELS[t.transaction_type] || t.transaction_type)}</td>
+      <td>${esc(t.description)}</td>
+      <td>${esc(t.reference_number)}</td>
+      <td class="num">${formatMoney(t.amount)}</td>
+      <td class="num">${formatMoney(t.balance_after)}</td>
+      <td>${t.reversed ? statusBadge('reversed' as any) : ''}</td>
+    </tr>`,
+    )
+    .join('');
+  return `
+  <p class="subtitle">Total transactions: <strong>${total}</strong></p>
+  <table class="data">
+    <thead><tr><th>Date</th><th>Ref</th><th>Member</th><th>Type</th><th>Description</th><th>Reference</th><th class="num">Amount</th><th class="num">Balance</th><th>Flags</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderContributionReport(rows: ContributionRow[], total: number, totalAmount: number): string {
+  if (!rows.length) return `<div class="empty-note">No contributions on record.</div>`;
+  const body = rows
+    .map(
+      (r) => `<tr>
+      <td>${formatDate(r.posted_at)}</td>
+      <td>${esc(r.member_name)}<br/><span style="color:${BRAND_COLORS.muted};font-size:8px">${esc(r.member_number)}</span></td>
+      <td>${esc(TRANSACTION_TYPE_LABELS[r.type] || r.type)}</td>
+      <td>${esc(r.reference)}</td>
+      <td class="num">${formatMoney(r.amount)}</td>
+    </tr>`,
+    )
+    .join('');
+  return `
+  ${kpi('Total Contributions', formatMoney(totalAmount), `${total} entries`, true)}
+  <table class="data">
+    <thead><tr><th>Date</th><th>Member</th><th>Type</th><th>Reference</th><th class="num">Amount</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td colspan="4">Total</td><td class="num">${formatMoney(totalAmount)}</td></tr></tfoot>
+  </table>`;
+}
+
+function renderFineReport(fines: FineRow[], total: number): string {
+  if (!fines.length) return `<div class="empty-note">No fines on record.</div>`;
+  const totalIssued = fines.reduce((s, f) => s + f.amount, 0);
+  const totalPaid = fines.reduce((s, f) => s + f.amount_paid, 0);
+  const outstanding = fines.reduce((s, f) => s + f.balance, 0);
+  const body = fines
+    .map(
+      (f) => `<tr>
+      <td>${esc(f.fine_number)}</td>
+      <td>${esc(f.member_name)}<br/><span style="color:${BRAND_COLORS.muted};font-size:8px">${esc(f.member_number)}</span></td>
+      <td>${esc(FINE_TYPE_LABELS[f.fine_type] || f.fine_type)}</td>
+      <td>${esc(f.reason)}</td>
+      <td class="num">${formatMoney(f.amount)}</td>
+      <td class="num">${formatMoney(f.amount_paid)}</td>
+      <td class="num">${formatMoney(f.balance)}</td>
+      <td>${statusBadge(f.status)}</td>
+    </tr>`,
+    )
+    .join('');
+  return `
+  ${kpi('Total Fines Issued', formatMoney(totalIssued))}
+  ${kpi('Total Collected', formatMoney(totalPaid))}
+  ${kpi('Outstanding', formatMoney(outstanding), `${total} fines`, true)}
+  <table class="data">
+    <thead><tr><th>Fine No.</th><th>Member</th><th>Type</th><th>Reason</th><th class="num">Issued</th><th class="num">Paid</th><th class="num">Balance</th><th>Status</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td colspan="4">Totals</td><td class="num">${formatMoney(totalIssued)}</td><td class="num">${formatMoney(totalPaid)}</td><td class="num">${formatMoney(outstanding)}</td><td></td></tr></tfoot>
+  </table>`;
+}
+
+function renderMemberStatement(data: MemberStatementData, period: { label: string }): string {
+  const m = data.member;
+  return `
+  <div class="member-card">
+    <div style="flex:1">
+      <div class="mc-label">Member</div>
+      <div class="mc-value">${esc(m.name)}</div>
+      <div style="font-size:9px;color:${BRAND_COLORS.muted}">No. ${esc(m.member_number)} · ${esc(m.phone)}${m.email ? ' · ' + esc(m.email) : ''}</div>
+    </div>
+    <div style="text-align:right">
+      <div class="mc-label">Status</div>
+      <div>${statusBadge(m.status)}</div>
+      <div style="font-size:9px;color:${BRAND_COLORS.muted};margin-top:6px">Statement Period</div>
+      <div class="mc-value">${esc(period.label)}</div>
+    </div>
+  </div>
+
+  <div class="balance-strip">
+    <div class="balance-box open"><div class="bb-label">Opening Balance</div><div class="bb-value">${formatMoney(data.openingBalance)}</div></div>
+    <div class="balance-box credit"><div class="bb-label">Total Credits</div><div class="bb-value">${formatMoney(data.totalCredits)}</div></div>
+    <div class="balance-box debit"><div class="bb-label">Total Debits</div><div class="bb-value">${formatMoney(data.totalDebits)}</div></div>
+    <div class="balance-box close"><div class="bb-label">Closing Balance</div><div class="bb-value">${formatMoney(data.closingBalance)}</div></div>
+  </div>
+
+  <h3 class="section-title">Account Balances</h3>
+  <table class="data">
+    <thead><tr><th>Account Type</th><th class="num">Current Balance</th></tr></thead>
+    <tbody>
+      ${data.accountBreakdown.map((a) => `<tr><td>${esc(a.account_type)}</td><td class="num">${formatMoney(a.balance)}</td></tr>`).join('')}
+    </tbody>
+  </table>
+
+  <h3 class="section-title">Transaction History</h3>
+  ${data.rows.length ? `<table class="data">
+    <thead><tr><th>Date</th><th>Ref</th><th>Description</th><th>Reference</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+    <tbody>
+      ${data.rows.map((r) => `<tr>
+        <td>${formatDate(r.posted_at)}</td>
+        <td>${esc(r.transaction_ref)}</td>
+        <td>${esc(r.description)}</td>
+        <td>${esc(r.reference_number)}</td>
+        <td class="num">${r.debit ? formatMoney(r.debit) : '—'}</td>
+        <td class="num">${r.credit ? formatMoney(r.credit) : '—'}</td>
+        <td class="num">${formatMoney(r.balance)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>` : `<div class="empty-note">No transactions within the selected period.</div>`}`;
+}
+
+function renderWelfareReport(data: WelfareData): string {
+  const rows = data.rows
+    .map(
+      (r) => `<tr>
+      <td>${formatDate(r.posted_at)}</td>
+      <td>${esc(r.member_name)}<br/><span style="color:${BRAND_COLORS.muted};font-size:8px">${esc(r.member_number)}</span></td>
+      <td>${esc(TRANSACTION_TYPE_LABELS[r.type] || r.type)}</td>
+      <td>${esc(r.reference)}</td>
+      <td class="num">${formatMoney(r.amount)}</td>
+    </tr>`,
+    )
+    .join('');
+  return `
+  ${kpi('Total Welfare Contributions', formatMoney(data.totalDeposits))}
+  ${kpi('Total Disbursements', formatMoney(data.totalDisbursements))}
+  ${kpi('Welfare Fund Balance', formatMoney(data.balance), '', true)}
+  ${kpi('Monthly Amount (Setting)', formatMoney(data.monthlyAmount))}
+  <h3 class="section-title">Welfare Ledger</h3>
+  ${data.rows.length ? `<table class="data">
+    <thead><tr><th>Date</th><th>Member</th><th>Type</th><th>Reference</th><th class="num">Amount</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>` : `<div class="empty-note">No welfare transactions on record.</div>`}`;
+}
+
+function renderOrgSummary(data: OrgSummaryData): string {
+  const c = data.memberCounts;
+  const f = data.financial;
+  return `
+  ${kpi('Total Members', String(c.total))}
+  ${kpi('Active Members', String(c.active))}
+  ${kpi('Pending Members', String(c.pending))}
+  ${kpi('Suspended', String(c.suspended))}
+  ${kpi('Pending Loans', String(data.pendingLoans))}
+  ${kpi('Pending Fines', String(data.pendingFines), '', true)}
+
+  <h3 class="section-title">Financial Position</h3>
+  <table class="data">
+    <thead><tr><th>Account</th><th class="num">Inflow</th><th class="num">Outflow</th><th class="num">Balance</th></tr></thead>
+    <tbody>
+      <tr><td>Savings</td><td class="num">${formatMoney(f.savings.deposits)}</td><td class="num">${formatMoney(f.savings.withdrawals)}</td><td class="num">${formatMoney(f.savings.balance)}</td></tr>
+      <tr><td>Contributions</td><td class="num">${formatMoney(f.contributions.deposits)}</td><td class="num">${formatMoney(f.contributions.withdrawals)}</td><td class="num">${formatMoney(f.contributions.balance)}</td></tr>
+      <tr><td>Welfare</td><td class="num">${formatMoney(f.welfare.deposits)}</td><td class="num">${formatMoney(f.welfare.disbursements)}</td><td class="num">${formatMoney(f.welfare.balance)}</td></tr>
+      <tr><td>Fines</td><td class="num">${formatMoney(f.fines.posted)}</td><td class="num">${formatMoney(f.fines.paid)}</td><td class="num">${formatMoney(f.fines.balance)}</td></tr>
+      <tr><td>Loans</td><td class="num">${formatMoney(f.loans.disbursed)}</td><td class="num">${formatMoney(f.loans.repaid)}</td><td class="num">${formatMoney(f.loans.outstanding)}</td></tr>
+    </tbody>
+    <tfoot><tr><td>Net</td><td class="num">${formatMoney(f.totals.inflow)}</td><td class="num">${formatMoney(f.totals.outflow)}</td><td class="num">${signed(f.totals.net)}</td></tr></tfoot>
+  </table>`;
+}
+
+export interface ReportPayload {
+  financialSummary?: FinancialSummaryData;
+  memberList?: { members: MemberRow[]; total: number };
+  loanReport?: { loans: LoanRow[]; total: number };
+  transactionReport?: { transactions: TransactionRow[]; total: number };
+  contributionReport?: { rows: ContributionRow[]; total: number; totalAmount: number };
+  fineReport?: { fines: FineRow[]; total: number };
+  memberStatement?: MemberStatementData;
+  welfareReport?: WelfareData;
+  orgSummary?: OrgSummaryData;
+}
+
+export function renderDocument(ctx: ReportContext, payload: ReportPayload): RenderedDocument {
+  const ref = genRef(ctx.type);
+  const generatedAtISO = new Date().toISOString();
+  const hash = computeHash(ref, ctx.type, generatedAtISO);
+  const issuedDate = formatDate(generatedAtISO);
+  const meta = REPORT_TITLES[ctx.type];
+  const title = meta.title;
+
+  let body = '';
+  switch (ctx.type) {
+    case 'financial_summary':
+      body = payload.financialSummary ? renderFinancialSummary(payload.financialSummary) : '';
+      break;
+    case 'member_list':
+      body = payload.memberList ? renderMemberList(payload.memberList.members, payload.memberList.total) : '';
+      break;
+    case 'loan_report':
+      body = payload.loanReport ? renderLoanReport(payload.loanReport.loans, payload.loanReport.total) : '';
+      break;
+    case 'transaction_report':
+      body = payload.transactionReport ? renderTransactionReport(payload.transactionReport.transactions, payload.transactionReport.total) : '';
+      break;
+    case 'contribution_report':
+      body = payload.contributionReport ? renderContributionReport(payload.contributionReport.rows, payload.contributionReport.total, payload.contributionReport.totalAmount) : '';
+      break;
+    case 'fine_report':
+      body = payload.fineReport ? renderFineReport(payload.fineReport.fines, payload.fineReport.total) : '';
+      break;
+    case 'member_statement':
+      body = payload.memberStatement ? renderMemberStatement(payload.memberStatement, ctx.period) : '';
+      break;
+    case 'welfare_report':
+      body = payload.welfareReport ? renderWelfareReport(payload.welfareReport) : '';
+      break;
+    case 'organization_summary':
+      body = payload.orgSummary ? renderOrgSummary(payload.orgSummary) : '';
+      break;
+  }
+
+  const by = ctx.generatedBy?.name;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>${esc(title)} — ${esc(ORG_IDENTITY.name)}</title>
+  ${baseStyles()}
+</head>
+<body>
+  <div class="doc">
+    ${letterhead()}
+    <div class="title-block">
+      <div class="eyebrow">Official Document</div>
+      <h2>${esc(title)}</h2>
+      <div class="subtitle">${esc(meta.description)}</div>
+    </div>
+    ${reportMetaBlock(ctx, ref)}
+    ${body}
+    <div class="stamp-wrap">
+      ${certificationStamp(ref, hash, issuedDate)}
+    </div>
+    ${footer(ref, hash, formatDateTime(generatedAtISO), by)}
+  </div>
+</body>
+</html>`;
+
+  return { ref, hash, html, title, generatedAt: generatedAtISO };
+}
+
+export const REPORT_TITLES: Record<string, { title: string; description: string }> = {
+  financial_summary: { title: 'Financial Summary Report', description: 'Aggregate balances across all financial accounts.' },
+  member_list: { title: 'Member Register', description: 'Official membership roll.' },
+  loan_report: { title: 'Loan Portfolio Report', description: 'Loan disbursements, repayments, and outstanding balances.' },
+  transaction_report: { title: 'Transaction Ledger Report', description: 'All posted ledger entries.' },
+  contribution_report: { title: 'Contributions Report', description: 'Monthly, special, and development contributions.' },
+  fine_report: { title: 'Fines Report', description: 'Fines issued, collected, and outstanding.' },
+  member_statement: { title: 'Member Statement of Account', description: 'Per-member account statement.' },
+  welfare_report: { title: 'Welfare Fund Report', description: 'Welfare contributions and disbursements.' },
+  organization_summary: { title: 'Organization Summary', description: 'CBO snapshot: membership and financial position.' },
+};

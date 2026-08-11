@@ -190,6 +190,72 @@ A substantial notification/automation stack already exists in
   category. Note: there is no meetings dashboard page yet — only the API +
   service + reminders. A full meetings UI page is a follow-on.
 
+## Document Generation & Export Engine (`src/lib/services/reports/`)
+A full bank-style document generation engine produces branded, certified,
+downloadable PDF/CSV documents for every reportable surface: financial
+summary, member register, loan portfolio, transaction ledger, contributions,
+fines, member statement of account, welfare fund, and organization summary.
+- **Brand** (`brand.ts`): single source of truth for org identity (Yunite
+  Pamoja CBO, Nairobi/Kariobangi North, info.yunite.ke@gmail.com), the
+  navy `#0B2A4A` + luminous green `#22C55E` palette (from the logo),
+  inline `LOGO_SVG` + `STAMP_SVG` (so generated HTML is self-contained —
+  no external asset requests during headless rendering), copyright text,
+  and `formatMoney`/`formatDate`/`formatDateTime` helpers.
+- **Renderer** (`report-renderer.ts`): `renderDocument(ctx, payload)` builds
+  the full HTML — letterhead (logo + org identity + accent bar), report
+  title/eyebrow, meta block (type/period/ref/issued-by/currency), body
+  (KPIs + tables per report type), a digital certification stamp with
+  substituted `__REF__`/`__HASH__`/`__DATE__`/`__VERIFY_URL__` traceability
+  fields, and a footer with copyright + doc ref + auth hash + verify URL.
+  Each render returns a unique `doc_ref` (`YP-DOC/<TYPE>/...`) and a
+  SHA-256 `auth_hash` (16 hex chars) for traceability.
+- **Data service** (`report-data.service.ts`): `reportDataService`
+  aggregates live data from the transaction ledger + domain tables via
+  `createServiceClient()` for all 9 report types. Member statements derive
+  opening/closing balances + per-account breakdown via
+  `transactionEngine.calculateBalance`.
+- **PDF/CSV** (`document-generator.ts`): `htmlToPdf(html)` renders via
+  headless Chromium (`puppeteer-core`, executable auto-detected from
+  `PUPPETEER_EXECUTABLE_PATH`/`/usr/bin/chromium`). The browser is cached
+  per-process; `closeBrowser()` must be called in long-lived test/lambda
+  contexts to let the process exit. `reportToCsv()` produces spreadsheet
+  exports directly (no browser needed).
+- **Export orchestrator** (`document-export.service.ts`):
+  `documentExportService.generate(opts)` gathers data → renders HTML →
+  generates PDF/CSV → persists an immutable audit row in
+  `generated_documents` (best-effort; warns on failure per project
+  convention). `listHistory()` + `verifyByRef()` power the history table
+  and public verification.
+- **Migration 029** (`029_generated_documents.sql`): the
+  `generated_documents` audit ledger (doc_ref UNIQUE, auth_hash, report_type,
+  format, period, member_id, generated_by, IP/UA, expires_at, revoked*) +
+  `generated_document_verifications` view. Run in Supabase SQL Editor on
+  deploy.
+- **API routes**: `GET /api/reports` (catalog), `GET|POST
+  /api/reports/generate` (download — POST for JSON body, GET for `<a href>`
+  convenience; both staff+ gated, both record the audit row), `GET
+  /api/reports/history` (audit trail), and **public** `GET
+  /api/reports/verify/[ref]` (no auth — anyone holding a printed doc can
+  authenticate it). The middleware lets GET `/api/*` through and the routes
+  do their own `getAuthenticatedUser` check; the public verify route needs
+  no session.
+- **UI**: `src/app/dashboard/reports/page.tsx` replaced the stub `alert()`
+  with real PDF/CSV download buttons per report type, a period selector,
+  a branded letterhead preview banner, a document-history table, and an
+  inline `VerifyWidget`. `src/app/dashboard/members/[id]/page.tsx` got
+  "Statement (PDF)"/"CSV" buttons on the Personal Information card.
+  Public `src/app/verify/page.tsx` (landing form) + `src/app/verify/[ref]/page.tsx`
+  (result page) let external parties verify a document by ref.
+- **Tests**: `tests/report-renderer.test.ts` (brand identity, formatters,
+  letterhead/stamp/traceability, per-type bodies), `tests/report-document.test.ts`
+  (CSV export + period resolver), `tests/smoke-pdf.test.ts` (real Chromium
+  PDF render → valid `%PDF-` buffer; uses `closeBrowser()` + `--forceExit`).
+  Run report tests with:
+  `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium npx jest tests/report- --testTimeout=90000 --forceExit`
+- **Deploy steps**: run migration 029 in Supabase SQL Editor; set
+  `PUPPETEER_EXECUTABLE_PATH` (or ensure `/usr/bin/chromium` exists) on the
+  web service for PDF generation.
+
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.
 - Commits use `openhands` author + `Co-authored-by: openhands <openhands@all-hands.dev>`.

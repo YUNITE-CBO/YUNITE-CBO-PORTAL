@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" role="img" aria-label="Yunite Pamoja CBO">
+  <defs>
+    <linearGradient id="ypRing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B2A4A"/>
+      <stop offset="1" stop-color="#0A1E33"/>
+    </linearGradient>
+    <linearGradient id="ypAccent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4ADE80"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(8,6)">
+    <circle cx="20" cy="26" r="20" fill="url(#ypRing)"/>
+    <circle cx="20" cy="26" r="20" fill="none" stroke="#4ADE80" stroke-width="2.5" opacity="0.9"/>
+    <path d="M20 8 a18 18 0 0 1 0 36 a18 18 0 0 1 0 -36" fill="none" stroke="url(#ypAccent)" stroke-width="3.2"/>
+    <text x="20" y="33" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="24" font-weight="700" fill="#4ADE80">Y</text>
+  </g>
+  <g transform="translate(58,0)">
+    <text x="0" y="30" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-weight="700" fill="#0B2A4A">YUNITE</text>
+    <text x="92" y="30" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-weight="700" fill="#22C55E">PAMOJA</text>
+    <text x="0" y="48" font-family="Arial, Helvetica, sans-serif" font-size="11" letter-spacing="2" fill="#0B2A4A" opacity="0.75">COMMUNITY-BASED ORGANIZATION</text>
+  </g>
+</svg>
