@@ -41,14 +41,11 @@ const CHROMIUM_PATHS = [
 ].filter(Boolean) as string[];
 
 function resolveChromium(): string {
-  // Prefer env-configured paths that actually exist on disk.
+  // Return the first candidate that actually exists on disk. existsSync
+  // follows symlinks, so env-configured or symlinked binaries resolve the
+  // same as direct paths — no separate env fallback is needed.
   for (const p of CHROMIUM_PATHS) {
     if (p && existsSync(p)) return p;
-  }
-  // Fallback: a path may be set but the binary could be a symlink that
-  // resolves via PATH — accept env-set paths even if existsSync missed it.
-  for (const p of CHROMIUM_PATHS) {
-    if (p && process.env.PUPPETEER_EXECUTABLE_PATH === p) return p;
   }
   throw new Error(
     'Chromium executable not found for PDF generation. ' +
