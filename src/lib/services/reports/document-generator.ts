@@ -2,15 +2,21 @@
  * DOCUMENT GENERATOR (PDF + CSV)
  *
  * PDF: renders the self-contained HTML report via headless Chromium
- * (puppeteer, which bundles a compatible Chromium in its cache at install
- * time via `npm ci`). No system package or root install is required.
+ * (puppeteer, which bundles a compatible Chromium in its cache). The cache
+ * is populated by `scripts/install-browser.js` (run as an npm `postinstall`
+ * during `npm ci`), which forces the download regardless of
+ * PUPPETEER_EXECUTABLE_PATH/PUPPETEER_SKIP_DOWNLOAD — so the browser is
+ * always present at runtime even when stale env vars are set on the host.
  *
  * CSV: produced directly from the report data (no browser needed) for fast,
  * lossless spreadsheet exports.
  */
 
 import puppeteer, { type Browser } from 'puppeteer';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync } from 'fs';
+import os from 'os';
+import path from 'path';
+import { detectBrowserPlatform } from '@puppeteer/browsers';
 import {
   ReportContext,
   FinancialSummaryData,
@@ -41,14 +47,18 @@ const SYSTEM_PATHS = [
  *
  * Priority:
  *   1. PUPPETEER_EXECUTABLE_PATH / CHROMIUM_PATH / CHROME_PATH env override
- *      (when the referenced file actually exists on disk),
- *   2. puppeteer's bundled browser (its postinstall downloads a compatible
- *      Chromium into its cache; `executablePath()` points at it),
+ *      (only when the referenced file actually exists on disk — a stale env
+ *      var pointing at a missing path is skipped, not fatal),
+ *   2. the bundled browser cache (populated by the postinstall script
+ *      `scripts/install-browser.js`, which forces the download regardless of
+ *      env vars, so this works even when PUPPETEER_EXECUTABLE_PATH is set),
  *   3. common system Chromium/Chrome locations.
  *
- * The bundled cache is the default path used in production (no root/system
- * package needed). Env overrides are supported for environments that already
- * provide a browser.
+ * The bundled cache is the default in production (no root/system package
+ * needed). We probe the cache directory directly (not via
+ * puppeteer.executablePath(), which honors PUPPETEER_EXECUTABLE_PATH and would
+ * thus miss the cache when that env var is stale), so a host with a stale env
+ * var still finds the bundled browser.
  */
 function resolveChromium(): string {
   const checked: string[] = [];
@@ -63,13 +73,37 @@ function resolveChromium(): string {
     if (existsSync(p)) return p;
   }
 
-  // Bundled browser cache (the default in production). `executablePath()`
-  // itself honors PUPPETEER_EXECUTABLE_PATH, so only consult it as a cache
-  // candidate when no env override was requested.
-  const bundled = envPaths.length === 0 ? puppeteer.executablePath() : null;
-  if (bundled) {
-    checked.push(bundled);
-    if (existsSync(bundled)) return bundled;
+  // Bundled browser cache. Probe the cache directory directly: puppeteer's
+  // own executablePath() honors PUPPETEER_EXECUTABLE_PATH (returning the env
+  // value instead of the cache path), so it cannot be relied on when a stale
+  // env var is set. The cache layout is:
+  //   <cacheDir>/chrome/<build>/<platform-dir>/chrome
+  const platform = detectBrowserPlatform();
+  if (platform) {
+    const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(os.homedir(), '.cache', 'puppeteer');
+    const chromeRoot = path.join(cacheDir, 'chrome');
+    if (existsSync(chromeRoot)) {
+      // Per-platform subdirectory holding the chrome binary.
+      const platformDirByPlatform: Record<string, string[]> = {
+        linux: ['chrome-linux64', 'chrome-linux'],
+        mac: ['chrome-mac-x64', 'chrome-mac-arm64'],
+        mac_arm: ['chrome-mac-arm64', 'chrome-mac-x64'],
+        win32: ['chrome-win64', 'chrome-win32'],
+        win64: ['chrome-win64', 'chrome-win32'],
+      };
+      const subDirs = platformDirByPlatform[platform] || [];
+      try {
+        for (const build of readdirSync(chromeRoot)) {
+          for (const sub of subDirs) {
+            const candidate = path.join(chromeRoot, build, sub, platform.startsWith('win') ? 'chrome.exe' : 'chrome');
+            checked.push(candidate);
+            if (existsSync(candidate)) return candidate;
+          }
+        }
+      } catch {
+        // ignore; fall through to system paths
+      }
+    }
   }
 
   for (const p of SYSTEM_PATHS) {
@@ -78,12 +112,11 @@ function resolveChromium(): string {
   }
 
   throw new Error(
-    'Chromium executable not found for PDF generation. The bundled ' +
-      'browser is downloaded during `npm ci` (puppeteer postinstall); ' +
-      'ensure PUPPETEER_SKIP_DOWNLOAD is unset and PUPPETEER_EXECUTABLE_PATH ' +
-      'is not pointing at a missing path. Alternatively set PUPPETEER_EXECUTABLE_PATH ' +
-      'to an existing Chromium binary. Checked: ' +
-      (checked.join(', ') || '(none)') +
+    'Chromium executable not found for PDF generation. The bundled browser ' +
+      'is downloaded by the postinstall script (scripts/install-browser.js) ' +
+      'during `npm ci`; ensure that step ran. Alternatively set ' +
+      'PUPPETEER_EXECUTABLE_PATH to an existing Chromium binary. Checked: ' +
+      Array.from(new Set(checked)).join(', ') +
       '.',
   );
 }

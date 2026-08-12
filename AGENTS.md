@@ -219,23 +219,31 @@ fines, member statement of account, welfare fund, and organization summary.
   opening/closing balances + per-account breakdown via
   `transactionEngine.calculateBalance`.
 - **PDF/CSV** (`document-generator.ts`): `htmlToPdf(html)` renders via
-  headless Chromium from `puppeteer` (NOT `puppeteer-core`). puppeteer's
-  postinstall (runs during `npm ci`) downloads a compatible headless
-  Chromium into its cache (`~/.cache/puppeteer`), so NO system package or
-  root install is needed. `resolveChromium()` prefers an explicit
-  `PUPPETEER_EXECUTABLE_PATH`/`CHROMIUM_PATH`/`CHROME_PATH` override (only
-  if it exists on disk), then the bundled cache
-  (`puppeteer.executablePath()`), then common system Chromium paths.
-  **Gotcha**: setting `PUPPETEER_EXECUTABLE_PATH` makes puppeteer's
-  postinstall SKIP the browser download (it assumes a system browser
-  exists) — so on Render we deliberately leave both
-  `PUPPETEER_EXECUTABLE_PATH` and `PUPPETEER_SKIP_DOWNLOAD` UNSET to let
-  the cache populate. Also: do NOT pass `--single-process` to
-  `puppeteer.launch` — it breaks modern Chrome (131+) with
-  "Target.setDiscoverTargets: Target closed". The browser is cached
-  per-process; `closeBrowser()` must be called in long-lived test/lambda
-  contexts to let the process exit. `reportToCsv()` produces spreadsheet
-  exports directly (no browser needed).
+  headless Chromium from `puppeteer` (NOT `puppeteer-core`). The browser is
+  bundled in puppeteer's cache (`~/.cache/puppeteer`), populated by
+  `scripts/install-browser.js` which runs as the npm `postinstall` hook
+  during `npm ci`. NO system package or root install is needed.
+  `resolveChromium()` prefers an explicit `PUPPETEER_EXECUTABLE_PATH`/
+  `CHROMIUM_PATH`/`CHROME_PATH` override (only if it exists on disk — a
+  stale env var pointing at a missing path is skipped, not fatal), then
+  **probes the cache directory directly** (via `fs.readdirSync`, NOT
+  `puppeteer.executablePath()`, which honors `PUPPETEER_EXECUTABLE_PATH`
+  and would miss the cache when that env var is stale), then common system
+  Chromium paths.
+  **Why a custom postinstall**: puppeteer's own postinstall SKIPS the
+  browser download whenever `PUPPETEER_EXECUTABLE_PATH` is set (it assumes
+  a system browser exists). On Render, a stale `PUPPETEER_EXECUTABLE_PATH`
+  in the Dashboard would suppress the download AND point at a missing
+  path → no browser. `scripts/install-browser.js` bypasses that by calling
+  `@puppeteer/browsers`' `install()` directly with the build pinned in
+  `puppeteer-core`'s revisions (so the binary matches the driver — using
+  "stable"/latest instead crashes with "Navigating frame was detached"),
+  ignoring `PUPPETEER_SKIP_DOWNLOAD`/`PUPPETEER_EXECUTABLE_PATH`.
+  **Gotcha**: do NOT pass `--single-process` to `puppeteer.launch` — it
+  breaks modern Chrome (131+) with "Target.setDiscoverTargets: Target
+  closed". The browser is cached per-process; `closeBrowser()` must be
+  called in long-lived test/lambda contexts to let the process exit.
+  `reportToCsv()` produces spreadsheet exports directly (no browser needed).
 - **Export orchestrator** (`document-export.service.ts`):
   `documentExportService.generate(opts)` gathers data → renders HTML →
   generates PDF/CSV → persists an immutable audit row in
@@ -272,11 +280,11 @@ fines, member statement of account, welfare fund, and organization summary.
   needed. If a system Chromium is preferred locally, set
   `PUPPETEER_EXECUTABLE_PATH` to it before running.)
 - **Deploy steps**: run migration 029 in Supabase SQL Editor. Chromium for
-  PDF generation is installed automatically by puppeteer's postinstall
-  during `npm ci` (it downloads a compatible headless Chromium into its
-  cache). `render.yaml` no longer installs a system Chromium — it
-  intentionally leaves `PUPPETEER_EXECUTABLE_PATH` and
-  `PUPPETEER_SKIP_DOWNLOAD` UNSET so the cache populates. No manual
+  PDF generation is installed automatically by the `postinstall` hook
+  (`scripts/install-browser.js`, run during `npm ci`) which force-downloads
+  the pinned Chrome build into puppeteer's cache. This works regardless of
+  `PUPPETEER_EXECUTABLE_PATH`/`PUPPETEER_SKIP_DOWNLOAD` env values, so stale
+  Render Dashboard env vars can no longer break PDF generation. No manual
   Chromium setup, root, or apt-get is needed.
 
 ## Conventions
