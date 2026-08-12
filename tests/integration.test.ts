@@ -3,6 +3,8 @@
  * Complete API Test Suite with Cookie-based Authentication
  */
 
+export {};
+
 const API_BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000';
 const TEST_EMAIL = 'info.yunite.ke@gmail.com';
 const TEST_PASSWORD = 'Yuniteke2026.';

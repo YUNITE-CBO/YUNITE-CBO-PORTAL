@@ -28,9 +28,13 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   `Access-Control-Allow-Credentials: true` (cookie + Bearer both work). Preflight
   (`OPTIONS`) is handled in middleware; actual responses get headers via
   `applyCorsHeaders`. `tests/api-gateway-consistency.test.ts` guards this.
-- `tests/auth.test.ts` and `tests/integration.test.ts` declare duplicate top-level
-  identifiers (API_BASE_URL, TEST_EMAIL, CookieJar). `tsc --noEmit` reports these but
-  they are pre-existing and harmless to the build. Filter them with `grep -v tests/`.
+- `tests/auth.test.ts` and `tests/integration.test.ts` each declared the same
+  top-level identifiers (API_BASE_URL, TEST_EMAIL, CookieJar) with no
+  `import`/`export`, so `tsc --noEmit` treated them as global scripts and
+  reported duplicate-identifier errors. Fixed by adding `export {}` to each
+  file, making them modules with file-local scope. (`tsc --noEmit` is now
+  fully clean; these two suites still fail at runtime because they need a
+  live server via `fetch` — that's expected, not a type error.)
 - **Notification content (subject/body)**: migration 004 created `notifications`
   with legacy `title`/`message` (NOT NULL). Migration 005 intended `subject`/`body`
   but its `CREATE TABLE IF NOT EXISTS` was skipped (table existed) and its ALTERs
