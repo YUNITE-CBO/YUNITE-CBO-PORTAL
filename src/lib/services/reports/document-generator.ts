@@ -2,14 +2,14 @@
  * DOCUMENT GENERATOR (PDF + CSV)
  *
  * PDF: renders the self-contained HTML report via headless Chromium
- * (puppeteer-core). The Chromium executable path is auto-detected from the
- * environment with sane defaults for the Render/Linux deployment.
+ * (puppeteer, which bundles a compatible Chromium in its cache at install
+ * time via `npm ci`). No system package or root install is required.
  *
  * CSV: produced directly from the report data (no browser needed) for fast,
  * lossless spreadsheet exports.
  */
 
-import puppeteer, { type Browser } from 'puppeteer-core';
+import puppeteer, { type Browser } from 'puppeteer';
 import { existsSync } from 'fs';
 import {
   ReportContext,
@@ -25,36 +25,66 @@ import {
 } from './report-data.service';
 import { formatMoney, formatDate } from './brand';
 
-// Candidate Chromium executable paths, in priority order. The first one
-// that BOTH is set/exists on disk wins. puppeteer-core does NOT bundle a
-// browser, so the deployment image must provide one (see
-// scripts/install-chromium.sh + render.yaml buildCommand).
-const CHROMIUM_PATHS = [
-  process.env.PUPPETEER_EXECUTABLE_PATH,
-  process.env.CHROMIUM_PATH,
-  process.env.CHROME_PATH,
+// System Chromium executables consulted as a last resort when the bundled
+// browser cache is absent (e.g. a host that already ships Chrome/Chromium).
+const SYSTEM_PATHS = [
   '/usr/bin/chromium',
   '/usr/bin/chromium-browser',
   '/usr/bin/google-chrome',
   '/usr/local/bin/chromium',
+  '/usr/lib/chromium/chromium',
   '/opt/google/chrome/chrome',
-].filter(Boolean) as string[];
+];
 
+/**
+ * Resolve the Chromium executable to launch.
+ *
+ * Priority:
+ *   1. PUPPETEER_EXECUTABLE_PATH / CHROMIUM_PATH / CHROME_PATH env override
+ *      (when the referenced file actually exists on disk),
+ *   2. puppeteer's bundled browser (its postinstall downloads a compatible
+ *      Chromium into its cache; `executablePath()` points at it),
+ *   3. common system Chromium/Chrome locations.
+ *
+ * The bundled cache is the default path used in production (no root/system
+ * package needed). Env overrides are supported for environments that already
+ * provide a browser.
+ */
 function resolveChromium(): string {
-  // Prefer env-configured paths that actually exist on disk.
-  for (const p of CHROMIUM_PATHS) {
-    if (p && existsSync(p)) return p;
+  const checked: string[] = [];
+  const envPaths = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROMIUM_PATH,
+    process.env.CHROME_PATH,
+  ].filter(Boolean) as string[];
+
+  for (const p of envPaths) {
+    checked.push(p);
+    if (existsSync(p)) return p;
   }
-  // Fallback: a path may be set but the binary could be a symlink that
-  // resolves via PATH — accept env-set paths even if existsSync missed it.
-  for (const p of CHROMIUM_PATHS) {
-    if (p && process.env.PUPPETEER_EXECUTABLE_PATH === p) return p;
+
+  // Bundled browser cache (the default in production). `executablePath()`
+  // itself honors PUPPETEER_EXECUTABLE_PATH, so only consult it as a cache
+  // candidate when no env override was requested.
+  const bundled = envPaths.length === 0 ? puppeteer.executablePath() : null;
+  if (bundled) {
+    checked.push(bundled);
+    if (existsSync(bundled)) return bundled;
   }
+
+  for (const p of SYSTEM_PATHS) {
+    checked.push(p);
+    if (existsSync(p)) return p;
+  }
+
   throw new Error(
-    'Chromium executable not found for PDF generation. ' +
-      'Set PUPPETEER_EXECUTABLE_PATH to a Chromium binary, or run ' +
-      'scripts/install-chromium.sh during the build (see render.yaml). ' +
-      `Checked: ${CHROMIUM_PATHS.join(', ') || '(none)'}`,
+    'Chromium executable not found for PDF generation. The bundled ' +
+      'browser is downloaded during `npm ci` (puppeteer postinstall); ' +
+      'ensure PUPPETEER_SKIP_DOWNLOAD is unset and PUPPETEER_EXECUTABLE_PATH ' +
+      'is not pointing at a missing path. Alternatively set PUPPETEER_EXECUTABLE_PATH ' +
+      'to an existing Chromium binary. Checked: ' +
+      (checked.join(', ') || '(none)') +
+      '.',
   );
 }
 
@@ -74,9 +104,6 @@ async function getBrowser(): Promise<Browser> {
       '--disable-gpu',
       '--disable-dev-shm-usage',
       '--disable-features=site-per-process',
-      // Render free tier ships a small /dev/shm; avoid crashes by writing
-      // temp files to disk instead of shared memory.
-      '--single-process',
     ],
   });
   return cachedBrowser;

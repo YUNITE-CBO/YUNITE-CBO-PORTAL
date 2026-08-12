@@ -7,26 +7,20 @@ services:
     runtime: node
     region: oregon
     plan: free
-    # Install Chromium for the document/PDF generation engine
-    # (src/lib/services/reports). puppeteer-core does NOT bundle a browser,
-    # so the image must provide one. scripts/install-chromium.sh is
-    # idempotent and a no-op if chromium is already present.
-    buildCommand: bash scripts/install-chromium.sh && rm -rf .next && npm ci && npm run build
+    # Chromium for PDF generation is bundled by puppeteer: its postinstall
+    # (runs during `npm ci`) downloads a compatible headless Chromium into
+    # the puppeteer cache. No system package or root install is needed, so
+    # no special build step is required. IMPORTANT: do NOT set
+    # PUPPETEER_EXECUTABLE_PATH or PUPPETEER_SKIP_DOWNLOAD here — setting
+    # PUPPETEER_EXECUTABLE_PATH makes puppeteer's postinstall skip the
+    # browser download (it assumes a system browser exists), which would
+    # leave no binary available at runtime.
+    buildCommand: rm -rf .next && npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      # Chromium binary path for puppeteer-core PDF generation. Render's
-      # Debian-based image installs it to /usr/bin/chromium (see the
-      # install-chromium.sh build step). Override only if your image places
-      # it elsewhere.
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/chromium
-      # Tell puppeteer-core not to attempt its own (npm-bundled) download;
-      # we always use the system chromium installed above.
-      - key: PUPPETEER_SKIP_DOWNLOAD
-        value: "true"
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY

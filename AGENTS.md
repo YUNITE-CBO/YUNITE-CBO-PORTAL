@@ -219,8 +219,20 @@ fines, member statement of account, welfare fund, and organization summary.
   opening/closing balances + per-account breakdown via
   `transactionEngine.calculateBalance`.
 - **PDF/CSV** (`document-generator.ts`): `htmlToPdf(html)` renders via
-  headless Chromium (`puppeteer-core`, executable auto-detected from
-  `PUPPETEER_EXECUTABLE_PATH`/`/usr/bin/chromium`). The browser is cached
+  headless Chromium from `puppeteer` (NOT `puppeteer-core`). puppeteer's
+  postinstall (runs during `npm ci`) downloads a compatible headless
+  Chromium into its cache (`~/.cache/puppeteer`), so NO system package or
+  root install is needed. `resolveChromium()` prefers an explicit
+  `PUPPETEER_EXECUTABLE_PATH`/`CHROMIUM_PATH`/`CHROME_PATH` override (only
+  if it exists on disk), then the bundled cache
+  (`puppeteer.executablePath()`), then common system Chromium paths.
+  **Gotcha**: setting `PUPPETEER_EXECUTABLE_PATH` makes puppeteer's
+  postinstall SKIP the browser download (it assumes a system browser
+  exists) — so on Render we deliberately leave both
+  `PUPPETEER_EXECUTABLE_PATH` and `PUPPETEER_SKIP_DOWNLOAD` UNSET to let
+  the cache populate. Also: do NOT pass `--single-process` to
+  `puppeteer.launch` — it breaks modern Chrome (131+) with
+  "Target.setDiscoverTargets: Target closed". The browser is cached
   per-process; `closeBrowser()` must be called in long-lived test/lambda
   contexts to let the process exit. `reportToCsv()` produces spreadsheet
   exports directly (no browser needed).
@@ -255,15 +267,17 @@ fines, member statement of account, welfare fund, and organization summary.
   (CSV export + period resolver), `tests/smoke-pdf.test.ts` (real Chromium
   PDF render → valid `%PDF-` buffer; uses `closeBrowser()` + `--forceExit`).
   Run report tests with:
-  `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium npx jest tests/report- --testTimeout=90000 --forceExit`
+  `npx jest tests/report- --testTimeout=90000 --forceExit`
+  (Chromium comes from the puppeteer cache; no `PUPPETEER_EXECUTABLE_PATH`
+  needed. If a system Chromium is preferred locally, set
+  `PUPPETEER_EXECUTABLE_PATH` to it before running.)
 - **Deploy steps**: run migration 029 in Supabase SQL Editor. Chromium for
-  PDF generation is installed automatically — `render.yaml` runs
-  `scripts/install-chromium.sh` (idempotent apt-get) in the buildCommand
-  and sets `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium` +
-  `PUPPETEER_SKIP_DOWNLOAD=true` on the web service. The generator
-  (`document-generator.ts`) verifies the binary exists on disk and falls
-  back across env vars + common paths, throwing a clear error listing the
-  checked paths if none is present. No manual Chromium setup needed.
+  PDF generation is installed automatically by puppeteer's postinstall
+  during `npm ci` (it downloads a compatible headless Chromium into its
+  cache). `render.yaml` no longer installs a system Chromium — it
+  intentionally leaves `PUPPETEER_EXECUTABLE_PATH` and
+  `PUPPETEER_SKIP_DOWNLOAD` UNSET so the cache populates. No manual
+  Chromium setup, root, or apt-get is needed.
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.
