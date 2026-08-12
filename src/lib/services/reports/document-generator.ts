@@ -10,6 +10,7 @@
  */
 
 import puppeteer, { type Browser } from 'puppeteer-core';
+import { existsSync } from 'fs';
 import {
   ReportContext,
   FinancialSummaryData,
@@ -24,20 +25,37 @@ import {
 } from './report-data.service';
 import { formatMoney, formatDate } from './brand';
 
+// Candidate Chromium executable paths, in priority order. The first one
+// that BOTH is set/exists on disk wins. puppeteer-core does NOT bundle a
+// browser, so the deployment image must provide one (see
+// scripts/install-chromium.sh + render.yaml buildCommand).
 const CHROMIUM_PATHS = [
   process.env.PUPPETEER_EXECUTABLE_PATH,
   process.env.CHROMIUM_PATH,
+  process.env.CHROME_PATH,
   '/usr/bin/chromium',
   '/usr/bin/chromium-browser',
   '/usr/bin/google-chrome',
   '/usr/local/bin/chromium',
+  '/opt/google/chrome/chrome',
 ].filter(Boolean) as string[];
 
 function resolveChromium(): string {
+  // Prefer env-configured paths that actually exist on disk.
   for (const p of CHROMIUM_PATHS) {
-    if (p) return p;
+    if (p && existsSync(p)) return p;
   }
-  throw new Error('Chromium executable not found. Set PUPPETEER_EXECUTABLE_PATH.');
+  // Fallback: a path may be set but the binary could be a symlink that
+  // resolves via PATH — accept env-set paths even if existsSync missed it.
+  for (const p of CHROMIUM_PATHS) {
+    if (p && process.env.PUPPETEER_EXECUTABLE_PATH === p) return p;
+  }
+  throw new Error(
+    'Chromium executable not found for PDF generation. ' +
+      'Set PUPPETEER_EXECUTABLE_PATH to a Chromium binary, or run ' +
+      'scripts/install-chromium.sh during the build (see render.yaml). ' +
+      `Checked: ${CHROMIUM_PATHS.join(', ') || '(none)'}`,
+  );
 }
 
 let cachedBrowser: Browser | null = null;
@@ -46,8 +64,9 @@ async function getBrowser(): Promise<Browser> {
   if (cachedBrowser && cachedBrowser.connected) {
     return cachedBrowser;
   }
+  const executablePath = resolveChromium();
   cachedBrowser = await puppeteer.launch({
-    executablePath: resolveChromium(),
+    executablePath,
     headless: true,
     args: [
       '--no-sandbox',
@@ -55,6 +74,9 @@ async function getBrowser(): Promise<Browser> {
       '--disable-gpu',
       '--disable-dev-shm-usage',
       '--disable-features=site-per-process',
+      // Render free tier ships a small /dev/shm; avoid crashes by writing
+      // temp files to disk instead of shared memory.
+      '--single-process',
     ],
   });
   return cachedBrowser;

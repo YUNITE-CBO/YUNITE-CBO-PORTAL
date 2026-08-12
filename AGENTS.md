@@ -252,9 +252,14 @@ fines, member statement of account, welfare fund, and organization summary.
   PDF render → valid `%PDF-` buffer; uses `closeBrowser()` + `--forceExit`).
   Run report tests with:
   `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium npx jest tests/report- --testTimeout=90000 --forceExit`
-- **Deploy steps**: run migration 029 in Supabase SQL Editor; set
-  `PUPPETEER_EXECUTABLE_PATH` (or ensure `/usr/bin/chromium` exists) on the
-  web service for PDF generation.
+- **Deploy steps**: run migration 029 in Supabase SQL Editor. Chromium for
+  PDF generation is installed automatically — `render.yaml` runs
+  `scripts/install-chromium.sh` (idempotent apt-get) in the buildCommand
+  and sets `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium` +
+  `PUPPETEER_SKIP_DOWNLOAD=true` on the web service. The generator
+  (`document-generator.ts`) verifies the binary exists on disk and falls
+  back across env vars + common paths, throwing a clear error listing the
+  checked paths if none is present. No manual Chromium setup needed.
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.
