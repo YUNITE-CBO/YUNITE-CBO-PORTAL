@@ -65,8 +65,19 @@ function resolveChromium(): string {
 
   // Bundled browser cache (the default in production). `executablePath()`
   // itself honors PUPPETEER_EXECUTABLE_PATH, so only consult it as a cache
-  // candidate when no env override was requested.
-  const bundled = envPaths.length === 0 ? puppeteer.executablePath() : null;
+  // candidate when no env override was requested. The call validates the
+  // cache and throws when the bundled browser is absent (e.g. dev installs
+  // with PUPPETEER_SKIP_DOWNLOAD, or node_modules copied without the cache),
+  // so swallow that error here and fall through to system paths below
+  // rather than surfacing a raw puppeteer stack trace.
+  let bundled: string | null = null;
+  if (envPaths.length === 0) {
+    try {
+      bundled = puppeteer.executablePath();
+    } catch {
+      bundled = null;
+    }
+  }
   if (bundled) {
     checked.push(bundled);
     if (existsSync(bundled)) return bundled;
