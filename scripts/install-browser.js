@@ -15,10 +15,11 @@
  */
 const os = require('os');
 const path = require('path');
+const { existsSync } = require('fs');
 
 async function main() {
   const browsers = require('@puppeteer/browsers');
-  const { Browser, BrowserPlatform, resolveBuildId, install, getInstalledBrowsers } = browsers;
+  const { Browser, BrowserPlatform, resolveBuildId, install, getInstalledBrowsers, uninstall } = browsers;
 
   const platform = browsers.detectBrowserPlatform
     ? browsers.detectBrowserPlatform()
@@ -51,15 +52,25 @@ async function main() {
   // env-agnostic, so a previous run (even one skipped by puppeteer's own
   // postinstall due to PUPPETEER_EXECUTABLE_PATH) is detected here.
   const installed = await getInstalledBrowsers({ cacheDir });
-  const hasChrome = installed.some(
+  const chrome = installed.find(
     (b) => b.browser === Browser.CHROME && b.platform === platform && b.buildId === buildId,
   );
-  if (hasChrome) {
-    const chrome = installed.find(
-      (b) => b.browser === Browser.CHROME && b.platform === platform && b.buildId === buildId,
-    );
-    console.log(`[install-browser] chrome ${buildId} already cached at ${chrome.executablePath}`);
-    return;
+  if (chrome) {
+    // Verify the executable actually exists on disk. Render (and other hosts)
+    // persist the browser cache across builds, and a previous build can leave
+    // a CORRUPT entry: the .metadata says "installed" but the binary is gone
+    // (e.g. an interrupted/partial extraction). Trusting the metadata here
+    // would leave no working binary at runtime, so we uninstall and re-download.
+    if (chrome.executablePath && existsSync(chrome.executablePath)) {
+      console.log(`[install-browser] chrome ${buildId} already cached at ${chrome.executablePath}`);
+      return;
+    }
+    console.warn(`[install-browser] chrome ${buildId} listed in cache but executable missing (${chrome.executablePath}); re-downloading.`);
+    try {
+      await uninstall({ cacheDir, browser: Browser.CHROME, buildId, platform });
+    } catch (e) {
+      console.warn(`[install-browser] uninstall of corrupt chrome entry failed (${e?.message}); proceeding to reinstall.`);
+    }
   }
 
   console.log(`[install-browser] downloading chrome ${buildId} for ${platform} into ${cacheDir} ...`);

@@ -314,6 +314,37 @@ fines, member statement of account, welfare fund, and organization summary.
   setting `PUPPETEER_EXECUTABLE_PATH` makes puppeteer's own postinstall skip
   the download. After redeploy, confirm the postinstall log shows
   `[install-browser] chrome <build> already cached at ...` (or "downloading").**
+- **BUILD FAILURE (2026-08-13, render.yaml now sets PUPPETEER_SKIP_DOWNLOAD=true)**:
+  the first redeploy attempt FAILED during `npm ci` with puppeteer's own
+  `install.mjs` throwing `Failed to set up chrome-headless-shell v131.0.6778.204!
+  [cause]: The browser folder (.../chrome-headless-shell/linux-131.0.6778.204)
+  exists but the executable is missing`. Render persists `/opt/render/.cache`
+  across builds (the "==> Downloading cache... Downloaded 211MB" log line);
+  a prior build left a CORRUPT chrome-headless-shell entry (folder present,
+  binary absent), and `@puppeteer/browsers`' `install()` THROWS on a corrupt
+  folder instead of re-downloading — aborting `npm ci` before our root
+  `postinstall` (`scripts/install-browser.js`) ever ran. FIX: `render.yaml`
+  now sets `PUPPETEER_SKIP_DOWNLOAD="true"` on the web service. This makes
+  puppeteer's own `install.mjs` `downloadBrowsers()` early-return (exit 0,
+  "**INFO** Skipping downloading browsers as instructed.") so it CANNOT abort
+  `npm ci` on the corrupt chrome-headless-shell cache. Our `postinstall`
+  (`scripts/install-browser.js`) then installs the single `chrome` build we
+  actually use directly via `@puppeteer/browsers`' `install()` — that call is
+  NOT gated by `PUPPETEER_SKIP_DOWNLOAD` (that env var only affects
+  puppeteer's install.mjs). `install-browser.js` was ALSO hardened against the
+  same corrupt-cache bug: it now `existsSync()`s the listed `executablePath`,
+  and if missing, `uninstall()`s the corrupt entry and re-downloads (a stale
+  `.metadata` saying "installed" with a missing binary is the exact failure
+  mode). We still do NOT set `PUPPETEER_EXECUTABLE_PATH` (stale values mask
+  the bundled cache at runtime); the document generator probes the cache via
+  `getInstalledBrowsers()`. The old `render.yaml` comment ("do NOT set
+  PUPPETEER_SKIP_DOWNLOAD") is now WRONG and was replaced. Verified locally:
+  a corrupt chrome-headless-shell + corrupt chrome (stale metadata, missing
+  executable) cache → `npm ci`'s puppeteer step is skipped, `install-browser.js`
+  detects the corrupt chrome, reinstalls, and `getInstalledBrowsers()` finds a
+  working executable. NOTE: if the build STILL fails after this, the Render
+  build cache itself is corrupt and should be cleared via Render Dashboard →
+  Service → Settings → Manual Deploy → "Clear build cache & deploy".
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.

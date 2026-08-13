@@ -7,20 +7,30 @@ services:
     runtime: node
     region: oregon
     plan: free
-    # Chromium for PDF generation is bundled by puppeteer: its postinstall
-    # (runs during `npm ci`) downloads a compatible headless Chromium into
-    # the puppeteer cache. No system package or root install is needed, so
-    # no special build step is required. IMPORTANT: do NOT set
-    # PUPPETEER_EXECUTABLE_PATH or PUPPETEER_SKIP_DOWNLOAD here — setting
-    # PUPPETEER_EXECUTABLE_PATH makes puppeteer's postinstall skip the
-    # browser download (it assumes a system browser exists), which would
-    # leave no binary available at runtime.
+    # Chromium for PDF generation is installed by the npm `postinstall` hook
+    # (scripts/install-browser.js), which force-downloads the pinned Chrome
+    # build directly via @puppeteer/browsers, regardless of env vars. No
+    # system package or root install is needed.
+    #
+    # PUPPETEER_SKIP_DOWNLOAD is set ON PURPOSE: puppeteer's OWN install.mjs
+    # (run during `npm ci`) downloads chrome + chrome-headless-shell + firefox,
+    # and Render persists /opt/render/.cache across builds. A previous build
+    # can leave a CORRUPT cache entry (folder exists, executable missing),
+    # which makes install.mjs THROW "Failed to set up chrome-headless-shell"
+    # and abort `npm ci` before our postinstall even runs. Setting
+    # PUPPETEER_SKIP_DOWNLOAD=true makes install.mjs skip all downloads
+    # (exit 0), so the build can't fail there; scripts/install-browser.js then
+    # installs the single chrome build we actually use. We do NOT set
+    # PUPPETEER_EXECUTABLE_PATH (stale values mask the bundled cache at
+    # runtime); the document generator probes the cache directly.
     buildCommand: rm -rf .next && npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PUPPETEER_SKIP_DOWNLOAD
+        value: "true"
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
