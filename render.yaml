@@ -12,16 +12,18 @@ services:
     # build directly via @puppeteer/browsers, regardless of env vars. No
     # system package or root install is needed.
     #
-    # PUPPETEER_SKIP_DOWNLOAD is set ON PURPOSE: puppeteer's OWN install.mjs
-    # (run during `npm ci`) downloads chrome + chrome-headless-shell + firefox,
-    # and Render persists /opt/render/.cache across builds. A previous build
-    # can leave a CORRUPT cache entry (folder exists, executable missing),
-    # which makes install.mjs THROW "Failed to set up chrome-headless-shell"
-    # and abort `npm ci` before our postinstall even runs. Setting
-    # PUPPETEER_SKIP_DOWNLOAD=true makes install.mjs skip all downloads
-    # (exit 0), so the build can't fail there; scripts/install-browser.js then
-    # installs the single chrome build we actually use. We do NOT set
-    # PUPPETEER_EXECUTABLE_PATH (stale values mask the bundled cache at
+    # WHY puppeteer-core (not puppeteer): the app imports `puppeteer-core`,
+    # which ships NO postinstall download step. The `puppeteer` package's
+    # install.mjs downloads chrome + chrome-headless-shell + firefox during
+    # `npm ci`, and Render persists /opt/render/.cache across builds; a
+    # previous build can leave a CORRUPT cache entry (folder exists,
+    # executable missing), making install.mjs THROW "Failed to set up chrome
+    # ... folder exists but executable is missing" and ABORT `npm ci` before
+    # our postinstall ever runs. Using puppeteer-core removes that step
+    # entirely, so the build can't fail there. scripts/install-browser.js
+    # then installs the single chrome build we actually use directly via
+    # @puppeteer/browsers (that call is NOT gated by env vars). We do NOT
+    # set PUPPETEER_EXECUTABLE_PATH (stale values mask the bundled cache at
     # runtime); the document generator probes the cache directly.
     buildCommand: rm -rf .next && npm ci && npm run build
     startCommand: npm start

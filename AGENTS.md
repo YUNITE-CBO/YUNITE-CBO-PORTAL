@@ -219,24 +219,24 @@ fines, member statement of account, welfare fund, and organization summary.
   opening/closing balances + per-account breakdown via
   `transactionEngine.calculateBalance`.
 - **PDF/CSV** (`document-generator.ts`): `htmlToPdf(html)` renders via
-  headless Chromium from `puppeteer` (NOT `puppeteer-core`). The browser is
-  bundled in puppeteer's cache (`~/.cache/puppeteer`), populated by
-  `scripts/install-browser.js` which runs as the npm `postinstall` hook
-  during `npm ci`. NO system package or root install is needed.
-  `resolveChromium()` prefers an explicit `PUPPETEER_EXECUTABLE_PATH`/
-  `CHROMIUM_PATH`/`CHROME_PATH` override (only if it exists on disk — a
-  stale env var pointing at a missing path is skipped, not fatal), then
-  **probes the cache directory directly** (via `fs.readdirSync`, NOT
+  headless Chromium using `puppeteer-core` (NOT `puppeteer` — see the
+  BUILD FAILURE note below for why `puppeteer`'s `install.mjs` postinstall
+  must be avoided). The browser is bundled in puppeteer's cache
+  (`~/.cache/puppeteer`), populated by `scripts/install-browser.js` which
+  runs as the npm `postinstall` hook during `npm ci`. NO system package or
+  root install is needed. `resolveChromium()` prefers an explicit
+  `PUPPETEER_EXECUTABLE_PATH`/`CHROMIUM_PATH`/`CHROME_PATH` override (only
+  if it exists on disk — a stale env var pointing at a missing path is
+  skipped, not fatal), then probes the cache directory directly (via
+  `@puppeteer/browsers`' `getInstalledBrowsers()`, NOT
   `puppeteer.executablePath()`, which honors `PUPPETEER_EXECUTABLE_PATH`
   and would miss the cache when that env var is stale), then common system
   Chromium paths.
-  **Why a custom postinstall**: puppeteer's own postinstall SKIPS the
-  browser download whenever `PUPPETEER_EXECUTABLE_PATH` is set (it assumes
-  a system browser exists). On Render, a stale `PUPPETEER_EXECUTABLE_PATH`
-  in the Dashboard would suppress the download AND point at a missing
-  path → no browser. `scripts/install-browser.js` bypasses that by calling
-  `@puppeteer/browsers`' `install()` directly with the build pinned in
-  `puppeteer-core`'s revisions (so the binary matches the driver — using
+  **Why a custom postinstall**: `puppeteer-core` ships NO postinstall
+  download step (unlike `puppeteer`), so nothing populates the browser
+  cache during `npm ci`. `scripts/install-browser.js` does it instead,
+  calling `@puppeteer/browsers`' `install()` directly with the build pinned
+  in `puppeteer-core`'s revisions (so the binary matches the driver — using
   "stable"/latest instead crashes with "Navigating frame was detached"),
   ignoring `PUPPETEER_SKIP_DOWNLOAD`/`PUPPETEER_EXECUTABLE_PATH`.
   **Gotcha**: do NOT pass `--single-process` to `puppeteer.launch` — it
@@ -314,37 +314,39 @@ fines, member statement of account, welfare fund, and organization summary.
   setting `PUPPETEER_EXECUTABLE_PATH` makes puppeteer's own postinstall skip
   the download. After redeploy, confirm the postinstall log shows
   `[install-browser] chrome <build> already cached at ...` (or "downloading").**
-- **BUILD FAILURE (2026-08-13, render.yaml now sets PUPPETEER_SKIP_DOWNLOAD=true)**:
-  the first redeploy attempt FAILED during `npm ci` with puppeteer's own
-  `install.mjs` throwing `Failed to set up chrome-headless-shell v131.0.6778.204!
-  [cause]: The browser folder (.../chrome-headless-shell/linux-131.0.6778.204)
-  exists but the executable is missing`. Render persists `/opt/render/.cache`
-  across builds (the "==> Downloading cache... Downloaded 211MB" log line);
-  a prior build left a CORRUPT chrome-headless-shell entry (folder present,
-  binary absent), and `@puppeteer/browsers`' `install()` THROWS on a corrupt
-  folder instead of re-downloading — aborting `npm ci` before our root
-  `postinstall` (`scripts/install-browser.js`) ever ran. FIX: `render.yaml`
-  now sets `PUPPETEER_SKIP_DOWNLOAD="true"` on the web service. This makes
-  puppeteer's own `install.mjs` `downloadBrowsers()` early-return (exit 0,
-  "**INFO** Skipping downloading browsers as instructed.") so it CANNOT abort
-  `npm ci` on the corrupt chrome-headless-shell cache. Our `postinstall`
-  (`scripts/install-browser.js`) then installs the single `chrome` build we
-  actually use directly via `@puppeteer/browsers`' `install()` — that call is
-  NOT gated by `PUPPETEER_SKIP_DOWNLOAD` (that env var only affects
-  puppeteer's install.mjs). `install-browser.js` was ALSO hardened against the
-  same corrupt-cache bug: it now `existsSync()`s the listed `executablePath`,
-  and if missing, `uninstall()`s the corrupt entry and re-downloads (a stale
-  `.metadata` saying "installed" with a missing binary is the exact failure
-  mode). We still do NOT set `PUPPETEER_EXECUTABLE_PATH` (stale values mask
-  the bundled cache at runtime); the document generator probes the cache via
-  `getInstalledBrowsers()`. The old `render.yaml` comment ("do NOT set
-  PUPPETEER_SKIP_DOWNLOAD") is now WRONG and was replaced. Verified locally:
-  a corrupt chrome-headless-shell + corrupt chrome (stale metadata, missing
-  executable) cache → `npm ci`'s puppeteer step is skipped, `install-browser.js`
-  detects the corrupt chrome, reinstalls, and `getInstalledBrowsers()` finds a
-  working executable. NOTE: if the build STILL fails after this, the Render
-  build cache itself is corrupt and should be cleared via Render Dashboard →
-  Service → Settings → Manual Deploy → "Clear build cache & deploy".
+- **BUILD FAILURE (2026-08-13, FIXED by switching `puppeteer` → `puppeteer-core`)**:
+  the build FAILED during `npm ci` with puppeteer's own `install.mjs` throwing
+  `Failed to set up chrome v131.0.6778.204! [cause]: The browser folder
+  (.../chrome/linux-131.0.6778.204) exists but the executable is missing`.
+  Render persists `/opt/render/.cache` across builds; a prior build left a
+  CORRUPT chrome entry (folder present, binary absent), and
+  `@puppeteer/browsers`' `install()` THROWS on a corrupt folder instead of
+  re-downloading — aborting `npm ci` before our root `postinstall`
+  (`scripts/install-browser.js`) ever ran. The PREVIOUS fix
+  (`render.yaml` setting `PUPPETEER_SKIP_DOWNLOAD="true"`) did NOT work in
+  practice: Render only applies `envVars` from a blueprint when the blueprint
+  is explicitly synced to the service; a manual deploy or a stale Dashboard
+  override leaves the env var absent, so `install.mjs` still ran and crashed.
+  FIX (robust, repo-self-contained): the app now imports `puppeteer-core`
+  (NOT `puppeteer`). `puppeteer-core` ships NO `install.mjs` postinstall
+  step, so `npm ci` can NEVER crash on a corrupt browser cache regardless of
+  env vars. The single Chrome build we use is installed by our own
+  `postinstall` (`scripts/install-browser.js`) directly via
+  `@puppeteer/browsers`' `install()` (gated by NO env var), which is also
+  hardened against the corrupt-cache bug: it `existsSync()`s the listed
+  `executablePath`, and if missing, `uninstall()`s the corrupt entry and
+  re-downloads. `render.yaml` still sets `PUPPETEER_SKIP_DOWNLOAD="true"` as
+  belt-and-suspenders but it is no longer load-bearing. We do NOT set
+  `PUPPETEER_EXECUTABLE_PATH` (stale values mask the bundled cache at
+  runtime); the document generator probes the cache via
+  `getInstalledBrowsers()`. Verified locally: corrupt chrome cache (folder
+  present, executable missing, stale `.metadata`) + NO skip env var →
+  `npm ci` succeeds (no install.mjs to crash), `install-browser.js` detects
+  the corrupt chrome, reinstalls, and `getInstalledBrowsers()` finds a
+  working executable; PDF smoke test passes with `puppeteer-core`. NOTE: if
+  the build STILL fails, the Render build cache itself is corrupt — clear it
+  via Render Dashboard → Service → Settings → Manual Deploy → "Clear build
+  cache & deploy".
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.

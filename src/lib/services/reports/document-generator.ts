@@ -1,18 +1,21 @@
 /**
  * DOCUMENT GENERATOR (PDF + CSV)
  *
- * PDF: renders the self-contained HTML report via headless Chromium
- * (puppeteer, which bundles a compatible Chromium in its cache). The cache
- * is populated by `scripts/install-browser.js` (run as an npm `postinstall`
- * during `npm ci`), which forces the download regardless of
- * PUPPETEER_EXECUTABLE_PATH/PUPPETEER_SKIP_DOWNLOAD — so the browser is
- * always present at runtime even when stale env vars are set on the host.
+ * PDF: renders the self-contained HTML report via headless Chromium using
+ * `puppeteer-core` (NOT `puppeteer`). `puppeteer-core` ships NO postinstall
+ * download step, so `npm ci` can never fail on a corrupt browser cache the
+ * way the `puppeteer` package's `install.mjs` does ("Failed to set up chrome
+ * ... folder exists but executable is missing"). The Chromium binary is
+ * installed separately by `scripts/install-browser.js` (run as an npm
+ * `postinstall` during `npm ci`) directly via `@puppeteer/browsers`,
+ * independent of PUPPETEER_EXECUTABLE_PATH / PUPPETEER_SKIP_DOWNLOAD, so the
+ * browser is always present at runtime even when stale env vars are set.
  *
  * CSV: produced directly from the report data (no browser needed) for fast,
  * lossless spreadsheet exports.
  */
 
-import puppeteer, { type Browser as PuppeteerBrowser } from 'puppeteer';
+import puppeteer, { type Browser as PuppeteerBrowser } from 'puppeteer-core';
 import { existsSync } from 'fs';
 import os from 'os';
 import path from 'path';

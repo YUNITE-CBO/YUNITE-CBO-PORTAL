@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * Force-installs a headless Chromium into the puppeteer browser cache,
- * independent of PUPPETEER_EXECUTABLE_PATH / PUPPETEER_SKIP_DOWNLOAD.
+ * Force-installs a headless Chromium into the puppeteer browser cache.
  *
- * Why this exists: puppeteer's own postinstall (install.mjs -> downloadBrowsers)
- * SKIPS the download whenever PUPPETEER_EXECUTABLE_PATH is set (it assumes a
- * system browser is provided). On hosts where that env var points at a path
- * that doesn't exist at runtime (e.g. a stale Render Dashboard value), this
- * leaves no binary available and PDF generation fails. This script bypasses
- * that skip logic by calling @puppeteer/browsers' install() directly, so the
- * cache is always populated during `npm ci` via the `postinstall` hook.
+ * The app imports `puppeteer-core` (NOT `puppeteer`), which ships NO
+ * postinstall download step — so nothing automatically populates the browser
+ * cache during `npm ci`. This script is the npm `postinstall` hook that does
+ * it instead, calling @puppeteer/browsers' install() directly to fetch the
+ * exact Chrome build that puppeteer-core pins (from puppeteer-core's
+ * revisions), independent of PUPPETEER_EXECUTABLE_PATH /
+ * PUPPETEER_SKIP_DOWNLOAD. Using the pinned build (not "stable"/latest)
+ * matters: puppeteer-core's driver is tested against this specific build; a
+ * mismatched newer build can crash at runtime.
  *
  * Usage: node scripts/install-browser.js   (also runs as npm postinstall)
  */
