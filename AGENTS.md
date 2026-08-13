@@ -286,6 +286,34 @@ fines, member statement of account, welfare fund, and organization summary.
   `PUPPETEER_EXECUTABLE_PATH`/`PUPPETEER_SKIP_DOWNLOAD` env values, so stale
   Render Dashboard env vars can no longer break PDF generation. No manual
   Chromium setup, root, or apt-get is needed.
+- **CRITICAL — live Render was running STALE code (PDF "Chromium executable
+  not found")**: on 2026-08-13 the Reports & Documents page threw "Export
+  failed: Chromium executable not found ... downloaded during `npm ci`
+  (puppeteer postinstall); ensure PUPPETEER_SKIP_DOWNLOAD is unset ...". That
+  error string is from commit `4f98ac1`, NOT the repo HEAD `477f7b5` (whose
+  message names `scripts/install-browser.js`). So the live deployment was
+  running an older build than `main`; the repo's fixes simply hadn't been
+  deployed. The OLD `resolveChromium()` used `puppeteer.executablePath()`,
+  which honors a stale `PUPPETEER_EXECUTABLE_PATH` (set in the Render
+  Dashboard to a cache path that didn't exist at runtime) → skipped the
+  bundled cache and fell through to system paths (none on Render free tier)
+  → hard fail. `resolveChromium()` was hardened: it is now async and uses
+  `@puppeteer/browsers`' `getInstalledBrowsers()` (env-agnostic — reads the
+  cache directly, so a stale `PUPPETEER_EXECUTABLE_PATH` can no longer mask
+  the bundled browser; an empty cache dir returns [] cleanly instead of the
+  old readdirSync loop that produced zero candidates). `SYSTEM_PATHS` was
+  expanded to include the real binaries `/usr/lib/chromium/chromium`,
+  `/usr/lib/chromium-browser/chromium`, and `/usr/bin/google-chrome-stable`
+  (some distros ship `/usr/bin/chromium` as a tiny shell *wrapper* whose real
+  ~300 MB binary lives in `/usr/lib/chromium/`). Verified locally: clean env,
+  stale-env-pointing-at-missing-path, AND empty-cache-dir all render PDFs.
+  **Action to fix the live site: redeploy `main` (the repo HEAD already
+  contained the working fix; this commit hardens it). Also clear the stale
+  `PUPPETEER_EXECUTABLE_PATH`/`PUPPETEER_SKIP_DOWNLOAD`/`CHROME_BIN` env vars
+  in the Render Dashboard — `render.yaml` deliberately does NOT set them;
+  setting `PUPPETEER_EXECUTABLE_PATH` makes puppeteer's own postinstall skip
+  the download. After redeploy, confirm the postinstall log shows
+  `[install-browser] chrome <build> already cached at ...` (or "downloading").**
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.

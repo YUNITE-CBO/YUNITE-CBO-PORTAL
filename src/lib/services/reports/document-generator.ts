@@ -12,11 +12,11 @@
  * lossless spreadsheet exports.
  */
 
-import puppeteer, { type Browser } from 'puppeteer';
-import { existsSync, readdirSync } from 'fs';
+import puppeteer, { type Browser as PuppeteerBrowser } from 'puppeteer';
+import { existsSync } from 'fs';
 import os from 'os';
 import path from 'path';
-import { detectBrowserPlatform } from '@puppeteer/browsers';
+import { getInstalledBrowsers, Browser as InstalledBrowserBrand } from '@puppeteer/browsers';
 import {
   ReportContext,
   FinancialSummaryData,
@@ -33,12 +33,17 @@ import { formatMoney, formatDate } from './brand';
 
 // System Chromium executables consulted as a last resort when the bundled
 // browser cache is absent (e.g. a host that already ships Chrome/Chromium).
+// These are the real binaries, not launcher scripts — on some distros
+// `/usr/bin/chromium` is a tiny shell wrapper whose real binary lives in
+// `/usr/lib/chromium/chromium`, so we list both and the executable itself.
 const SYSTEM_PATHS = [
   '/usr/bin/chromium',
   '/usr/bin/chromium-browser',
   '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
   '/usr/local/bin/chromium',
   '/usr/lib/chromium/chromium',
+  '/usr/lib/chromium-browser/chromium',
   '/opt/google/chrome/chrome',
 ];
 
@@ -51,59 +56,47 @@ const SYSTEM_PATHS = [
  *      var pointing at a missing path is skipped, not fatal),
  *   2. the bundled browser cache (populated by the postinstall script
  *      `scripts/install-browser.js`, which forces the download regardless of
- *      env vars, so this works even when PUPPETEER_EXECUTABLE_PATH is set),
+ *      env vars, so this works even when PUPPETEER_EXECUTABLE_PATH is set).
+ *      Detection uses @puppeteer/browsers' getInstalledBrowsers(), which
+ *      reads the cache directly and is env-agnostic, so a stale
+ *      PUPPETEER_EXECUTABLE_PATH cannot mask the bundled browser, and an
+ *      empty cache dir is handled cleanly (returns []).
  *   3. common system Chromium/Chrome locations.
  *
  * The bundled cache is the default in production (no root/system package
- * needed). We probe the cache directory directly (not via
- * puppeteer.executablePath(), which honors PUPPETEER_EXECUTABLE_PATH and would
- * thus miss the cache when that env var is stale), so a host with a stale env
- * var still finds the bundled browser.
+ * needed). We never call puppeteer.executablePath() for detection, because
+ * it honors PUPPETEER_EXECUTABLE_PATH and would thus miss the cache when
+ * that env var is stale.
  */
-function resolveChromium(): string {
+async function resolveChromium(): Promise<string> {
   const checked: string[] = [];
-  const envPaths = [
+
+  for (const p of [
     process.env.PUPPETEER_EXECUTABLE_PATH,
     process.env.CHROMIUM_PATH,
     process.env.CHROME_PATH,
-  ].filter(Boolean) as string[];
-
-  for (const p of envPaths) {
+  ].filter(Boolean) as string[]) {
     checked.push(p);
     if (existsSync(p)) return p;
   }
 
-  // Bundled browser cache. Probe the cache directory directly: puppeteer's
-  // own executablePath() honors PUPPETEER_EXECUTABLE_PATH (returning the env
-  // value instead of the cache path), so it cannot be relied on when a stale
-  // env var is set. The cache layout is:
-  //   <cacheDir>/chrome/<build>/<platform-dir>/chrome
-  const platform = detectBrowserPlatform();
-  if (platform) {
-    const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(os.homedir(), '.cache', 'puppeteer');
-    const chromeRoot = path.join(cacheDir, 'chrome');
-    if (existsSync(chromeRoot)) {
-      // Per-platform subdirectory holding the chrome binary.
-      const platformDirByPlatform: Record<string, string[]> = {
-        linux: ['chrome-linux64', 'chrome-linux'],
-        mac: ['chrome-mac-x64', 'chrome-mac-arm64'],
-        mac_arm: ['chrome-mac-arm64', 'chrome-mac-x64'],
-        win32: ['chrome-win64', 'chrome-win32'],
-        win64: ['chrome-win64', 'chrome-win32'],
-      };
-      const subDirs = platformDirByPlatform[platform] || [];
-      try {
-        for (const build of readdirSync(chromeRoot)) {
-          for (const sub of subDirs) {
-            const candidate = path.join(chromeRoot, build, sub, platform.startsWith('win') ? 'chrome.exe' : 'chrome');
-            checked.push(candidate);
-            if (existsSync(candidate)) return candidate;
-          }
-        }
-      } catch {
-        // ignore; fall through to system paths
+  // Bundled browser cache. getInstalledBrowsers() reads the cache directly
+  // (env-agnostic) and returns the authoritative executablePath for each
+  // installed browser, including the pinned build from the postinstall
+  // script. Robust to a stale PUPPETEER_EXECUTABLE_PATH and to a cache
+  // directory that exists but is empty (it simply returns []).
+  try {
+    const installed = await getInstalledBrowsers({
+      cacheDir: process.env.PUPPETEER_CACHE_DIR || path.join(os.homedir(), '.cache', 'puppeteer'),
+    });
+    for (const b of installed) {
+      if (b.browser === InstalledBrowserBrand.CHROME && b.executablePath) {
+        checked.push(b.executablePath);
+        if (existsSync(b.executablePath)) return b.executablePath;
       }
     }
+  } catch {
+    // cache unreadable / @puppeteer/browsers unavailable; fall through
   }
 
   for (const p of SYSTEM_PATHS) {
@@ -114,20 +107,21 @@ function resolveChromium(): string {
   throw new Error(
     'Chromium executable not found for PDF generation. The bundled browser ' +
       'is downloaded by the postinstall script (scripts/install-browser.js) ' +
-      'during `npm ci`; ensure that step ran. Alternatively set ' +
-      'PUPPETEER_EXECUTABLE_PATH to an existing Chromium binary. Checked: ' +
-      Array.from(new Set(checked)).join(', ') +
+      'during `npm ci`; ensure that step ran and the cache persists to ' +
+      'runtime. If the host provides a system Chromium, set ' +
+      'PUPPETEER_EXECUTABLE_PATH to its real binary path. Checked: ' +
+      (Array.from(new Set(checked)).join(', ') || '(none)') +
       '.',
   );
 }
 
-let cachedBrowser: Browser | null = null;
+let cachedBrowser: PuppeteerBrowser | null = null;
 
-async function getBrowser(): Promise<Browser> {
+async function getBrowser(): Promise<PuppeteerBrowser> {
   if (cachedBrowser && cachedBrowser.connected) {
     return cachedBrowser;
   }
-  const executablePath = resolveChromium();
+  const executablePath = await resolveChromium();
   cachedBrowser = await puppeteer.launch({
     executablePath,
     headless: true,
