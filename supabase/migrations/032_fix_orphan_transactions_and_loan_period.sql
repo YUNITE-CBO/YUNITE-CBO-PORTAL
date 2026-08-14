@@ -32,8 +32,52 @@ SET reversed = true,
     metadata = COALESCE(metadata, '{}'::jsonb) || '{"orphan_repaired": true, "orphan_repair_migration": "032"}'::jsonb
 WHERE member_id IS NULL;
 
+-- Re-parent orphan transactions onto the member that owns their account.
+-- accounts.member_id is NOT NULL with a FK to members, so every transaction
+-- whose account still resolves can be deterministically re-parented. We MUST
+-- clear the NULLs before SET NOT NULL below — otherwise the ALTER scans the
+-- table and fails on the very rows this migration is meant to repair.
+UPDATE transactions t
+SET member_id = a.member_id,
+    metadata = COALESCE(t.metadata, '{}'::jsonb) || '{"orphan_reparented": true, "orphan_repair_migration": "032"}'::jsonb
+FROM accounts a
+WHERE t.member_id IS NULL
+  AND t.account_id = a.id;
+
+-- Safety net for any orphans whose account_id could not be resolved (e.g.
+-- a dangling account_id). We create a single dedicated system member to own
+-- them rather than violate the member_id NOT NULL / FK constraint. This
+-- member is marked 'withdrawn' and carries an obvious member_number so it is
+-- never confused with a real member and never participates in balances (its
+-- transactions are reversed above). Kept idempotent so re-running the
+-- migration never duplicates it.
+INSERT INTO members (id, member_number, first_name, last_name, phone, status, registration_date)
+SELECT '00000000-0000-0000-0000-000000000001',
+       'SYSTEM-ORPHAN-LEDGER',
+       'System',
+       'Orphan Ledger',
+       '0000000000',
+       'withdrawn',
+       '1970-01-01'
+WHERE NOT EXISTS (SELECT 1 FROM members WHERE id = '00000000-0000-0000-0000-000000000001');
+
+UPDATE transactions
+SET member_id = '00000000-0000-0000-0000-000000000001',
+    metadata = COALESCE(metadata, '{}'::jsonb) || '{"orphan_reparented_to_system": true, "orphan_repair_migration": "032"}'::jsonb
+WHERE member_id IS NULL;
+
+-- Defense in depth: refuse to proceed if any NULL somehow remains.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM transactions WHERE member_id IS NULL) THEN
+    RAISE EXCEPTION 'transactions still contains rows with NULL member_id after migration 032 re-parenting — refusing to enforce NOT NULL';
+  END IF;
+END;
+$$;
+
 -- Re-enforce the NOT NULL constraint (the schema has it, but the live DB may
--- have been created without it or had it dropped at some point).
+-- have been created without it or had it dropped at some point). Safe now that
+-- no rows have a NULL member_id.
 ALTER TABLE transactions ALTER COLUMN member_id SET NOT NULL;
 
 -- Add a defensive trigger: reject any future insert with a NULL member_id.
