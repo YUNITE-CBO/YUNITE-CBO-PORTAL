@@ -65,10 +65,32 @@ function friendly(status: number): string {
 
 /**
  * Perform an authenticated request to the YUNITE API.
+ *
+ * Includes cold-start resilience: when the YUNITE backend is waking from
+ * Render Free Tier sleep, the request may fail with a network error or a
+ * 502/503/504. This function retries with exponential backoff (up to 4
+ * attempts) so the member-lookup portal can recover automatically without
+ * showing the member a technical error. This portal only performs GET reads
+ * — it never mutates member financial data — so retries are always safe.
+ *
  * @param path Path beginning with `/api/v1/...`
  * @param init Extra fetch options (method/body are supported but this portal
  *            only performs GET reads — it never mutates member financial data).
  */
+const MAX_RETRIES = 4;
+const BASE_DELAY_MS = 1000;
+const RETRYABLE_STATUSES = new Set([502, 503, 504]);
+
+function backoffDelay(attempt: number, baseMs: number): number {
+  const exp = baseMs * Math.pow(2, attempt);
+  const jitter = Math.random() * exp * 0.25;
+  return Math.round(exp + jitter);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function apiGet<T>(path: string, searchParams?: Record<string, string | undefined>): Promise<T> {
   if (!API_BASE_URL) {
     throw new YuniteApiError('YUNITE API is not configured.', 500, 'config');
@@ -87,37 +109,58 @@ export async function apiGet<T>(path: string, searchParams?: Record<string, stri
     if (qs) url += `?${qs}`;
   }
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        Accept: 'application/json',
-      },
-      // Don't let a slow backend hang the request indefinitely.
-      signal: AbortSignal.timeout(15000),
-      cache: 'no-store',
-    });
-  } catch {
-    throw new YuniteApiError(
-      'Could not reach the YUNITE server. Please check your connection and try again.',
-      0,
-      'network',
-    );
+  let lastError: YuniteApiError | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(15000),
+        cache: 'no-store',
+      });
+    } catch {
+      // Network-level failure — retryable (backend may be cold-starting).
+      if (attempt < MAX_RETRIES) {
+        await sleep(backoffDelay(attempt, BASE_DELAY_MS));
+        continue;
+      }
+      throw new YuniteApiError(
+        'Could not reach the YUNITE server. Please check your connection and try again.',
+        0,
+        'network',
+      );
+    }
+
+    let body: ApiEnvelope<T> | undefined;
+    try {
+      body = (await res.json()) as ApiEnvelope<T>;
+    } catch {
+      // Bad JSON response.
+      if (RETRYABLE_STATUSES.has(res.status) && attempt < MAX_RETRIES) {
+        await sleep(backoffDelay(attempt, BASE_DELAY_MS));
+        continue;
+      }
+      throw new YuniteApiError(friendly(res.status), res.status, 'bad_response');
+    }
+
+    if (!res.ok || !body?.success) {
+      // Retry only on temporary backend unavailability.
+      if (RETRYABLE_STATUSES.has(res.status) && attempt < MAX_RETRIES) {
+        await sleep(backoffDelay(attempt, BASE_DELAY_MS));
+        continue;
+      }
+      const msg = body?.error?.message || friendly(res.status);
+      throw new YuniteApiError(msg, res.status, body?.error?.code, body?.meta?.request_id);
+    }
+
+    return body.data as T;
   }
 
-  let body: ApiEnvelope<T> | undefined;
-  try {
-    body = (await res.json()) as ApiEnvelope<T>;
-  } catch {
-    throw new YuniteApiError(friendly(res.status), res.status, 'bad_response');
-  }
-
-  if (!res.ok || !body?.success) {
-    const msg = body?.error?.message || friendly(res.status);
-    throw new YuniteApiError(msg, res.status, body?.error?.code, body?.meta?.request_id);
-  }
-
-  return body.data as T;
+  // Exhausted retries.
+  throw lastError || new YuniteApiError('Could not reach the YUNITE server after multiple attempts.', 0, 'network');
 }

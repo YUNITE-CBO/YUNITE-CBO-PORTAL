@@ -27,7 +27,7 @@ services:
     # runtime); the document generator probes the cache directly.
     buildCommand: rm -rf .next && npm ci && npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production

@@ -11,8 +11,9 @@ interface SavingsData { balance: number; transactions: Transaction[]; }
 
 export default function SavingsPage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<SavingsData>('/api/member/savings', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<SavingsData>('/api/member/savings', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Loading your savings…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 

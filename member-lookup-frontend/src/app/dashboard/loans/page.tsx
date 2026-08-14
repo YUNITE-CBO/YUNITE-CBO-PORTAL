@@ -8,8 +8,9 @@ import type { Loan } from '@/lib/api/types';
 
 export default function LoansPage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<Loan[]>('/api/member/loans', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<Loan[]>('/api/member/loans', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Loading your loans…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 

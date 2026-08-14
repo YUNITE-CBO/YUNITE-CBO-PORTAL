@@ -4,6 +4,7 @@ import { applyCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
 
 // Public read-only API paths (dashboard frontend can access without auth)
 const publicReadPaths = [
+  '/health',
   '/api/auth/login',
   '/api/auth/logout',
   '/api/health',

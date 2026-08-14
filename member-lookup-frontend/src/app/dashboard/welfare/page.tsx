@@ -11,8 +11,9 @@ interface WelfareData { balance: number; transactions: Transaction[]; }
 
 export default function WelfarePage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<WelfareData>('/api/member/welfare', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<WelfareData>('/api/member/welfare', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Loading your welfare fund…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 

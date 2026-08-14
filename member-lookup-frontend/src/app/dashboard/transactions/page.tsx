@@ -20,7 +20,7 @@ export default function TransactionsPage() {
   const router = useRouter();
   const [filter, setFilter] = useState('');
   const url = `/api/member/transactions${filter ? `?account_type=${filter}` : ''}`;
-  const { data, loading, error, reload } = useApi<Transaction[]>(url, () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<Transaction[]>(url, () => router.replace('/#access'));
 
   return (
     <>
@@ -40,7 +40,8 @@ export default function TransactionsPage() {
       </div>
 
       <Card>
-        {loading ? <Loading label="Loading transactions…" />
+        {reconnecting ? <Loading label="Connecting to YUNITE…" />
+          : loading ? <Loading label="Loading transactions…" />
           : error ? <ErrorState message={error} onRetry={reload} />
           : <TransactionsTable rows={data || []} emptyTitle="No transactions for this filter" />}
       </Card>

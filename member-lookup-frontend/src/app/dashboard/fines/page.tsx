@@ -8,8 +8,9 @@ import type { Fine } from '@/lib/api/types';
 
 export default function FinesPage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<Fine[]>('/api/member/fines', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<Fine[]>('/api/member/fines', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Loading your fines…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 

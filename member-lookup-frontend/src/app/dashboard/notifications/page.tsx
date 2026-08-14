@@ -8,8 +8,9 @@ import type { Notification } from '@/lib/api/types';
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<Notification[]>('/api/member/notifications', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<Notification[]>('/api/member/notifications', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Loading your notifications…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 

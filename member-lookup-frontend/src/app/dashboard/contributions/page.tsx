@@ -11,8 +11,9 @@ interface ContributionsData { balance: number; transactions: Transaction[]; }
 
 export default function ContributionsPage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<ContributionsData>('/api/member/contributions', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<ContributionsData>('/api/member/contributions', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Loading your contributions…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 

@@ -21,8 +21,9 @@ interface StatementResponse {
 
 export default function StatementPage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<StatementResponse>('/api/member/statement', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<StatementResponse>('/api/member/statement', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Preparing your statement…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 

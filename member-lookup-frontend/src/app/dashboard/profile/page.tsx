@@ -10,8 +10,9 @@ interface OverviewData { member: Member | null; }
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<OverviewData>('/api/member/overview', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<OverviewData>('/api/member/overview', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Loading your profile…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
   const m = data?.member;

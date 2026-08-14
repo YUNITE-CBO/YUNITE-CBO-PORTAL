@@ -13,8 +13,9 @@ interface OverviewData {
 
 export default function OverviewPage() {
   const router = useRouter();
-  const { data, loading, error, reload } = useApi<OverviewData>('/api/member/overview', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<OverviewData>('/api/member/overview', () => router.replace('/#access'));
 
+  if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Loading your account…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
