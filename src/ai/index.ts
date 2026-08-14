@@ -12,25 +12,29 @@
 
 export type {
   InvestigationScope, Severity, Confidence, ProviderName, VerificationStatus,
-  EvidenceItem, Finding, ProviderReport, ProviderRunResult, ComparisonResult,
-  VerificationFieldResult, MemberVerificationResult, ProviderHealthSnapshot,
-  InvestigationContext,
+  EvidenceItem, Finding, FindingLocation, ProviderReport, ProviderRunResult,
+  ComparisonResult, VerificationFieldResult, MemberVerificationResult,
+  ProviderHealthSnapshot, InvestigationContext, InvestigationDepth,
+  DualModeOption, MemberDataGraph, MemberReportSections, ModuleHealthEntry,
+  MemberSearchCandidate,
 } from './types';
 
-export { runInvestigation, shouldAlertCritical, type InvestigationResult } from './investigation.engine';
+export { runInvestigation, shouldAlertCritical, type InvestigationResult, type RunInvestigationOptions } from './investigation.engine';
 export { compareReports } from './comparison.engine';
 export { computeScore, buildFinalReport, type ScoreResult, type FinalReport } from './report.engine';
+export { buildModuleHealthMap, MODULE_HEALTH_ORDER } from './engines/module-health.engine';
 export { sanitizeForAi } from './tools';
 export { geminiProvider, openRouterProvider } from './providers';
 export { getHealth, snapshotHealth } from './providers/health-monitor';
 export { investigateWithFailover } from './providers/failover';
 export {
   runDatabaseConsistency, runCrossModuleConsistency, runBusinessRuleConsistency,
-  runApiConsistency, runFinancialConsistency, runMemberVerification,
+  runApiConsistency, runFinancialConsistency, runMemberVerification, runMemberForensic,
 } from './engines';
 export { alertCriticalFindings } from './alerting.service';
 export {
-  listInvestigations, getInvestigation, listReports, getReport, getComparison,
+  listInvestigations, getInvestigation, listReports, getReport, listFindings, getComparison,
   listProviderRuns, getLatestHealth, getVerificationResult,
   listSchedules, upsertSchedule, deleteSchedule, listDueSchedules, markScheduleRun,
 } from './persistence';
+export { searchMembers, getMemberGraph } from './tools';

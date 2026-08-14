@@ -11,5 +11,6 @@ export { runCrossModuleConsistency } from './cross-module.engine';
 export { runBusinessRuleConsistency } from './business-rules.engine';
 export { runApiConsistency } from './api-consistency.engine';
 export { runFinancialConsistency } from './financial-consistency.engine';
-export { runMemberVerification } from './member-verification.engine';
-export { makeFinding, evidence, moneyDiff, resetFindingSequence } from './findings';
+export { runMemberVerification, runMemberForensic } from './member-verification.engine';
+export { buildModuleHealthMap } from './module-health.engine';
+export { makeFinding, evidence, moneyDiff, kes, resetFindingSequence, type MakeFindingOpts } from './findings';

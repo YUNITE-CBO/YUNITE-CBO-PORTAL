@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '../_guard';
 import { runInvestigation } from '@/ai';
 import { listInvestigations } from '@/ai/persistence';
-import type { InvestigationScope } from '@/ai/types';
+import type { InvestigationScope, InvestigationDepth, DualModeOption } from '@/ai/types';
 
 const VALID_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>([
   'database', 'cross_module', 'business_rules', 'api', 'financial',
@@ -54,8 +54,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'memberId is required for member_verification scope' }, { status: 400 });
   }
 
+  // Depth + dual mode (req. #8, #25).
+  const depth = body?.depth as InvestigationDepth | undefined;
+  const dualMode = body?.dualMode as DualModeOption | undefined;
+  if (depth && !['quick', 'standard', 'deep', 'forensic'].includes(depth)) {
+    return NextResponse.json({ success: false, error: 'Invalid depth. Valid: quick, standard, deep, forensic' }, { status: 400 });
+  }
+  if (dualMode && !['auto', 'single', 'dual'].includes(dualMode)) {
+    return NextResponse.json({ success: false, error: 'Invalid dualMode. Valid: auto, single, dual' }, { status: 400 });
+  }
+
   try {
-    const result = await runInvestigation(scope, memberId, auth.userId, 'manual');
+    const result = await runInvestigation({ scope, memberId, initiatedBy: auth.userId, trigger: 'manual', depth, dualMode });
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
     console.error('[ai/investigations] run failed:', error);

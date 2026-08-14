@@ -35,6 +35,7 @@ import {
   runApiConsistency,
   runFinancialConsistency,
   runMemberVerification,
+  runMemberForensic,
 } from './engines';
 import { compareReports } from './comparison.engine';
 import { buildFinalReport, computeScore, type FinalReport } from './report.engine';
@@ -49,8 +50,10 @@ import {
 } from './persistence';
 import type {
   ComparisonResult,
+  DualModeOption,
   Finding,
   InvestigationContext,
+  InvestigationDepth,
   InvestigationScope,
   ProviderHealthSnapshot,
   ProviderReport,
@@ -60,6 +63,8 @@ export interface InvestigationResult {
   investigation_id: string;
   investigation_number: string;
   scope: InvestigationScope;
+  depth?: InvestigationDepth;
+  dual_mode?: DualModeOption;
   ai_status: 'completed' | 'partial' | 'unavailable';
   overall_score: number;
   findings: Finding[];
@@ -68,6 +73,15 @@ export interface InvestigationResult {
   comparison?: ComparisonResult;
   final_report: FinalReport;
   health: ProviderHealthSnapshot[];
+}
+
+export interface RunInvestigationOptions {
+  scope: InvestigationScope;
+  memberId?: string;
+  initiatedBy?: string;
+  trigger?: 'manual' | 'scheduled' | 'cron' | 'api';
+  depth?: InvestigationDepth;
+  dualMode?: DualModeOption;
 }
 
 function pickDeterministic(scope: InvestigationScope): { run: () => Promise<{ findings: Finding[]; records_checked: number; checks_performed: number }> } {
@@ -102,20 +116,39 @@ const DUAL_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>(['full_
 /**
  * Run an investigation. `scope` selects the deterministic engine + tools
  * payload. When `scope` is member_verification, `memberId` is required.
+ *
+ * `depth` (req. #25): quick / standard / deep / forensic. Member verification
+ * defaults to 'deep'; 'forensic' adds the full member data graph + layer trace.
+ * `dualMode` (req. #8): auto (honor AI_DUAL_MODE env) / single / dual.
+ *
+ * Maintains backward compatibility: the old positional signature
+ * `runInvestigation(scope, memberId?, initiatedBy?, trigger?)` still works.
  */
 export async function runInvestigation(
-  scope: InvestigationScope,
-  memberId?: string,
-  initiatedBy?: string,
-  trigger: 'manual' | 'scheduled' | 'cron' | 'api' = 'manual',
+  scopeOrOpts: InvestigationScope | RunInvestigationOptions,
+  legacyMemberId?: string,
+  legacyInitiatedBy?: string,
+  legacyTrigger: 'manual' | 'scheduled' | 'cron' | 'api' = 'manual',
 ): Promise<InvestigationResult> {
-  const { id: investigation_id, investigation_number } = await createInvestigation(scope, trigger, initiatedBy);
+  // Normalize the overloaded signature.
+  const opts: RunInvestigationOptions = typeof scopeOrOpts === 'string'
+    ? { scope: scopeOrOpts, memberId: legacyMemberId, initiatedBy: legacyInitiatedBy, trigger: legacyTrigger }
+    : scopeOrOpts;
+
+  const { scope, memberId, initiatedBy, trigger } = opts;
+  const depth: InvestigationDepth = opts.depth ?? (scope === 'member_verification' ? 'deep' : 'standard');
+  const dualMode: DualModeOption = opts.dualMode ?? 'auto';
+
+  const { id: investigation_id, investigation_number } = await createInvestigation(scope, trigger ?? 'manual', initiatedBy, depth, dualMode);
 
   // 1. Deterministic phase (AI-independent; always runs).
   let deterministic: { findings: Finding[]; records_checked: number; checks_performed: number } = { findings: [], records_checked: 0, checks_performed: 0 };
   try {
     if (scope === 'member_verification' && memberId) {
-      const mv = await runMemberVerification(memberId);
+      // Deep/forensic member verification uses the full data graph + layer trace.
+      const mv = depth === 'quick'
+        ? await runMemberVerification(memberId)
+        : await runMemberForensic(memberId);
       deterministic = { findings: mv.findings, records_checked: mv.result.fields_checked, checks_performed: mv.result.fields_checked };
       await persistVerification(investigation_id, mv.result);
     } else {
@@ -135,6 +168,8 @@ export async function runInvestigation(
     investigation_id,
     scope,
     member_id: memberId,
+    depth,
+    dual_mode: dualMode,
     deterministic_findings: deterministic.findings,
     tools_payload,
   };
@@ -158,13 +193,16 @@ export async function runInvestigation(
     records_checked: deterministic.records_checked,
     checks_performed: deterministic.checks_performed,
     findings: deterministic.findings,
-    summary: `Deterministic ${scope} investigation: ${deterministic.findings.length} finding(s) from ${deterministic.checks_performed} check(s).`,
+    summary: `Deterministic ${scope} investigation (${depth}): ${deterministic.findings.length} finding(s) from ${deterministic.checks_performed} check(s).`,
     recommendations: [],
-    report_json: { deterministic: true, counts: computeScore(deterministic.findings).counts },
+    report_json: { deterministic: true, depth, dual_mode: dualMode, counts: computeScore(deterministic.findings).counts },
   };
   deterministicReportId = await persistReport(investigation_id, detReport);
 
-  const dual = DUAL_SCOPES.has(scope) || (process.env.AI_DUAL_MODE === 'true');
+  // Resolve dual mode: explicit 'dual' → always dual; 'single' → never;
+  // 'auto' → honor env AI_DUAL_MODE for dual scopes.
+  const dual = dualMode === 'dual'
+    || (dualMode === 'auto' && (DUAL_SCOPES.has(scope) || process.env.AI_DUAL_MODE === 'true'));
 
   try {
     if (dual) {
@@ -315,6 +353,8 @@ export async function runInvestigation(
     investigation_id,
     investigation_number,
     scope,
+    depth,
+    dual_mode: dualMode,
     ai_status: aiStatus,
     overall_score: score,
     findings: deduped,

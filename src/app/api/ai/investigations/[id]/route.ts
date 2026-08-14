@@ -13,6 +13,7 @@ import {
   listProviderRuns,
   getComparison,
   getVerificationResult,
+  listFindings,
 } from '@/ai/persistence';
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
@@ -24,15 +25,16 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ success: false, error: 'Investigation not found' }, { status: 404 });
   }
 
-  const [reports, runs, comparison, verification] = await Promise.all([
+  const [reports, runs, comparison, verification, findings] = await Promise.all([
     listReports(params.id),
     listProviderRuns(params.id),
     getComparison(params.id),
     getVerificationResult(params.id),
+    listFindings(params.id),
   ]);
 
   return NextResponse.json({
     success: true,
-    data: { investigation, reports, provider_runs: runs, comparison, verification },
+    data: { investigation, reports, provider_runs: runs, comparison, verification, findings },
   });
 }

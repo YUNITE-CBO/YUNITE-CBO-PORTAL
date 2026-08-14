@@ -35,6 +35,8 @@ export async function createInvestigation(
   scope: InvestigationScope,
   trigger: 'manual' | 'scheduled' | 'cron' | 'api' = 'manual',
   initiatedBy?: string,
+  depth?: string,
+  dualMode?: string,
 ): Promise<{ id: string; investigation_number: string }> {
   const supabase = await createServiceClient();
   const id = uuidv4();
@@ -49,6 +51,8 @@ export async function createInvestigation(
     fallback_provider: 'openrouter',
     initiated_by: initiatedBy ?? null,
     started_at: new Date().toISOString(),
+    depth: depth ?? 'standard',
+    dual_mode: dualMode ?? 'auto',
   });
   if (error) console.warn('[ai/persistence] createInvestigation:', error.message);
   return { id, investigation_number };
@@ -110,6 +114,16 @@ export async function persistReport(
       root_cause: f.root_cause ?? null,
       recommendation: f.recommendation ?? null,
       sources: f.sources,
+      // Deep forensic fields (req. #2, #3) — stored as JSONB so the full
+      // location + expected/actual/difference + affected_records survives.
+      location: f.location ?? null,
+      expected_value: f.expected_value ?? null,
+      actual_value: f.actual_value ?? null,
+      difference: f.difference ?? null,
+      affected_records: f.affected_records ?? null,
+      is_systemic: f.is_systemic ?? null,
+      related_tables: f.related_tables ?? null,
+      is_verified: f.is_verified ?? false,
     }).then(() => undefined, (e) => console.warn('[ai/persistence] finding insert:', e.message));
     for (const e of f.evidence) {
       await supabase.from('ai_evidence').insert({
@@ -291,13 +305,18 @@ async function snapshotHealthRow(s: ProviderHealthSnapshot): Promise<void> {
 
 export async function listInvestigations(limit = 20, scope?: string): Promise<any[]> {
   const supabase = await createServiceClient();
+  // NOTE: the schema column is `finished_at` (NOT `completed_at`) and
+  // `duration_ms` / `info_count` exist — selecting a non-existent column makes
+  // PostgREST error out and return null, which caused the "No investigations
+  // yet" bug even when investigations existed (req. #28).
   let q = supabase
     .from('ai_investigations')
-    .select('id, investigation_number, scope, trigger, status, ai_status, overall_score, critical_count, high_count, medium_count, low_count, unresolved_count, records_checked, modules_investigated, initiated_by, started_at, completed_at, fallback_used')
+    .select('id, investigation_number, scope, trigger, status, ai_status, overall_score, critical_count, high_count, medium_count, low_count, info_count, unresolved_count, records_checked, modules_investigated, initiated_by, started_at, finished_at, duration_ms, fallback_used')
     .order('started_at', { ascending: false })
     .limit(limit);
   if (scope) q = q.eq('scope', scope);
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error) console.warn('[ai/persistence] listInvestigations:', error.message);
   return data ?? [];
 }
 
@@ -309,18 +328,44 @@ export async function getInvestigation(id: string): Promise<any | null> {
 
 export async function listReports(investigationId: string): Promise<any[]> {
   const supabase = await createServiceClient();
-  const { data } = await supabase
+  // NOTE: the schema column is `report_id` (NOT `report_ref`); `summary` is
+  // NOT a column — it lives inside `report_json.summary`. Selecting a
+  // non-existent column makes PostgREST error out and return null (req. #28).
+  const { data, error } = await supabase
     .from('ai_reports')
-    .select('id, report_ref, provider, scope, model, latency_ms, records_checked, checks_performed, findings_count, critical_count, high_count, medium_count, low_count, created_at, summary')
+    .select('id, report_id, provider, scope, model, latency_ms, records_checked, checks_performed, findings_count, critical_count, high_count, medium_count, low_count, info_count, report_json, created_at')
     .eq('investigation_id', investigationId)
     .order('created_at', { ascending: false });
-  return data ?? [];
+  if (error) console.warn('[ai/persistence] listReports:', error.message);
+  // Surface the summary from report_json so the UI can display it.
+  return (data ?? []).map((r) => ({
+    ...r,
+    summary: r.report_json?.summary ?? '',
+    root_cause_analysis: r.report_json?.root_cause_analysis ?? '',
+    recommendations: r.report_json?.recommendations ?? [],
+    findings: r.report_json?.findings ?? [],
+  }));
 }
 
 export async function getReport(id: string): Promise<any | null> {
   const supabase = await createServiceClient();
   const { data } = await supabase.from('ai_reports').select('*').eq('id', id).maybeSingle();
   return data ?? null;
+}
+
+/**
+ * Load all findings (with evidence) for an investigation (req. #27 Evidence tab).
+ * Returns the deep fields (location, expected/actual/difference, affected_records).
+ */
+export async function listFindings(investigationId: string): Promise<any[]> {
+  const supabase = await createServiceClient();
+  const { data, error } = await supabase
+    .from('ai_findings')
+    .select('id, report_id, finding_code, title, module, category, description, severity, confidence, verification_status, human_review_required, root_cause, recommendation, sources, location, expected_value, actual_value, difference, affected_records, is_systemic, related_tables, is_verified, created_at')
+    .eq('investigation_id', investigationId)
+    .order('created_at', { ascending: true });
+  if (error) console.warn('[ai/persistence] listFindings:', error.message);
+  return data ?? [];
 }
 
 export async function getComparison(investigationId: string): Promise<any | null> {
@@ -361,8 +406,11 @@ export async function getLatestHealth(): Promise<Record<string, any>> {
 
 export async function getVerificationResult(investigationId: string): Promise<any | null> {
   const supabase = await createServiceClient();
+  // NOTE: the schema table is `ai_verification_results` (migration 030),
+  // NOT `ai_member_verification_results` — the old name always returned null
+  // so the UI never showed verification results (req. #28).
   const { data } = await supabase
-    .from('ai_member_verification_results')
+    .from('ai_verification_results')
     .select('*')
     .eq('investigation_id', investigationId)
     .maybeSingle();

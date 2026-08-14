@@ -416,10 +416,91 @@ passwords/tokens/api keys/PII before anything reaches a provider).
   drift / unavailable-display fallback / identity mismatch / read-only
   assertion). Run: `npx jest tests/ai-intelligence tests/ai-member-verification`.
   Full doc: `AI_INTELLIGENCE.md`.
-- **Deploy steps**: run migration 030 in Supabase SQL Editor; set
-  `GEMINI_API_KEY` + `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` + `CRON_SECRET`
-  on the web service; set `CRON_SECRET` + `AI_INVESTIGATIONS_ENDPOINT` on the
-  AI cron service; (optional) `MEMBER_LOOKUP_VERIFY_URL`/`_SECRET`.
+- **DEEP FORENSIC UPGRADE** (migration 031 + engine/persistence/UI rewrite):
+  The AI engine was upgraded from a summary/reporting assistant into a **deep
+  forensic system investigator**. Every finding now carries a full `location`
+  (FindingLocation: database table/field/record, backend module/controller/
+  service/route/method, frontend application/page/component/field, member_id/
+  member_number, business_rule, source_calculation), `expected_value`,
+  `actual_value`, `difference`, `affected_records`, `is_systemic`,
+  `related_tables`, and `is_verified`. The AI prompt DEMANDS this level of
+  detail and the response-parser extracts it. A finding at the level of
+  "FIN-0047 — Savings Module → Member Account Balance, MBR-00123, DB
+  member_accounts.savings_balance KES 20,000 vs ledger KES 18,500, Δ KES
+  1,500, backend GET /api/members/:id/financials, frontend
+  member-lookup-frontend/FinancialSummary, root cause: desync" is now the
+  standard, not the exception (req. #1, #2, #3, #32).
+  - **Financial engine** deepened: each balance finding traces DATABASE
+    (independent ledger) → CALCULATION (engine) → STORED (balance_after) with
+    the exact table/field, backend route/service, and a systemic flag when >3
+    members affected (req. #5, #15, #21).
+  - **Member verification engine** deepened: each field result now traces the
+    value through DATABASE → CALCULATION → BACKEND API → MEMBER LOOKUP →
+    FRONTEND DISPLAY and identifies the EXACT layer where the first divergence
+    occurs (`mismatch_layer`), plus the frontend component (req. #16).
+    `runMemberForensic` (depth deep/forensic) builds the complete member data
+    graph (profile/compliance/accounts/savings/shares/contributions/welfare/
+    fines/loans/repayments/documents/notifications + layered balances) and
+    produces the sectioned member report (Member Profile / Compliance /
+    Financial Position / Data Consistency / API Consistency / Member Lookup
+    Consistency / Business Rule Compliance / Anomalies / AI Evaluation / Final
+    Evaluation) (req. #12, #13, #14, #15, #17).
+  - **Comparison engine** deepened: findings are now matched by a deep location
+    key (module + DB table/field + backend route + frontend component + member)
+    so two providers reporting the SAME field at the SAME location are
+    correlated even when their wording differs entirely. Disagreements are
+    classified by type (severity / root-cause / value-difference / expected-
+    value difference) with a human-readable reason. Disputed findings are never
+    auto-promoted to fact (req. #10, #29).
+  - **Module health map** (`module-health.engine.ts`): `buildModuleHealthMap()`
+    aggregates findings into a per-module health (healthy/warning/inconsistent)
+    with affected-members/records counts and total difference. GET
+    `/api/ai/module-health` powers the clickable map (req. #20, #21).
+  - **Member search**: `searchMembers(query)` matches name/number/id/phone/
+    email server-side and returns candidates with matched_by fields. POST
+    `/api/ai/member-search` drives the UI candidate selection (never guesses
+    when multiple match) (req. #11, #18).
+  - **Investigation depth** (req. #25): `runInvestigation` accepts `depth`
+    (quick/standard/deep/forensic; member verification defaults to 'deep') and
+    `dualMode` (auto/single/dual). Stored on `ai_investigations.depth` +
+    `.dual_mode` (migration 031).
+  - **Dual AI mode** (req. #8): 'single' = one provider; 'dual' = both
+    independently (blind). 'auto' honors AI_DUAL_MODE env for dual scopes.
+    PARTIAL DUAL INVESTIGATION: if one provider fails, the other's report is
+    preserved (req. #30).
+  - **Persistence bugs FIXED** (req. #28 — root cause of "No investigations
+    yet" + report loading failures): `listInvestigations` selected `completed_at`
+    (column is `finished_at`) + missing `duration_ms`/`info_count` → PostgREST
+    errored → null → UI showed "No investigations yet" even when rows existed.
+    `listReports` selected `report_ref` (column is `report_id`) + `summary`
+    (not a column — lives in `report_json.summary`). `getVerificationResult`
+    queried `ai_member_verification_results` (table is `ai_verification_results`).
+    All three fixed; `listFindings` added to load deep fields for the detail
+    view; `persistReport` now stores location/expected/actual/difference/
+    affected_records/is_systemic/related_tables/is_verified on each finding.
+  - **Dashboard UI** (`dashboard/ai-intelligence/page.tsx`) completely
+    redesigned: 14 tabs (Overview / Critical Findings / Modules / Database /
+    Backend / APIs / Business Rules / Member Lookup / Gemini / OpenRouter /
+    Comparison / Evidence / Recommendations / History) + Schedules. Module
+    health map with click-through drill-down. Member search with candidate
+    selection. `DeepFindingCard` renders the full forensic location + value
+    comparison + evidence chain. Depth selector + dual-mode toggle in the
+    actions bar. History table with AI-status + partial-dual indicator.
+    `VerificationResultView` shows the full layer trace with mismatch_layer
+    per field (req. #26, #27).
+  - **Migration 031** (`031_ai_forensic_deep_findings.sql`): adds `location`
+    (JSONB), `expected_value`, `actual_value`, `difference`, `affected_records`
+    (TEXT[]), `is_systemic`, `related_tables` (TEXT[]), `is_verified` to
+    `ai_findings`; `depth` + `dual_mode` to `ai_investigations`; indexes on
+    `ai_findings(module)` + `(module, severity)`. Idempotent (ADD COLUMN IF
+    NOT EXISTS). Run in Supabase SQL Editor on deploy.
+  - **Tests**: `tests/ai-forensic-deep.test.ts` (18: deep finding model,
+    response-parser location extraction, prompt depth/dual mode, comparison
+    deep-location matching + disagreement classification, module health map
+    aggregation/sorting/normalization, acceptance-criteria FIN-0047 detail,
+    score-accompanies-evidence). Total AI tests: 46 (28 original + 18 new),
+    all passing. Run: `npx jest tests/ai- --testTimeout=15000 --forceExit`.
+  - **Deploy steps**: run migration 031 in Supabase SQL Editor (after 030).
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.

@@ -26,7 +26,7 @@ export {
 } from './api-tools';
 export {
   getDatabaseBalances, getApiBalances, getDisplayBalances, getMemberIdentity,
-  getDisplayIdentity, type LayerBalances,
+  getDisplayIdentity, searchMembers, getMemberGraph, type LayerBalances,
 } from './member-lookup-tools';
 
 export { db, api };

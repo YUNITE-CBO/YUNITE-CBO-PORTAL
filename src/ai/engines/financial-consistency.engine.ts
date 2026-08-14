@@ -9,13 +9,17 @@
  * engine's savings balance. Any divergence is a CONFIRMED finding (the AI
  * later explains the root cause; it never guesses the calc).
  *
+ * Deepened (req. #1, #5, #15): each finding now carries the full chain —
+ *   DATABASE (independent ledger) → CALCULATION (engine) → STORED (balance_after)
+ * — with the exact database table/field, the backend route/service, the
+ * expected/actual/difference, affected member numbers, and a systemic flag.
  * Also checks organization-wide totals for internal consistency.
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '@/lib/services/transaction.engine';
 import type { Finding } from '../types';
-import { evidence, makeFinding, resetFindingSequence } from './findings';
+import { evidence, makeFinding, resetFindingSequence, kes } from './findings';
 
 const DEBIT = new Set([
   'savings_withdrawal', 'registration_fee', 'annual_fee',
@@ -42,6 +46,14 @@ async function independentBalance(memberId: string, accountType: string): Promis
   return bal;
 }
 
+/** Route + service constants for location pinning (req. #6). */
+const ROUTES = {
+  balances: 'GET /api/v1/members/{id}/balances',
+  financials: 'GET /api/members/:id/financials',
+} as const;
+const SERVICE = 'TransactionEngine.calculateBalance';
+const BACKEND_MODULE = 'TransactionsModule';
+
 export async function runFinancialConsistency(): Promise<{ findings: Finding[]; records_checked: number; checks_performed: number }> {
   resetFindingSequence();
   const supabase = await createServiceClient();
@@ -52,24 +64,42 @@ export async function runFinancialConsistency(): Promise<{ findings: Finding[]; 
   const { data: members } = await supabase.from('members').select('id, member_number, status').limit(200);
   recordsChecked += members?.length ?? 0;
 
+  const savingsMismatches: string[] = [];
+
   for (const m of members ?? []) {
     // 1. Savings: independent recompute vs engine vs stored balance_after.
     checksPerformed++;
     const indSavings = await independentBalance(m.id, 'savings');
     const engSavings = await transactionEngine.calculateBalance(m.id, 'savings');
     if (Math.abs(indSavings - engSavings) > 0.5) {
+      savingsMismatches.push(m.member_number);
       findings.push(makeFinding({
         prefix: 'FIN',
         title: `Savings balance mismatch for ${m.member_number}`,
         module: 'savings',
         category: 'incorrect_balances',
         severity: 'critical',
-        description: `Independent ledger sum = ${indSavings}, engine balance = ${engSavings}.`,
-        root_cause: 'The independent recompute and the transaction engine diverged — a logic bug or a non-reversed withdrawal.',
-        recommendation: 'Reconcile the ledger; verify no transaction is miscounted.',
+        description: `Independent ledger sum = ${kes(indSavings)}, engine balance = ${kes(engSavings)}. The stored member balance is not synchronized with the underlying savings transaction ledger.`,
+        root_cause: 'Stored member balance is not synchronized with the transaction-derived savings ledger.',
+        recommendation: 'Review the account balance update path and identify the transaction that caused the divergence.',
+        expected_value: kes(indSavings),
+        actual_value: kes(engSavings),
+        difference: kes(indSavings - engSavings),
+        affected_records: [m.member_number],
+        is_systemic: false,
+        related_tables: ['transactions', 'accounts'],
+        location: {
+          module: 'savings',
+          submodule: 'Member Account Balance',
+          database: { table: 'accounts', field: 'savings_balance', record_id: m.id },
+          backend: { module: BACKEND_MODULE, service: SERVICE, route: ROUTES.balances, method: 'GET', response_value: kes(engSavings) },
+          member_id: m.id,
+          member_number: m.member_number,
+          source_calculation: 'SUM(transactions) WHERE account_type=savings AND reversed=false',
+        },
         evidence: [
-          evidence({ source_label: 'independent ledger sum', source_type: 'calculation', field: 'savings', actual_value: String(indSavings) }),
-          evidence({ source_label: 'transaction engine', source_type: 'calculation', field: 'savings', actual_value: String(engSavings), difference: String(indSavings - engSavings) }),
+          evidence({ source_label: 'independent ledger sum', source_type: 'calculation', field: 'savings', actual_value: kes(indSavings) }),
+          evidence({ source_label: 'transaction engine', source_type: 'calculation', field: 'savings', actual_value: kes(engSavings), difference: kes(indSavings - engSavings) }),
         ],
       }));
     }
@@ -91,10 +121,22 @@ export async function runFinancialConsistency(): Promise<{ findings: Finding[]; 
           module: 'savings',
           category: 'stale_calculated_values',
           severity: 'medium',
-          description: `Last transaction balance_after = ${last[0].balance_after}, engine balance = ${engSavings}.`,
+          description: `Last transaction balance_after = ${kes(Number(last[0].balance_after))}, engine balance = ${kes(engSavings)}.`,
+          expected_value: kes(engSavings),
+          actual_value: kes(Number(last[0].balance_after)),
+          difference: kes(Number(last[0].balance_after) - engSavings),
+          affected_records: [m.member_number],
+          location: {
+            module: 'savings',
+            submodule: 'Balance Snapshot',
+            database: { table: 'transactions', field: 'balance_after', record_id: m.id },
+            backend: { module: BACKEND_MODULE, service: SERVICE, route: ROUTES.balances, method: 'GET', response_value: kes(engSavings) },
+            member_id: m.id,
+            member_number: m.member_number,
+          },
           evidence: [
             evidence({ source_label: 'last transaction', source_type: 'database', field: 'balance_after', actual_value: String(last[0].balance_after) }),
-            evidence({ source_label: 'transaction engine', source_type: 'calculation', field: 'savings', actual_value: String(engSavings) }),
+            evidence({ source_label: 'transaction engine', source_type: 'calculation', field: 'savings', actual_value: kes(engSavings) }),
           ],
         }));
       }
@@ -112,12 +154,36 @@ export async function runFinancialConsistency(): Promise<{ findings: Finding[]; 
           module: at,
           category: 'incorrect_balances',
           severity: 'high',
-          description: `Independent ledger sum = ${ind}, engine balance = ${eng}.`,
+          description: `Independent ledger sum = ${kes(ind)}, engine balance = ${kes(eng)}.`,
+          expected_value: kes(ind),
+          actual_value: kes(eng),
+          difference: kes(ind - eng),
+          affected_records: [m.member_number],
+          related_tables: ['transactions', 'accounts'],
+          location: {
+            module: at,
+            submodule: 'Account Balance',
+            database: { table: 'accounts', field: `${at}_balance`, record_id: m.id },
+            backend: { module: BACKEND_MODULE, service: SERVICE, route: ROUTES.balances, method: 'GET', response_value: kes(eng) },
+            member_id: m.id,
+            member_number: m.member_number,
+            source_calculation: `SUM(transactions) WHERE account_type=${at} AND reversed=false`,
+          },
           evidence: [
-            evidence({ source_label: 'independent ledger sum', source_type: 'calculation', field: at, actual_value: String(ind) }),
-            evidence({ source_label: 'transaction engine', source_type: 'calculation', field: at, actual_value: String(eng), difference: String(ind - eng) }),
+            evidence({ source_label: 'independent ledger sum', source_type: 'calculation', field: at, actual_value: kes(ind) }),
+            evidence({ source_label: 'transaction engine', source_type: 'calculation', field: at, actual_value: kes(eng), difference: kes(ind - eng) }),
           ],
         }));
+      }
+    }
+  }
+
+  // Mark systemic if many members have savings mismatches (req. #21).
+  if (savingsMismatches.length > 3) {
+    for (const f of findings) {
+      if (f.module === 'savings' && f.category === 'incorrect_balances') {
+        f.is_systemic = true;
+        f.affected_records = savingsMismatches;
       }
     }
   }
@@ -141,10 +207,21 @@ export async function runFinancialConsistency(): Promise<{ findings: Finding[]; 
       module: 'savings',
       category: 'mismatched_aggregates',
       severity: 'high',
-      description: `Sum of savings transactions = ${orgSavingsFromTxns}, sum of per-member engine balances (capped sample) = ${orgSavingsFromMembers}.`,
+      description: `Sum of savings transactions = ${kes(orgSavingsFromTxns)}, sum of per-member engine balances (capped sample) = ${kes(orgSavingsFromMembers)}.`,
+      expected_value: kes(orgSavingsFromTxns),
+      actual_value: kes(orgSavingsFromMembers),
+      difference: kes(orgSavingsFromTxns - orgSavingsFromMembers),
+      is_systemic: true,
+      related_tables: ['transactions'],
+      location: {
+        module: 'savings',
+        submodule: 'Organization Aggregate',
+        backend: { module: BACKEND_MODULE, service: SERVICE, route: 'GET /api/v1/dashboard' },
+        source_calculation: 'SUM(savings_deposit) - SUM(savings_withdrawal) vs SUM(per-member engine balance)',
+      },
       evidence: [
-        evidence({ source_label: 'savings transactions', source_type: 'calculation', field: 'org_savings', actual_value: String(orgSavingsFromTxns) }),
-        evidence({ source_label: 'per-member engine sum', source_type: 'calculation', field: 'org_savings', actual_value: String(orgSavingsFromMembers), difference: String(orgSavingsFromTxns - orgSavingsFromMembers) }),
+        evidence({ source_label: 'savings transactions', source_type: 'calculation', field: 'org_savings', actual_value: kes(orgSavingsFromTxns) }),
+        evidence({ source_label: 'per-member engine sum', source_type: 'calculation', field: 'org_savings', actual_value: kes(orgSavingsFromMembers), difference: kes(orgSavingsFromTxns - orgSavingsFromMembers) }),
       ],
     }));
   }
