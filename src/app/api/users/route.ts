@@ -8,6 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { jwtVerify } from 'jose';
 import { userManagementService, type UserRole, type UserQueryOptions } from '@/lib/services';
 

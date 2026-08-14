@@ -5,6 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { createServiceClient } from '@/lib/supabase/server';

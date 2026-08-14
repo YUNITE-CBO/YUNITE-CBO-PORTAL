@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { jwtVerify } from 'jose';
 import { authService } from '@/lib/services/auth.service';
 import { authNotificationService } from '@/lib/services/notifications/auth-notification.service';

@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { createHandler } from '@/lib/api/handler';
 import { success } from '@/lib/api/response';
 import { authService } from '@/lib/services/auth.service';

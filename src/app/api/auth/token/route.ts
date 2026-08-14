@@ -7,6 +7,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
+// This route reads cookies at request time — never static.
+export const dynamic = 'force-dynamic';
+
 const JWT_SECRET = new TextEncoder().encode(
   process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
 );
