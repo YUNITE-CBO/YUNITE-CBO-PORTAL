@@ -404,3 +404,45 @@ fines, member statement of account, welfare fund, and organization summary.
 - **API docs**: OpenAPI 3.0 at `GET /api/v1/docs/openapi.json` (generated from
   the manifest via `src/lib/api/openapi.ts`), docs index at `GET /api/v1/docs`,
   Swagger UI at `/dashboard/api-docs`. See `API.md` (YUNITE API Gateway section).
+
+## Member Lookup Portal (`member-lookup-frontend/`)
+A **standalone, futuristic, public-facing** member verification + account
+portal that lives inside this repo but deploys **independently to Vercel**
+(separate Vercel project, root dir = `member-lookup-frontend`). It
+**consumes the existing YUNITE backend** (`/api/v1`) via a server-side API
+key — it does NOT rebuild or replace any backend logic. The backend stays
+the single source of truth for all data/calculations.
+- **BFF + stateless JWT session pattern**: server routes hold `YUNITE_API_KEY`
+  (env, never shipped to browser). Verification (`POST /api/auth/verify`)
+  matches `first_name` + `phone` + `id_number` **server-side** against real
+  member records (there is no dedicated verify endpoint — see
+  `member-lookup-frontend/API_GAPS.md`), then issues a short-lived signed
+  JWT (jose/HS256, `MEMBER_SESSION_SECRET`) in an httpOnly+Secure+SameSite=Lax
+  cookie binding ONLY `member_id`. Every member-data route resolves the
+  member from that JWT — never from a URL path — so cross-member access is
+  impossible. `src/middleware.ts` guards all `/dashboard/*`.
+- **Env vars**: `YUNITE_API_BASE_URL`, `YUNITE_API_KEY` (server-only),
+  `MEMBER_SESSION_SECRET`, `MEMBER_SESSION_TTL_SECONDS` (default 1800),
+  `NEXT_PUBLIC_APP_URL`. `.env.example` documents them.
+- **Pages**: public home (live clock, upcoming meetings [graceful],
+  rotating YUNITE + motivational messages, "Access my member account" CTA);
+  dashboard (overview, savings&shares, contributions, welfare, loans w/
+  progress, fines, transactions w/ filter, statement [graceful on backend
+  500], notifications, profile [masked ID], support [org contact + FAQ]).
+- **Gotcha — `/api/v1/members/{id}` returns the member *workspace***
+  (`{ member, accounts, compliance, transactions, documents, loans, fines }`),
+  NOT a bare member. `member.service.ts` `getMember()` extracts `.member`.
+  Do not assume `getMember` returns the workspace.
+- **Gotcha — logout is stateless**: `POST /api/auth/logout` clears the
+  browser cookie, but a captured token remains valid until its short TTL
+  expires. This is standard for stateless sessions and acceptable for a
+  read-only portal. Do not add a server-side token blocklist for this.
+- **Verified against live backend** (2026-08-13): all member-data routes
+  return real data (savings=300, shares=3, contributions=100, welfare=0,
+  fines=50, loans=220 for the test member); no-cookie & tampered-cookie →
+  401; `tsc --noEmit` clean; `next build` clean (28 routes).
+- **Backend gaps** (handled gracefully, never fabricated): see
+  `member-lookup-frontend/API_GAPS.md` — no `members.verify` endpoint, no
+  `/api/v1/meetings` (only session-auth `/api/meetings`), statement endpoint
+  500s on live DB, contributions list not member-filterable (use
+  transactions), no support-ticket endpoint.
