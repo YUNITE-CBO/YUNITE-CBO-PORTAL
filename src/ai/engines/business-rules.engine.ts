@@ -164,7 +164,7 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
     }));
   }
 
-  // 7. Period drift.
+  // 7. Period drift (per-loan override below max — flagged for review).
   checksPerformed++;
   const periodDrift = (loans ?? []).filter((l) => Number(l.repayment_period_months) !== period);
   if (periodDrift.length) {
@@ -176,7 +176,72 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       severity: 'low',
       description: 'Per-loan override is allowed; flagged for review.',
       human_review: true,
+      expected_value: String(period),
+      actual_value: String(periodDrift[0].repayment_period_months),
+      affected_records: periodDrift.map((l) => l.id),
+      location: {
+        module: 'loans',
+        submodule: 'Loan Records',
+        database: { table: 'loans', field: 'repayment_period_months', record_id: periodDrift[0]?.id },
+        member_id: periodDrift[0]?.member_id,
+        business_rule: 'loan.max_period_months',
+      },
       evidence: [evidence({ source_label: 'settings', source_type: 'configuration', field: 'loan.max_period_months', actual_value: String(period) })],
+    }));
+  }
+
+  // 8. Loans exceeding the configured MAX period (should never happen post-fix).
+  checksPerformed++;
+  const overMaxPeriod = (loans ?? []).filter((l) => Number(l.repayment_period_months) > period);
+  if (overMaxPeriod.length) {
+    findings.push(makeFinding({
+      prefix: 'BR',
+      title: `${overMaxPeriod.length} loan(s) exceed the configured max repayment period (${period} months)`,
+      module: 'loans',
+      category: 'configuration_violation',
+      severity: 'high',
+      description: 'Loans with a repayment period exceeding the configured maximum violate the business rule. These should have been rejected at creation.',
+      expected_value: `≤ ${period}`,
+      actual_value: String(overMaxPeriod[0].repayment_period_months),
+      affected_records: overMaxPeriod.map((l) => l.id),
+      location: {
+        module: 'loans',
+        submodule: 'Loan Records',
+        database: { table: 'loans', field: 'repayment_period_months', record_id: overMaxPeriod[0]?.id },
+        member_id: overMaxPeriod[0]?.member_id,
+        business_rule: 'loan.max_period_months',
+      },
+      evidence: overMaxPeriod.map((l) => evidence({ source_label: 'loans table', source_type: 'database', field: 'repayment_period_months', actual_value: String(l.repayment_period_months), expected_value: String(period), evidence_json: { record_id: l.id, loan_number: l.loan_number } })),
+    }));
+  }
+
+  // 9. Orphan transactions with NULL member_id (breaks ledger → member mapping).
+  checksPerformed++;
+  const { data: orphans, count: orphanCount } = await supabase
+    .from('transactions')
+    .select('id, transaction_ref, member_id, account_id, amount, transaction_type', { count: 'exact' })
+    .is('member_id', null)
+    .limit(1000);
+  recordsChecked += orphanCount ?? 0;
+  if (orphans && orphans.length > 0) {
+    findings.push(makeFinding({
+      prefix: 'DB',
+      title: `${orphans.length} transaction(s) missing member reference`,
+      module: 'transactions',
+      category: 'data_integrity',
+      severity: 'high',
+      description: 'Transactions without a member_id break per-member balance derivation.',
+      expected_value: 'Valid UUID',
+      actual_value: 'null',
+      is_systemic: orphans.length > 3,
+      affected_records: orphans.map((t) => t.id),
+      location: {
+        module: 'transactions',
+        submodule: 'Ledger',
+        database: { table: 'transactions', field: 'member_id' },
+        business_rule: 'Every ledger transaction must reference a member (balances are derived from the ledger).',
+      },
+      evidence: orphans.slice(0, 10).map((t) => evidence({ source_label: 'transactions table', source_type: 'database', field: 'member_id', actual_value: 'null', expected_value: 'UUID', evidence_json: { record_id: t.id, transaction_ref: t.transaction_ref, amount: t.amount, transaction_type: t.transaction_type } })),
     }));
   }
 

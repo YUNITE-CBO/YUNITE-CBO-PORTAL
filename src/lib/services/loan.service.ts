@@ -68,8 +68,18 @@ export class LoanService {
 
     // Get interest rate from settings
     const interestRate = await settingsService.getNumber('loan.default_interest_rate', 10);
-    const repaymentPeriod = application.repayment_period_months || 
-      await settingsService.getNumber('loan.max_period_months', 12);
+    const maxPeriod = await settingsService.getNumber('loan.max_period_months', 12);
+    const defaultPeriod = await settingsService.getNumber('loan.default_period_months', maxPeriod);
+
+    // Validate repayment period: must be between 1 and the configured maximum.
+    // Per-loan overrides below the max are allowed but flagged for review.
+    let repaymentPeriod = application.repayment_period_months || defaultPeriod;
+    if (repaymentPeriod < 1) {
+      throw new Error("Repayment period must be at least 1 month.");
+    }
+    if (repaymentPeriod > maxPeriod) {
+      throw new Error(`Repayment period cannot exceed the configured maximum of ${maxPeriod} months.`);
+    }
 
     const interestAmount = (application.principal_amount * interestRate) / 100;
     const totalAmount = application.principal_amount + interestAmount;

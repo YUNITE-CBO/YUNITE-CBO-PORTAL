@@ -75,6 +75,15 @@ export async function runApiConsistency(): Promise<{ findings: Finding[]; record
       category: 'incorrect_permissions',
       severity: 'high',
       description: 'Financial (write) operations should require staff+ at minimum.',
+      expected_value: 'staff',
+      actual_value: 'viewer',
+      affected_records: financialLow.map((e) => e.id),
+      location: {
+        module: 'api',
+        submodule: 'RBAC Manifest',
+        backend: { route: financialLow[0].path, method: financialLow[0].method },
+        business_rule: 'Financial (write) operations should require staff+ at minimum.',
+      },
       evidence: financialLow.map((e) => evidence({ source_label: 'manifest', source_type: 'api', field: 'minRole', actual_value: `${e.id}=viewer` })),
     }));
   }

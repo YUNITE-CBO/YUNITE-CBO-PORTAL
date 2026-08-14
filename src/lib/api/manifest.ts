@@ -57,7 +57,7 @@ export const ENDPOINTS: EndpointSpec[] = [
   // ----- Loans -----
   { id: 'loans.list', method: 'GET', path: '/api/v1/loans', module: 'loans', action: 'read', summary: 'List loans', auth: 'required', minRole: 'viewer' },
   { id: 'loans.eligibility', method: 'GET', path: '/api/v1/loans/eligibility/{memberId}', module: 'loans', action: 'read', summary: 'Loan eligibility for a member', auth: 'required', minRole: 'viewer' },
-  { id: 'loans.apply', method: 'POST', path: '/api/v1/loans', module: 'loans', action: 'apply', summary: 'Apply for a loan', auth: 'required', minRole: 'viewer', financial: true },
+  { id: 'loans.apply', method: 'POST', path: '/api/v1/loans', module: 'loans', action: 'apply', summary: 'Apply for a loan', auth: 'required', minRole: 'staff', financial: true },
   { id: 'loans.approve', method: 'POST', path: '/api/v1/loans/{id}/approve', module: 'loans', action: 'approve', summary: 'Approve a loan', auth: 'required', minRole: 'admin', financial: true },
   { id: 'loans.disburse', method: 'POST', path: '/api/v1/loans/{id}/disburse', module: 'loans', action: 'disburse', summary: 'Disburse a loan', auth: 'required', minRole: 'admin', financial: true },
   { id: 'loans.repay', method: 'POST', path: '/api/v1/loans/{id}/repay', module: 'loans', action: 'repay', summary: 'Repay a loan', auth: 'required', minRole: 'staff', financial: true },
