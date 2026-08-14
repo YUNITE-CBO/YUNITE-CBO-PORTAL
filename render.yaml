@@ -87,11 +87,44 @@ services:
       # ===================================================================
       # WORKFLOW & AUTOMATION ENGINE
       # ===================================================================
-      # Shared secret protecting /api/cron/automation. MUST match the
-      # CRON_SECRET on the yunite-automation-tick cron service. Generate
-      # with: openssl rand -hex 32
+      # Shared secret protecting /api/cron/automation AND /api/cron/ai-investigations.
+      # MUST match the CRON_SECRET on both cron services. Generate with:
+      # openssl rand -hex 32
       # ===================================================================
       - key: CRON_SECRET
+        sync: false
+      # ===================================================================
+      # AI INTELLIGENCE ENGINE
+      # ===================================================================
+      # Provider keys are SERVER-SIDE ONLY (never exposed to the browser).
+      # The engine reads these via process.env at runtime. If a key is
+      # unset the provider reports "not configured" and the failover /
+      # deterministic-only paths take over (AI is an intelligence layer,
+      # not a dependency for financial correctness).
+      - key: AI_PROVIDER
+        value: "gemini"
+      - key: AI_DUAL_MODE
+        value: "true"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: "gemini-2.0-flash"
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_BASE_URL
+        value: "https://openrouter.ai/api/v1"
+      - key: OPENROUTER_MODEL
+        sync: false
+      # Failfast probe timeout (ms) for provider failure detection. Does NOT
+      # cap the max generation duration — only how long we wait to decide a
+      # provider is unreachable before falling over.
+      - key: AI_FAILFAST_TIMEOUT_MS
+        value: "1000"
+      # Optional: member-lookup BFF base URL for display-layer verification.
+      # When unset, member verification falls back to DB-vs-API comparison.
+      - key: MEMBER_LOOKUP_VERIFY_URL
+        sync: false
+      - key: MEMBER_LOOKUP_VERIFY_SECRET
         sync: false
 
 # Auto-deploy hook - configure in GitHub Secrets as RENDER_DEPLOY_HOOK_URL
@@ -128,6 +161,30 @@ services:
       - key: AUTOMATION_ENDPOINT
         sync: false
       # MUST match the CRON_SECRET set on the yunite-enterprise-os web service.
+      - key: CRON_SECRET
+        sync: false
+
+# ===================================================================
+# AI INTELLIGENCE ENGINE - scheduled investigation cron ticker
+# ===================================================================
+# Pokes the CRON_SECRET-protected /api/cron/ai-investigations endpoint on a
+# configurable schedule. Each tick reads due ai_investigation_schedules and
+# runs them (dual-mode for full_system), alerting on CRITICAL findings. When
+# both AI providers are unavailable, deterministic findings still run + alert.
+# Default 30-min cadence is enough for daily/weekly schedules; bump to */5 for
+# more responsive alerting. Configured schedules (not this interval) decide
+# what actually runs each tick.
+  - type: cron
+    name: yunite-ai-investigations-tick
+    runtime: node
+    schedule: "*/30 * * * *"
+    region: oregon
+    plan: free
+    buildCommand: 'true'
+    startCommand: 'curl -fsS -m 600 -H "X-Cron-Secret: ${CRON_SECRET}" "${AI_INVESTIGATIONS_ENDPOINT}" || true'
+    envVars:
+      - key: AI_INVESTIGATIONS_ENDPOINT
+        sync: false
       - key: CRON_SECRET
         sync: false
 

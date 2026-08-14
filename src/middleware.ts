@@ -21,6 +21,8 @@ const publicReadPaths = [
   // cookie-based auth check below does not 401 it before it can verify the
   // shared secret itself.
   '/api/cron/automation',
+  // AI investigation cron — same CRON_SECRET pattern (Render cron, no cookie).
+  '/api/cron/ai-investigations',
 ];
 
 // Protected paths (require authentication)

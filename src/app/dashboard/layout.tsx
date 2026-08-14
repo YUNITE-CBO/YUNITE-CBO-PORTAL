@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
   { name: 'Documents', href: '/dashboard/documents', icon: '📄' },
   { name: 'Compliance', href: '/dashboard/compliance', icon: '✅' },
   { name: 'Reports', href: '/dashboard/reports', icon: '📈' },
+  { name: 'AI Intelligence', href: '/dashboard/ai-intelligence', icon: '🧠' },
   { name: 'Notifications', href: '/dashboard/notifications', icon: '🔔' },
   { name: 'Audit Logs', href: '/dashboard/audit-logs', icon: '📋' },
   { name: 'Settings', href: '/dashboard/settings', icon: '⚙️' },

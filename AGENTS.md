@@ -5,10 +5,10 @@ Next.js 14 (App Router) enterprise portal for Community-Based Organizations.
 Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored in cookies.
 
 ## Key Commands
-- `npm run dev` – start dev server
-- `npm run build` – production build
-- `npm run type-check` – `tsc --noEmit`
-- `npm test` – jest (test files live in `tests/`)
+- `npm run dev` â€“ start dev server
+- `npm run build` â€“ production build
+- `npm run type-check` â€“ `tsc --noEmit`
+- `npm test` â€“ jest (test files live in `tests/`)
 - DB migrations: `supabase/migrations/*.sql`; manual ones: `supabase/MANUAL_MIGRATION_*.sql`
   (run via Supabase SQL Editor at https://sprlwlxjhhmazxpflhnb.supabase.co/project/-/sql)
 
@@ -34,13 +34,13 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   reported duplicate-identifier errors. Fixed by adding `export {}` to each
   file, making them modules with file-local scope. (`tsc --noEmit` is now
   fully clean; these two suites still fail at runtime because they need a
-  live server via `fetch` — that's expected, not a type error.)
+  live server via `fetch` â€” that's expected, not a type error.)
 - **Notification content (subject/body)**: migration 004 created `notifications`
   with legacy `title`/`message` (NOT NULL). Migration 005 intended `subject`/`body`
   but its `CREATE TABLE IF NOT EXISTS` was skipped (table existed) and its ALTERs
   never added `subject`/`body`, so the service + frontend (which read
   `subject`/`body`) rendered blank notification content in the bell dropdown and
-  notifications page — only the unread count (from `status`) worked. Migration 028
+  notifications page â€” only the unread count (from `status`) worked. Migration 028
   reconciles this: adds `subject`/`body`, backfills from `title`/`message`, and a
   trigger keeps `title`/`message` in sync with `subject`/`body` for any legacy
   consumer. The service + `auth-notification.service.ts` now insert both pairs.
@@ -64,7 +64,7 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
 A substantial notification/automation stack already exists in
 `src/lib/services/notifications/` but has critical dead-code gaps:
 - **Event service** (`event.service.ts`): `notificationEventService.emit(event)`
-  is event-driven and LIVE — called from `member-registration.service.ts`,
+  is event-driven and LIVE â€” called from `member-registration.service.ts`,
   `loan.service.ts`, `transaction.engine.ts`, and `/api/members/[id]`. Logs to
   `notification_event_logs`, matches `EVENT_TEMPLATE_MAPPINGS` (member/savings/
   loan/fine/contribution), resolves recipients, calls `notificationService.sendFromTemplate`.
@@ -73,7 +73,7 @@ A substantial notification/automation stack already exists in
   + `executeSchedule()` reads `notification_schedules` where `next_run_at <= now`,
   resolves recipients (`all_members`/`active_members`/`admins`/`loans_overdue`/
   `welfare_pending`), sends from template, advances `next_run_at`. **BUT
-  `processDueSchedules()` HAS ZERO CALLERS** — there is no cron/Vercel cron/Render
+  `processDueSchedules()` HAS ZERO CALLERS** â€” there is no cron/Vercel cron/Render
   cron (`render.yaml` has no cron block) and no `node-cron`. Schedules never fire.
 - **Statement service** (`statement.service.ts`, 957 lines): generates member/
   org/loan/savings statements into `notification_statements` with
@@ -86,24 +86,24 @@ A substantial notification/automation stack already exists in
   `notifications/statements`, `notifications/templates`, `notifications/preferences`,
   `notifications/actions` (email queue processing), `audit`.
 - **Settings UI** (`src/app/dashboard/settings/page.tsx`, 1487 lines): renders
-  `configuration_categories` with config-status badges. The "Workflow — Not Set"
+  `configuration_categories` with config-status badges. The "Workflow â€” Not Set"
   the user sees = the `workflow` config category seeded in migration 007
   (line ~142: `('workflow','Workflow','Approval workflows and automation',
   'git-branch','#0891B2',13)`). Shows "Not Set" because no `settings` rows under it
   have values.
 - **Approval workflow**: `member_approval_workflow` table (migration 007) is a real
-  stage machine (documentation→review→approval→completed/rejected) for member
+  stage machine (documentationâ†’reviewâ†’approvalâ†’completed/rejected) for member
   registration. `members.workflow_stage` + `update_member_workflow_stage()` fn.
   No generalized approval engine for loans/transaction reversals.
 - **Meetings**: `meetings` + `meeting_attendance` tables exist (migration 004) but
-  NO service/route/UI — purely schema. No meeting events in EVENT_TEMPLATE_MAPPINGS.
+  NO service/route/UI â€” purely schema. No meeting events in EVENT_TEMPLATE_MAPPINGS.
 - **Schema conflict (must reconcile)**: migrations 005 and 012 define CONFLICTING
   columns for `notification_statements`, `notification_event_logs`,
   `notification_preferences`, `email_queue`, `notification_delivery_history`.
   Services assume the richer 005 schema (`recipient_email`/`title`/`summary`/
   `generated_data`/`schedule_id` on statements; `event_id`/`status`/`received_at`
   on event_logs; `owner_type`/`owner_id` on preferences). A reconciliation migration
-  is needed before building on top — verify live DB columns first.
+  is needed before building on top â€” verify live DB columns first.
 - **Missing for a real engine**: (1) a cron/scheduler runtime to call
   `processDueSchedules()`; (2) a `member_financial_obligations` view/table
   centralizing loan+savings+membership+welfare+fines with due/upcoming/overdue/
@@ -140,7 +140,7 @@ A substantial notification/automation stack already exists in
   repeat logic in the obligations step (currently overdue+due-today only);
   contributions/welfare rows in the obligations view; (P3) financial forecast
   engine (30/90-day) + super-admin alert tiers (critical/warning/info); (P4)
-  replace the "Workflow — Not Set" badge in `dashboard/settings/page.tsx` with a
+  replace the "Workflow â€” Not Set" badge in `dashboard/settings/page.tsx` with a
   real WorkflowsSettingsSection control panel + Automation History view reading
   `automation_runs`; (P5) meetings service/route/UI on the existing `meetings`
   table + meeting events in EVENT_TEMPLATE_MAPPINGS + generalized approval
@@ -159,21 +159,21 @@ A substantial notification/automation stack already exists in
   `overdue_repeat_days` (default 7) via `days_overdue % repeat === 0` (no per-row
   DB lookback needed). Per-day idempotency keys still guard same-tick de-dup.
 - **Phase 4 IMPLEMENTED** (settings UI): `WorkflowsSettingsSection.tsx`
-  component replaces the generic "Workflow — Not Set" badge with a real control
-  panel — toggle switches for every `workflow.*` boolean, number inputs for lead
+  component replaces the generic "Workflow â€” Not Set" badge with a real control
+  panel â€” toggle switches for every `workflow.*` boolean, number inputs for lead
   times/cadence days, grouped into Engine/Channels/Reminders/Statements/Meetings/
   Alerts sections, saved via `PUT /api/configuration` (same audit framework as
   the rest of settings). Includes an Automation History table reading
   `automation_runs` and a "Run Now" button. Wired into the settings page:
   `workflow` added to `ActiveSection` type + category icon + render branch.
   Two new session-authenticated routes: `GET /api/automation/runs` (history,
-  admin+) and `POST /api/automation/trigger` (manual tick, admin+) — the latter
+  admin+) and `POST /api/automation/trigger` (manual tick, admin+) â€” the latter
   lets admins force a tick without the CRON_SECRET the cron route needs.
 - **Phase 3 IMPLEMENTED** (forecast + alert tiers): `forecast.service.ts`
   `financialForecastService.generate()` blends trailing-90-day actuals
   (avg daily net extrapolated forward) with known upcoming loan repayments
-  (monthly_repayment × months, capped at remaining) and expected monthly
-  contributions/welfare (settings × active member count) into 30/90-day
+  (monthly_repayment Ă— months, capped at remaining) and expected monthly
+  contributions/welfare (settings Ă— active member count) into 30/90-day
   projections + current cash position. `generateAlerts()` derives
   critical/warning/info tiers (negative cash position = critical; negative 30d
   projection = critical; overdue obligations/defaulted loans = warning; pending
@@ -191,7 +191,7 @@ A substantial notification/automation stack already exists in
   meeting+offset+member+day idempotency. API routes: `GET/POST /api/meetings`
   and `GET/PUT /api/meetings/[id]` (admin+ for write). Migration 027 seeds
   meeting.created/cancelled/reminder templates + a `meetings` notification
-  category. Note: there is no meetings dashboard page yet — only the API +
+  category. Note: there is no meetings dashboard page yet â€” only the API +
   service + reminders. A full meetings UI page is a follow-on.
 
 ## Document Generation & Export Engine (`src/lib/services/reports/`)
@@ -202,11 +202,11 @@ fines, member statement of account, welfare fund, and organization summary.
 - **Brand** (`brand.ts`): single source of truth for org identity (Yunite
   Pamoja CBO, Nairobi/Kariobangi North, info.yunite.ke@gmail.com), the
   navy `#0B2A4A` + luminous green `#22C55E` palette (from the logo),
-  inline `LOGO_SVG` + `STAMP_SVG` (so generated HTML is self-contained —
+  inline `LOGO_SVG` + `STAMP_SVG` (so generated HTML is self-contained â€”
   no external asset requests during headless rendering), copyright text,
   and `formatMoney`/`formatDate`/`formatDateTime` helpers.
 - **Renderer** (`report-renderer.ts`): `renderDocument(ctx, payload)` builds
-  the full HTML — letterhead (logo + org identity + accent bar), report
+  the full HTML â€” letterhead (logo + org identity + accent bar), report
   title/eyebrow, meta block (type/period/ref/issued-by/currency), body
   (KPIs + tables per report type), a digital certification stamp with
   substituted `__REF__`/`__HASH__`/`__DATE__`/`__VERIFY_URL__` traceability
@@ -219,14 +219,14 @@ fines, member statement of account, welfare fund, and organization summary.
   opening/closing balances + per-account breakdown via
   `transactionEngine.calculateBalance`.
 - **PDF/CSV** (`document-generator.ts`): `htmlToPdf(html)` renders via
-  headless Chromium using `puppeteer-core` (NOT `puppeteer` — see the
+  headless Chromium using `puppeteer-core` (NOT `puppeteer` â€” see the
   BUILD FAILURE note below for why `puppeteer`'s `install.mjs` postinstall
   must be avoided). The browser is bundled in puppeteer's cache
   (`~/.cache/puppeteer`), populated by `scripts/install-browser.js` which
   runs as the npm `postinstall` hook during `npm ci`. NO system package or
   root install is needed. `resolveChromium()` prefers an explicit
   `PUPPETEER_EXECUTABLE_PATH`/`CHROMIUM_PATH`/`CHROME_PATH` override (only
-  if it exists on disk — a stale env var pointing at a missing path is
+  if it exists on disk â€” a stale env var pointing at a missing path is
   skipped, not fatal), then probes the cache directory directly (via
   `@puppeteer/browsers`' `getInstalledBrowsers()`, NOT
   `puppeteer.executablePath()`, which honors `PUPPETEER_EXECUTABLE_PATH`
@@ -236,17 +236,17 @@ fines, member statement of account, welfare fund, and organization summary.
   download step (unlike `puppeteer`), so nothing populates the browser
   cache during `npm ci`. `scripts/install-browser.js` does it instead,
   calling `@puppeteer/browsers`' `install()` directly with the build pinned
-  in `puppeteer-core`'s revisions (so the binary matches the driver — using
+  in `puppeteer-core`'s revisions (so the binary matches the driver â€” using
   "stable"/latest instead crashes with "Navigating frame was detached"),
   ignoring `PUPPETEER_SKIP_DOWNLOAD`/`PUPPETEER_EXECUTABLE_PATH`.
-  **Gotcha**: do NOT pass `--single-process` to `puppeteer.launch` — it
+  **Gotcha**: do NOT pass `--single-process` to `puppeteer.launch` â€” it
   breaks modern Chrome (131+) with "Target.setDiscoverTargets: Target
   closed". The browser is cached per-process; `closeBrowser()` must be
   called in long-lived test/lambda contexts to let the process exit.
   `reportToCsv()` produces spreadsheet exports directly (no browser needed).
 - **Export orchestrator** (`document-export.service.ts`):
-  `documentExportService.generate(opts)` gathers data → renders HTML →
-  generates PDF/CSV → persists an immutable audit row in
+  `documentExportService.generate(opts)` gathers data â†’ renders HTML â†’
+  generates PDF/CSV â†’ persists an immutable audit row in
   `generated_documents` (best-effort; warns on failure per project
   convention). `listHistory()` + `verifyByRef()` power the history table
   and public verification.
@@ -256,10 +256,10 @@ fines, member statement of account, welfare fund, and organization summary.
   `generated_document_verifications` view. Run in Supabase SQL Editor on
   deploy.
 - **API routes**: `GET /api/reports` (catalog), `GET|POST
-  /api/reports/generate` (download — POST for JSON body, GET for `<a href>`
+  /api/reports/generate` (download â€” POST for JSON body, GET for `<a href>`
   convenience; both staff+ gated, both record the audit row), `GET
   /api/reports/history` (audit trail), and **public** `GET
-  /api/reports/verify/[ref]` (no auth — anyone holding a printed doc can
+  /api/reports/verify/[ref]` (no auth â€” anyone holding a printed doc can
   authenticate it). The middleware lets GET `/api/*` through and the routes
   do their own `getAuthenticatedUser` check; the public verify route needs
   no session.
@@ -273,7 +273,7 @@ fines, member statement of account, welfare fund, and organization summary.
 - **Tests**: `tests/report-renderer.test.ts` (brand identity, formatters,
   letterhead/stamp/traceability, per-type bodies), `tests/report-document.test.ts`
   (CSV export + period resolver), `tests/smoke-pdf.test.ts` (real Chromium
-  PDF render → valid `%PDF-` buffer; uses `closeBrowser()` + `--forceExit`).
+  PDF render â†’ valid `%PDF-` buffer; uses `closeBrowser()` + `--forceExit`).
   Run report tests with:
   `npx jest tests/report- --testTimeout=90000 --forceExit`
   (Chromium comes from the puppeteer cache; no `PUPPETEER_EXECUTABLE_PATH`
@@ -286,7 +286,7 @@ fines, member statement of account, welfare fund, and organization summary.
   `PUPPETEER_EXECUTABLE_PATH`/`PUPPETEER_SKIP_DOWNLOAD` env values, so stale
   Render Dashboard env vars can no longer break PDF generation. No manual
   Chromium setup, root, or apt-get is needed.
-- **CRITICAL — live Render was running STALE code (PDF "Chromium executable
+- **CRITICAL â€” live Render was running STALE code (PDF "Chromium executable
   not found")**: on 2026-08-13 the Reports & Documents page threw "Export
   failed: Chromium executable not found ... downloaded during `npm ci`
   (puppeteer postinstall); ensure PUPPETEER_SKIP_DOWNLOAD is unset ...". That
@@ -295,10 +295,10 @@ fines, member statement of account, welfare fund, and organization summary.
   running an older build than `main`; the repo's fixes simply hadn't been
   deployed. The OLD `resolveChromium()` used `puppeteer.executablePath()`,
   which honors a stale `PUPPETEER_EXECUTABLE_PATH` (set in the Render
-  Dashboard to a cache path that didn't exist at runtime) → skipped the
+  Dashboard to a cache path that didn't exist at runtime) â†’ skipped the
   bundled cache and fell through to system paths (none on Render free tier)
-  → hard fail. `resolveChromium()` was hardened: it is now async and uses
-  `@puppeteer/browsers`' `getInstalledBrowsers()` (env-agnostic — reads the
+  â†’ hard fail. `resolveChromium()` was hardened: it is now async and uses
+  `@puppeteer/browsers`' `getInstalledBrowsers()` (env-agnostic â€” reads the
   cache directly, so a stale `PUPPETEER_EXECUTABLE_PATH` can no longer mask
   the bundled browser; an empty cache dir returns [] cleanly instead of the
   old readdirSync loop that produced zero candidates). `SYSTEM_PATHS` was
@@ -310,18 +310,18 @@ fines, member statement of account, welfare fund, and organization summary.
   **Action to fix the live site: redeploy `main` (the repo HEAD already
   contained the working fix; this commit hardens it). Also clear the stale
   `PUPPETEER_EXECUTABLE_PATH`/`PUPPETEER_SKIP_DOWNLOAD`/`CHROME_BIN` env vars
-  in the Render Dashboard — `render.yaml` deliberately does NOT set them;
+  in the Render Dashboard â€” `render.yaml` deliberately does NOT set them;
   setting `PUPPETEER_EXECUTABLE_PATH` makes puppeteer's own postinstall skip
   the download. After redeploy, confirm the postinstall log shows
   `[install-browser] chrome <build> already cached at ...` (or "downloading").**
-- **BUILD FAILURE (2026-08-13, FIXED by switching `puppeteer` → `puppeteer-core`)**:
+- **BUILD FAILURE (2026-08-13, FIXED by switching `puppeteer` â†’ `puppeteer-core`)**:
   the build FAILED during `npm ci` with puppeteer's own `install.mjs` throwing
   `Failed to set up chrome v131.0.6778.204! [cause]: The browser folder
   (.../chrome/linux-131.0.6778.204) exists but the executable is missing`.
   Render persists `/opt/render/.cache` across builds; a prior build left a
   CORRUPT chrome entry (folder present, binary absent), and
   `@puppeteer/browsers`' `install()` THROWS on a corrupt folder instead of
-  re-downloading — aborting `npm ci` before our root `postinstall`
+  re-downloading â€” aborting `npm ci` before our root `postinstall`
   (`scripts/install-browser.js`) ever ran. The PREVIOUS fix
   (`render.yaml` setting `PUPPETEER_SKIP_DOWNLOAD="true"`) did NOT work in
   practice: Render only applies `envVars` from a blueprint when the blueprint
@@ -340,13 +340,86 @@ fines, member statement of account, welfare fund, and organization summary.
   `PUPPETEER_EXECUTABLE_PATH` (stale values mask the bundled cache at
   runtime); the document generator probes the cache via
   `getInstalledBrowsers()`. Verified locally: corrupt chrome cache (folder
-  present, executable missing, stale `.metadata`) + NO skip env var →
+  present, executable missing, stale `.metadata`) + NO skip env var â†’
   `npm ci` succeeds (no install.mjs to crash), `install-browser.js` detects
   the corrupt chrome, reinstalls, and `getInstalledBrowsers()` finds a
   working executable; PDF smoke test passes with `puppeteer-core`. NOTE: if
-  the build STILL fails, the Render build cache itself is corrupt — clear it
-  via Render Dashboard → Service → Settings → Manual Deploy → "Clear build
+  the build STILL fails, the Render build cache itself is corrupt â€” clear it
+  via Render Dashboard â†’ Service â†’ Settings â†’ Manual Deploy â†’ "Clear build
   cache & deploy".
+
+## AI Intelligence Engine (`src/ai/`) — Dual-AI Investigation & QA
+A production-grade dual-AI investigation + consistency engine. Gemini and
+OpenRouter independently investigate YUNITE through read-only, PII-sanitized
+tools, produce separate reports, and a comparison engine reconciles them.
+**The database + deterministic engines remain the source of truth — AI
+investigates the system, it does not become the system.** AI never invents
+financial values, never modifies financial records, never runs arbitrary SQL,
+and never receives DB credentials/service-role keys (the sanitizer strips
+passwords/tokens/api keys/PII before anything reaches a provider).
+- **Provider abstraction** (`src/ai/providers/`): the rest of the engine
+  depends ONLY on the `AiProvider` interface, never a concrete provider.
+  Gemini + OpenRouter both implement it and receive the SAME context + tools
+  payload (so neither sees the other's conclusions before producing its
+  report — dual-AI independence).
+- **Failover** (`failover.ts`): primary Gemini → secondary OpenRouter. The
+  `AI_FAILFAST_TIMEOUT_MS` (default 1000ms) is a FAILURE-DETECTION probe
+  only — it does NOT cap max generation duration. A valid slow generation
+  runs to completion. Both-fail → deterministic findings still produced
+  (investigation marked `partial`, `ai_status = unavailable`).
+- **Deterministic engines** (`src/ai/engines/`): database-consistency,
+  financial-consistency (independent `SUM(transactions)` vs stored balance),
+  cross-module, business-rules (CONFIG vs IMPLEMENTATION vs DB vs DISPLAY),
+  api-consistency (read-only GETs only), member-verification (DB → API →
+  MEMBER LOOKUP DISPLAY per-field). Always run before AI; AI explains the
+  discrepancy, never guesses the calc.
+- **Comparison engine** (`comparison.engine.ts`): agreements, gemini-only,
+  openrouter-only, disagreements (marked `REQUIRES VERIFICATION` — never
+  auto-promoted to fact), verified (deterministic-aligned), human-review.
+- **Orchestrator** (`investigation.engine.ts`): `runInvestigation(scope,
+  memberId?)` → deterministic → dual independent AI → comparison → persist →
+  alert. Scope `full_system` / `member_verification` run BOTH providers.
+- **Alerting** (`alerting.service.ts`): CRITICAL findings → internal YUNITE
+  notification (per-day idempotent) + best-effort email. **No sensitive
+  financial values in email** — full evidence stays in the Admin Console.
+  Wired into `runInvestigation` AND the cron route.
+- **Migration 030** (`030_ai_intelligence_engine.sql`): `ai_investigations`,
+  `ai_reports`, `ai_findings`, `ai_evidence`, `ai_provider_runs`,
+  `ai_provider_failures`, `ai_comparisons`, `ai_member_verification_results`,
+  `ai_health_snapshots`, `ai_investigation_schedules`. Run in Supabase SQL
+  Editor on deploy.
+- **API routes** (`/api/ai/*`): `health`, `investigations` (GET list / POST
+  run / `[id]` detail / `[id]/compare`), `reports/[id]`, `member-verification`
+  (POST), `schedules` (GET / POST super_admin / `[id]` PUT+DELETE
+  super_admin). All session-authenticated via `src/app/api/ai/_guard.ts`
+  (`requireAdminAuth` mirrors `automation/trigger`; `requireSuperAdmin` for
+  schedule writes). Cron route `/api/cron/ai-investigations` is
+  `CRON_SECRET`-protected (no session) and added to `publicReadPaths` in
+  `src/middleware.ts`.
+- **Admin Console**: `/dashboard/ai-intelligence` (nav link added in
+  `dashboard/layout.tsx`). Six sections — Overview, Gemini (independent),
+  OpenRouter (independent), AI Comparison, Report History, Schedules. The
+  Gemini + OpenRouter tabs are deliberately kept separate so an admin can
+  inspect one provider's reasoning without the other's.
+- **render.yaml**: `yunite-ai-investigations-tick` cron service
+  (`*/30 * * * *`) curls the CRON_SECRET endpoint. Web service env vars:
+  `AI_PROVIDER`, `AI_DUAL_MODE`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
+  `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`,
+  `AI_FAILFAST_TIMEOUT_MS`, optional `MEMBER_LOOKUP_VERIFY_URL`/`_SECRET`,
+  and `CRON_SECRET` (shared with the existing automation cron).
+- **Performance**: member lookup is NEVER blocked by AI — the normal flow
+  is untouched. AI verification runs on demand / async / via scheduled jobs.
+- **Tests**: `tests/ai-intelligence.test.ts` (22: parsing, prompt, PII +
+  secret sanitization, comparison, scoring, failover incl. slow-generation
+  not truncated + both-fail), `tests/ai-member-verification.test.ts` (6:
+  VERIFIED / CRITICAL DISPLAY MISMATCH on intentional wrong value / DB-vs-API
+  drift / unavailable-display fallback / identity mismatch / read-only
+  assertion). Run: `npx jest tests/ai-intelligence tests/ai-member-verification`.
+  Full doc: `AI_INTELLIGENCE.md`.
+- **Deploy steps**: run migration 030 in Supabase SQL Editor; set
+  `GEMINI_API_KEY` + `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` + `CRON_SECRET`
+  on the web service; set `CRON_SECRET` + `AI_INVESTIGATIONS_ENDPOINT` on the
+  AI cron service; (optional) `MEMBER_LOOKUP_VERIFY_URL`/`_SECRET`.
 
 ## Conventions
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.
@@ -372,11 +445,11 @@ fines, member statement of account, welfare fund, and organization summary.
   Endpoints with no `minRole` (the `auth.*` own-session/profile/password
   surface) are identity-scoped, so any authenticated session user is allowed.
   The legacy `PERMISSIONS` matrix in `authorization.ts` is NOT consulted by
-  the gateway — it omits `compliance`, `statements`, `dashboard`, and `auth`,
+  the gateway â€” it omits `compliance`, `statements`, `dashboard`, and `auth`,
   which previously caused false 403s for non-super_admin portal users. Do not
   reintroduce `hasPermission` delegation in `authorize()`; the manifest
   `minRole` is the source of truth (guarded by
-  `tests/api-gateway-consistency.test.ts` → "session-auth authorization
+  `tests/api-gateway-consistency.test.ts` â†’ "session-auth authorization
   honors manifest minRole"). API-key auth uses the explicit `module.action`
   scopes granted to the client (`api_client_permissions`). The `api.*`
   management endpoints are `super_admin`-only (minRole `super_admin`).
@@ -384,7 +457,7 @@ fines, member statement of account, welfare fund, and organization summary.
   shown once at generation. Prefixes: `yk_live_` / `yk_test_`.
 - **Permission scopes**: a scope is `module.action` derived from the endpoint
   manifest. `AVAILABLE_SCOPES` (manifest.ts) dedups by `module.action` and
-  excludes the internal `api` module → **37 distinct grantable scopes**. Grants
+  excludes the internal `api` module â†’ **37 distinct grantable scopes**. Grants
   MUST be validated against `AVAILABLE_SCOPES` via `parseScopeList`
   (`src/lib/api/scopes.ts`) before storing in `api_client_permissions`; the
   `api_client_permissions` table is free-form TEXT with no FK, so unvalidated
@@ -392,7 +465,7 @@ fines, member statement of account, welfare fund, and organization summary.
   in `ApiSettingsSection.tsx` is shown on both create and edit
   (`showScopesEditor`); hiding it on create silently produces scopeless clients.
   The scope list is fetched from the public `GET /api/v1/docs`
-  (`available_scopes`) and loaded once on mount via `loadScopes` — do NOT tie
+  (`available_scopes`) and loaded once on mount via `loadScopes` â€” do NOT tie
   scope loading to the Endpoints tab; the editor renders on the Clients tab and
   empty scopes there = a "0 selected" editor with no checkboxes.
 - **API settings UI**: Settings -> System Configuration -> API Keys
@@ -410,16 +483,16 @@ A **standalone, futuristic, public-facing** member verification + account
 portal that lives inside this repo but deploys **independently to Vercel**
 (separate Vercel project, root dir = `member-lookup-frontend`). It
 **consumes the existing YUNITE backend** (`/api/v1`) via a server-side API
-key — it does NOT rebuild or replace any backend logic. The backend stays
+key â€” it does NOT rebuild or replace any backend logic. The backend stays
 the single source of truth for all data/calculations.
 - **BFF + stateless JWT session pattern**: server routes hold `YUNITE_API_KEY`
   (env, never shipped to browser). Verification (`POST /api/auth/verify`)
   matches `first_name` + `phone` + `id_number` **server-side** against real
-  member records (there is no dedicated verify endpoint — see
+  member records (there is no dedicated verify endpoint â€” see
   `member-lookup-frontend/API_GAPS.md`), then issues a short-lived signed
   JWT (jose/HS256, `MEMBER_SESSION_SECRET`) in an httpOnly+Secure+SameSite=Lax
   cookie binding ONLY `member_id`. Every member-data route resolves the
-  member from that JWT — never from a URL path — so cross-member access is
+  member from that JWT â€” never from a URL path â€” so cross-member access is
   impossible. `src/middleware.ts` guards all `/dashboard/*`.
 - **Env vars**: `YUNITE_API_BASE_URL`, `YUNITE_API_KEY` (server-only),
   `MEMBER_SESSION_SECRET`, `MEMBER_SESSION_TTL_SECONDS` (default 1800),
@@ -429,20 +502,20 @@ the single source of truth for all data/calculations.
   dashboard (overview, savings&shares, contributions, welfare, loans w/
   progress, fines, transactions w/ filter, statement [graceful on backend
   500], notifications, profile [masked ID], support [org contact + FAQ]).
-- **Gotcha — `/api/v1/members/{id}` returns the member *workspace***
+- **Gotcha â€” `/api/v1/members/{id}` returns the member *workspace***
   (`{ member, accounts, compliance, transactions, documents, loans, fines }`),
   NOT a bare member. `member.service.ts` `getMember()` extracts `.member`.
   Do not assume `getMember` returns the workspace.
-- **Gotcha — logout is stateless**: `POST /api/auth/logout` clears the
+- **Gotcha â€” logout is stateless**: `POST /api/auth/logout` clears the
   browser cookie, but a captured token remains valid until its short TTL
   expires. This is standard for stateless sessions and acceptable for a
   read-only portal. Do not add a server-side token blocklist for this.
 - **Verified against live backend** (2026-08-13): all member-data routes
   return real data (savings=300, shares=3, contributions=100, welfare=0,
-  fines=50, loans=220 for the test member); no-cookie & tampered-cookie →
+  fines=50, loans=220 for the test member); no-cookie & tampered-cookie â†’
   401; `tsc --noEmit` clean; `next build` clean (28 routes).
 - **Backend gaps** (handled gracefully, never fabricated): see
-  `member-lookup-frontend/API_GAPS.md` — no `members.verify` endpoint, no
+  `member-lookup-frontend/API_GAPS.md` â€” no `members.verify` endpoint, no
   `/api/v1/meetings` (only session-auth `/api/meetings`), statement endpoint
   500s on live DB, contributions list not member-filterable (use
   transactions), no support-ticket endpoint.
