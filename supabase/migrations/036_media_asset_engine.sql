@@ -169,19 +169,23 @@ CREATE POLICY "yunite-profiles auth delete"
 -- If an active ORGANIZATION_LOGO asset exists, mirror its URL into the
 -- organization.logo_url setting so legacy consumers keep working.
 INSERT INTO settings (key, value, category, data_type, help_text)
-SELECT 'organization.logo_url', ma.public_url, 'organization', 'string', 'Organization logo (managed by the Media Engine)'
+SELECT 'organization.logo_url',
+       COALESCE(ma.public_url, ma.external_url),
+       'organization', 'string', 'Organization logo (managed by the Media Engine)'
 FROM media_assets ma
 WHERE ma.owner_type = 'organization'
   AND ma.asset_type = 'ORGANIZATION_LOGO'
   AND ma.status = 'active'
-  AND ma.public_url IS NOT NULL
+  AND COALESCE(ma.public_url, ma.external_url) IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'organization.logo_url')
 -- Multiple organizations may each hold an active ORGANIZATION_LOGO asset, so
 -- the SELECT above can yield several rows that all share the single global
 -- key 'organization.logo_url' (UNIQUE NOT NULL). Keep only the first to avoid
 -- a unique_violation at runtime; ON CONFLICT also makes this re-runnable.
--- public_url IS NOT NULL guards settings.value (NOT NULL) against external
--- assets whose URL lives in external_url with a NULL public_url.
+-- COALESCE(public_url, external_url) IS NOT NULL guards settings.value
+-- (NOT NULL): uploaded assets expose public_url while external assets expose
+-- external_url, so either flavor backfills safely and neither can produce a
+-- NULL value (not_null_violation) at runtime.
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================
