@@ -78,11 +78,19 @@ export async function isAiCriticalAlertsEnabled(): Promise<boolean> {
 
 /** Read all AI settings values at once (for the health/settings endpoints). */
 export async function readAiSettings(): Promise<Record<string, string>> {
-  return configurationService.getMany([
-    DUAL_MODE_KEY,
-    INVESTIGATIONS_ENABLED_KEY,
-    ALERTS_CRITICAL_ENABLED_KEY,
-  ]);
+  try {
+    return await configurationService.getMany([
+      DUAL_MODE_KEY,
+      INVESTIGATIONS_ENABLED_KEY,
+      ALERTS_CRITICAL_ENABLED_KEY,
+    ]);
+  } catch {
+    // Non-fatal: a DB error must not crash the health endpoint (readAiSettings
+    // is awaited in a Promise.all without a per-item .catch). Return an empty
+    // map so callers fall back to env defaults, consistent with the other
+    // resolvers here.
+    return {};
+  }
 }
 
 export const AI_SETTINGS_KEYS = [
