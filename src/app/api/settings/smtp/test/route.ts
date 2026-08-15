@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       socketTimeout: 45000,
     });
 
-    console.log(`Testing SMTP connection to ${host}:${port} as ${user}`);
+    console.log(`Testing SMTP connection to ${host}:${port} as ${user ? '[configured]' : '[missing]'}`);
 
     // Test connection
     try {
