@@ -1,6 +1,7 @@
 import { createHandler, requireFields, positiveAmount } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { transactionEngine, type AccountType, type TransactionType } from '@/lib/services/transaction.engine';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('transactions.list', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

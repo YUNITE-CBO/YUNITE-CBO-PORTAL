@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { documentService } from '@/lib/services/document.service';
 import { authService } from '@/lib/services/auth.service';
 import { createServiceClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

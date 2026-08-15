@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { statementService } from '@/lib/services/notifications';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const generateStatementSchema = z.object({
   statement_type: z.enum([

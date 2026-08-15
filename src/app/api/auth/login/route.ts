@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authService, DeviceInfo, parseDeviceInfo } from '@/lib/services/auth.service';
 import { authNotificationService } from '@/lib/services/notifications/auth-notification.service';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {

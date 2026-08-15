@@ -2,6 +2,7 @@ import { createHandler } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { documentService } from '@/lib/services/document.service';
 import { createServiceClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('documents.get', async (ctx) => {
   const supabase = await createServiceClient();

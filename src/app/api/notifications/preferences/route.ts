@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const updatePreferencesSchema = z.object({
   owner_type: z.enum(['member', 'user', 'system']),

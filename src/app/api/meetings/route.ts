@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authService } from '@/lib/services/auth.service';
 import { meetingsService, MeetingInput } from '@/lib/services/meetings.service';
+export const dynamic = 'force-dynamic';
 
 /**
  * Meetings API

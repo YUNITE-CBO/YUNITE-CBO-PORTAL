@@ -1,6 +1,7 @@
 import { createHandler, requireFields } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { notificationService } from '@/lib/services/notifications/notification.service';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('notifications.list', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

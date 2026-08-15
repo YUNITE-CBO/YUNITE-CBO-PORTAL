@@ -2,6 +2,7 @@ import { createHandler, requireFields, positiveAmount } from '@/lib/api/handler'
 import { ApiError } from '@/lib/api/error';
 import { loanService } from '@/lib/services/loan.service';
 import { createServiceClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('loans.list', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

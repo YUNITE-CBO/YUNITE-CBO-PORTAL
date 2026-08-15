@@ -4,6 +4,7 @@ import { success } from '@/lib/api/response';
 import { authService, parseDeviceInfo, type DeviceInfo } from '@/lib/services/auth.service';
 import { authNotificationService } from '@/lib/services/notifications/auth-notification.service';
 import { ApiError } from '@/lib/api/error';
+export const dynamic = 'force-dynamic';
 
 export const POST = createHandler('auth.login', async (ctx) => {
   const body = (ctx.body ?? {}) as Record<string, unknown>;

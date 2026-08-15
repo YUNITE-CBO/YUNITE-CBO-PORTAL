@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { enterpriseDocumentService, registerAllModuleHandlers } from '@/lib/services/documents';
 import { authService } from '@/lib/services/auth.service';
 import { createServiceClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
 
 interface RouteParams {
   params: { id: string };

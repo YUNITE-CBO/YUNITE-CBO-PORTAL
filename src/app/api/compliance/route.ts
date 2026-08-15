@@ -8,6 +8,7 @@ import { documentService } from '@/lib/services/document.service';
 import { authService } from '@/lib/services/auth.service';
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

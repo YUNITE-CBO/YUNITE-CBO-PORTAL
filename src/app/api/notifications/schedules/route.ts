@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scheduleService } from '@/lib/services/notifications';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const createScheduleSchema = z.object({
   schedule_code: z.string().min(1),

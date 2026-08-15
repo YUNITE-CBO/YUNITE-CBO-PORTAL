@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSuperAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/admin/login-activity - Get login activity
 export async function GET(request: NextRequest) {
   try {

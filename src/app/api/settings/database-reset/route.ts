@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { databaseResetService, ResetLevel } from '@/lib/services/database-admin/database-reset.service';
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/settings/database-reset

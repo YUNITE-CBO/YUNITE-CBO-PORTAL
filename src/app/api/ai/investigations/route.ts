@@ -16,6 +16,7 @@ import { requireAdminAuth } from '../_guard';
 import { runInvestigation } from '@/ai';
 import { listInvestigations } from '@/ai/persistence';
 import type { InvestigationScope, InvestigationDepth, DualModeOption } from '@/ai/types';
+export const dynamic = 'force-dynamic';
 
 const VALID_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>([
   'database', 'cross_module', 'business_rules', 'api', 'financial',

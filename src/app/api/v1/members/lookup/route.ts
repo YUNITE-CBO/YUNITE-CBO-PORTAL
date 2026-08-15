@@ -1,5 +1,6 @@
 import { createHandler } from '@/lib/api/handler';
 import { memberRegistrationService } from '@/lib/services/member-registration.service';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('members.lookup', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { emailService } from '@/lib/services/notifications';
 import { createServiceClient } from '@/lib/supabase/server';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const sendEmailSchema = z.object({
   to: z.string().email(),

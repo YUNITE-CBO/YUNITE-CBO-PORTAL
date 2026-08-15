@@ -1,5 +1,6 @@
 import { createHandler } from '@/lib/api/handler';
 import { createServiceClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('compliance.list', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

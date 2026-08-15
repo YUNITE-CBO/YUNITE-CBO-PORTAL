@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { templateService } from '@/lib/services/notifications';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const createTemplateSchema = z.object({
   template_code: z.string().min(1),

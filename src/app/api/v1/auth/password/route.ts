@@ -1,6 +1,7 @@
 import { createHandler, requireFields } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { authService } from '@/lib/services/auth.service';
+export const dynamic = 'force-dynamic';
 
 export const PUT = createHandler('auth.password', async (ctx) => {
   if (!ctx.principal.userId) throw ApiError.unauthorized('Not authenticated');

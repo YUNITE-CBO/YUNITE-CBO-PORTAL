@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { transactionEngine, AccountType } from '@/lib/services';
 import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 // Map simplified client transaction types to internal types
 const TRANSACTION_TYPE_MAP: Record<string, string> = {

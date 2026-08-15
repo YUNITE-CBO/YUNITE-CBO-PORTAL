@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '@/lib/services';
 import { verifyRequestAuth, hasRole } from '@/lib/auth/auth-utils';
+export const dynamic = 'force-dynamic';
 
 /**
  * Welfare API

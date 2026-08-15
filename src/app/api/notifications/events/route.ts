@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { notificationEventService } from '@/lib/services/notifications';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const emitEventSchema = z.object({
   event_type: z.string().min(1),

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '@/lib/services';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/members/lookup
  * 

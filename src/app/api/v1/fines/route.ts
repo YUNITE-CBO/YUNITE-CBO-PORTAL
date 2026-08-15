@@ -1,6 +1,7 @@
 import { createHandler, requireFields, positiveAmount } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { fineService, type FineType } from '@/lib/services/fine.service';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('fines.list', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

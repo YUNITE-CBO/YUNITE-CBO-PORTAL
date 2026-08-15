@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loanService } from '@/lib/services';
 import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const applicationSchema = z.object({
   member_id: z.string().uuid(),

@@ -1,5 +1,6 @@
 import { createHandler } from '@/lib/api/handler';
 import { apiManagementService } from '@/lib/api/management.service';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('api.logs', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

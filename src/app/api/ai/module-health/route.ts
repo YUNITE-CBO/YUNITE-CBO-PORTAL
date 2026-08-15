@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '../_guard';
 import { buildModuleHealthMap } from '@/ai';
 import { listFindings, listInvestigations } from '@/ai/persistence';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdminAuth();

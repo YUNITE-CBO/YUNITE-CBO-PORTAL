@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const fineSchema = z.object({
   member_id: z.string().uuid(),

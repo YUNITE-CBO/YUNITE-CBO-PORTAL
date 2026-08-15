@@ -2,6 +2,7 @@ import { createHandler, requireFields, positiveAmount } from '@/lib/api/handler'
 import { ApiError } from '@/lib/api/error';
 import { contributionService } from '@/lib/services/contribution.service';
 import type { TransactionType } from '@/lib/services/transaction.engine';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('contributions.list', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

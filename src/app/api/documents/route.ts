@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { enterpriseDocumentService, registerAllModuleHandlers } from '@/lib/services/documents';
 import { documentSearchService } from '@/lib/services/documents/search.service';
 import { authService } from '@/lib/services/auth.service';
+export const dynamic = 'force-dynamic';
 
 // Register module handlers (should be done once at app startup)
 let handlersRegistered = false;

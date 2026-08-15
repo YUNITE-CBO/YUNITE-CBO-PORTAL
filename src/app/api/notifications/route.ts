@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { notificationService } from '@/lib/services/notifications';
 import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const sendNotificationSchema = z.object({
   template_code: z.string().optional(),

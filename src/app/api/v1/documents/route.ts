@@ -1,6 +1,7 @@
 import { createHandler } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { documentService } from '@/lib/services/document.service';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('documents.list', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

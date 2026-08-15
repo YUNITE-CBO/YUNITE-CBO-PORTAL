@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { authService } from '@/lib/services/auth.service';
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/automation/runs

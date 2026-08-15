@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { configurationService } from '@/lib/services/configuration.service';
 import { authService } from '@/lib/services/auth.service';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

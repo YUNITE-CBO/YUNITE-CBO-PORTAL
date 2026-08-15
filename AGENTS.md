@@ -503,6 +503,18 @@ passwords/tokens/api keys/PII before anything reaches a provider).
   - **Deploy steps**: run migration 031 in Supabase SQL Editor (after 030).
 
 ## Conventions
+- **API route segment config**: every `src/app/api/**/route.ts` MUST export
+  `export const dynamic = 'force-dynamic';` (after the imports). Without it,
+  Next.js tries to statically render the route at build time and any access to
+  `request.url`, `request.nextUrl.searchParams`, `request.cookies`, or
+  `request.headers` throws `DYNAMIC_SERVER_USAGE` at runtime (the
+  "couldn't be rendered statically because it used `request.url`" /
+  `request.cookies` / `nextUrl.searchParams` errors seen in production on
+  `/api/configuration`, `/api/audit`, `/api/admin/login-activity`,
+  `/api/members/lookup`). The v1 gateway routes are equally affected since
+  `createHandler` (`src/lib/api/handler.ts`) reads `request.headers` and
+  `request.nextUrl.pathname`. All 49 currently-existing API routes now carry
+  this export; any NEW route file must add it too.
 - Service role Supabase client: `createServiceClient()` from `@/lib/supabase/server`.
 - Commits use `openhands` author + `Co-authored-by: openhands <openhands@all-hands.dev>`.
 

@@ -1,6 +1,7 @@
 import { createHandler } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/error';
 import { statementService, type StatementType } from '@/lib/services/notifications/statement.service';
+export const dynamic = 'force-dynamic';
 
 export const GET = createHandler('statements.member', async (ctx) => {
   const { searchParams } = new URL(ctx.request.url);

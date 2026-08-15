@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { automationRunner } from '@/lib/services/automation/runner.service';
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/cron/automation

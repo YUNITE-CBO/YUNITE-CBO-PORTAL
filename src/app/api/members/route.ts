@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { memberRegistrationService } from '@/lib/services';
 import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
+export const dynamic = 'force-dynamic';
 
 const registrationSchema = z.object({
   first_name: z.string().min(1),

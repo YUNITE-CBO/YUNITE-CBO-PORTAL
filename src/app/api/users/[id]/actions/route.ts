@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { userManagementService } from '@/lib/services';
+export const dynamic = 'force-dynamic';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'

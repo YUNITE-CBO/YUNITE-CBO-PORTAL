@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { notificationService } from '@/lib/services/notifications';
 import { getAuthUser, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
+export const dynamic = 'force-dynamic';
 
 // GET /api/notifications/[id] - Fetch a single notification's full contents.
 // The recipient may only view their own notifications; super_admin may view any.
