@@ -381,7 +381,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       } else {
         setComplianceRecordsByCode({});
       }
-    } catch (err) { console.error('Failed to fetch compliance records:', err); }
+    } catch (err) { setComplianceRecordsByCode({}); }
   };
 
   const fetchActivities = async () => {
