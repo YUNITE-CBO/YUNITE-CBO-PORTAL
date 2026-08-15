@@ -199,6 +199,11 @@ export default function AiIntelligencePage() {
   // at the latest callback.
   const autoLoadedRef = useRef(false);
   const openInvestigationRef = useRef<(id: string) => void>(() => {});
+  // Mirror of `detail` read inside loadHealth without making it a dependency.
+  // If `detail` were in loadHealth's deps, the mount useEffect would re-fire on
+  // every investigation selection and re-run loadModuleHealth() (global),
+  // overwriting the investigation-specific map that openInvestigation just set.
+  const detailRef = useRef<InvestigationDetail | null>(null);
 
   const loadHealth = useCallback(async () => {
     try {
@@ -212,7 +217,7 @@ export default function AiIntelligencePage() {
         // have to click a row just to see that data exists). Only do this when
         // the user has NOT already selected an investigation manually.
         const latest = json.data.latest_investigation;
-        if (latest?.id && !autoLoadedRef.current && !detail) {
+        if (latest?.id && !autoLoadedRef.current && !detailRef.current) {
           autoLoadedRef.current = true;
           openInvestigationRef.current(latest.id);
         }
@@ -220,7 +225,7 @@ export default function AiIntelligencePage() {
     } catch (e: any) {
       setError(`Health load failed: ${e?.message || e}`);
     }
-  }, [detail]);
+  }, []);
 
   const loadInvestigations = useCallback(async () => {
     try {
@@ -413,8 +418,10 @@ export default function AiIntelligencePage() {
   }, [loadModuleHealth]);
 
   // Keep the openInvestigation ref in sync so loadHealth can call it without a
-  // circular useCallback dependency.
+  // circular useCallback dependency. Also mirror `detail` into detailRef so
+  // loadHealth can read the current selection without depending on it.
   openInvestigationRef.current = openInvestigation;
+  detailRef.current = detail;
 
   if (isLoading) {
     return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading…</div>;
