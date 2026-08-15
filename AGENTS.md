@@ -591,6 +591,27 @@ passwords/tokens/api keys/PII before anything reaches a provider).
   frontend component → member) + expected vs actual + the evidence chain. The
   Comparison tab now explains the degraded/unavailable AI state and surfaces
   the deterministic (confirmed) findings even when no AI comparison exists.
+- **Orphan-transactions finding kept re-firing after migration 032
+  (2026-08-15, FIXED)**: migration 032 marked the 7 orphan transactions
+  `reversed=true` but left `member_id` NULL, and the database-consistency
+  engine's check #4 did NOT filter `reversed=false` — so quarantined orphans
+  kept getting flagged as "missing member_id" forever (the count never
+  dropped). Two fixes: (a) the engine now fetches `member_id, reversed` and
+  ignores reversed rows when checking for missing member references
+  (`database-consistency.engine.ts`); (b) migration 032 was upgraded to
+  BACKFILL `member_id` from the `account_id → accounts.member_id` mapping
+  (the finding's own recommendation) in Pass 1 — repairing the rows so they
+  rejoin the live ledger — and only quarantine (mark reversed) the truly
+  unresolvable ones in Pass 2. The `ALTER ... SET NOT NULL` + the
+  `prevent_null_member_id` trigger remain. **Deploy step**: re-run migration
+  032 in the Supabase SQL Editor (the backfill UPDATE is idempotent — it only
+  touches rows where `member_id IS NULL`). After running it + a new
+  investigation, DB-001 disappears (or drops to only the unresolvable orphans,
+  which are reversed and no longer flagged). NOTE: the BR-002 finding (a loan
+  with repayment_period 3 vs default 12) is an allowed per-loan override
+  flagged "low / for review" — NOT a data bug; `loan.service.ts` already
+  validates `1 <= period <= max`, so it is expected to persist as an info
+  finding, not a defect.
 
 ## Conventions
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export

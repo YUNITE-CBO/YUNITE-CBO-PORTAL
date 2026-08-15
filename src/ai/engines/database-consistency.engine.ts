@@ -63,7 +63,7 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
 
   // 2. Duplicate transaction references.
   checksPerformed++;
-  const { data: txns } = await supabase.from('transactions').select('id, transaction_ref').limit(20000);
+  const { data: txns } = await supabase.from('transactions').select('id, transaction_ref, member_id, reversed').limit(20000);
   recordsChecked += txns?.length ?? 0;
   const txnRefs = new Map<string, number>();
   for (const t of txns ?? []) txnRefs.set(t.transaction_ref, (txnRefs.get(t.transaction_ref) ?? 0) + 1);
@@ -124,8 +124,11 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
   }
 
   // 4. Missing member references on transactions (FK integrity).
+  // Reversed orphans (e.g. quarantined by migration 032) are ignored — they
+  // are excluded from balance calculations (the engine filters reversed=false)
+  // so a NULL member_id on a reversed row is no longer an active defect.
   checksPerformed++;
-  const missingMemberTxns = (txns ?? []).filter((t) => !(t as any).member_id);
+  const missingMemberTxns = (txns ?? []).filter((t) => !(t as any).reversed && !(t as any).member_id);
   if (missingMemberTxns.length) {
     findings.push(makeFinding({
       prefix: 'DB',
