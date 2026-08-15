@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient, createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '@/lib/services/transaction.engine';
 import { v4 as uuidv4 } from 'uuid';
 import { notificationEventService } from '@/lib/services/notifications';
+import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth/authorization';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
@@ -126,18 +129,20 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Authenticate via the custom JWT session cookie (NOT Supabase Auth).
+    // The portal uses jose-signed auth_token cookies; auth.getUser() returns
+    // null for these sessions and would 401 even a super_admin.
+    const authResult = await requirePermission(request, 'members', 'update');
+    if (!authResult.success) {
+      return authResult.status === 401
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+    const user = authResult.user!;
+
     const { id } = await params;
     const supabase = await createServiceClient();
     const body = await request.json();
-
-    // Check authentication using cookies
-    const { createClient: createAuthClient } = await import('@/lib/supabase/server');
-    const authClient = await createAuthClient();
-    const { data: { user }, error: authError } = await authClient.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
 
     // Get current member state for audit
     const { data: currentMember } = await supabase
@@ -201,7 +206,7 @@ export async function PUT(
         previous_status: currentMember.status,
         new_status: body.status,
         reason: body.status_reason || body.approval_comment || body.rejection_comment || body.suspension_reason || null,
-        changed_by: user.id,
+        changed_by: user.user_id,
         changed_at: new Date().toISOString(),
         metadata: { action: body.status },
       });
@@ -209,7 +214,7 @@ export async function PUT(
       // Update workflow based on status
       if (body.status === 'active') {
         updateData.workflow_stage = 'active';
-        updateData.approved_by = user.id;
+        updateData.approved_by = user.user_id;
         updateData.approved_at = new Date().toISOString();
         
         // Update workflow table
@@ -219,7 +224,7 @@ export async function PUT(
             member_id: id,
             current_stage: 'completed',
             approved_at: new Date().toISOString(),
-            approved_by: user.id,
+            approved_by: user.user_id,
           });
       } else if (body.status === 'suspended') {
         updateData.suspension_reason = body.suspension_reason;
@@ -239,7 +244,7 @@ export async function PUT(
               member_name: `${currentMember.first_name} ${currentMember.last_name}`,
               member_number: currentMember.member_number,
             },
-            actor_id: user.id,
+            actor_id: user.user_id,
           });
         } else if (body.status === 'suspended') {
           await notificationEventService.emit({
@@ -251,7 +256,7 @@ export async function PUT(
               member_name: `${currentMember.first_name} ${currentMember.last_name}`,
               reason: body.suspension_reason,
             },
-            actor_id: user.id,
+            actor_id: user.user_id,
           });
         }
       } catch (notifError) {
@@ -284,7 +289,7 @@ export async function PUT(
         : `Member profile updated: ${Object.keys(changes).join(', ')}`,
       entity_type: 'member',
       entity_id: id,
-      user_id: user.id,
+      user_id: user.user_id,
       before_value: Object.keys(changes).length > 0 ? changes : null,
       after_value: Object.keys(changes).length > 0 ? updateData : null,
       metadata: { 
@@ -311,18 +316,18 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Authenticate via the custom JWT session cookie (NOT Supabase Auth).
+    const authResult = await requirePermission(request, 'members', 'delete');
+    if (!authResult.success) {
+      return authResult.status === 401
+        ? unauthorizedResponse(authResult.error)
+        : forbiddenResponse(authResult.error);
+    }
+    const user = authResult.user!;
+
     const { id } = await params;
     const supabase = await createServiceClient();
     const body = await request.json().catch(() => ({}));
-
-    // Check authentication
-    const { createClient: createAuthClient } = await import('@/lib/supabase/server');
-    const authClient = await createAuthClient();
-    const { data: { user } } = await authClient.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
 
     // Get current member
     const { data: currentMember } = await supabase
@@ -358,7 +363,7 @@ export async function DELETE(
       previous_status: currentMember.status,
       new_status: 'withdrawn',
       reason: body.reason || 'Member archived',
-      changed_by: user.id,
+      changed_by: user.user_id,
     });
 
     // Create audit log
@@ -368,7 +373,7 @@ export async function DELETE(
       description: `Member archived${body.reason ? `: ${body.reason}` : ''}`,
       entity_type: 'member',
       entity_id: id,
-      user_id: user.id,
+      user_id: user.user_id,
       before_value: { status: currentMember.status },
       after_value: { status: 'withdrawn' },
     });
