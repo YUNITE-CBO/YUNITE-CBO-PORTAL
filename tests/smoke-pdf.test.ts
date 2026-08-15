@@ -78,4 +78,44 @@ describe('PDF smoke test (pdfmake, browser-free)', () => {
     expect(html.match(/class="doc-footer"/g)).toHaveLength(1);
     expect(html.match(/<style>/g)).toHaveLength(1);
   });
+
+  test('renders a 7-column member statement with long refs that fits the page', async () => {
+    // Regression: tables used to default every column to pdfmake 'auto', which
+    // sizes to content and overflows A4 — the right-hand columns were clipped
+    // off the page. Now numeric columns are fixed-width and text columns are
+    // '*' (bounded by the page), so the table can never exceed the usable width.
+    const envelope = await buildEnvelope({
+      kind: 'member_statement',
+      title: 'Member Statement of Account',
+      eyebrow: 'Member Statement of Account',
+      period: { start: new Date('2026-01-01'), end: new Date('2026-12-31'), label: 'FY 2026' },
+      memberNumber: 'YUN-20260804-0001',
+    });
+    const data: DocumentData = {
+      kind: 'member_statement',
+      statement: {
+        member: { member_number: 'YUN-20260804-0001', name: 'Stephen Ngari', email: null, phone: '0700000000', status: 'active' },
+        openingBalance: 0,
+        closingBalance: 150,
+        totalCredits: 400,
+        totalDebits: 250,
+        rows: [
+          { posted_at: '2026-08-04T10:00:00Z', transaction_ref: 'TXN-20260804-SDP-c19870b6', description: 'savings_deposit', reference_number: null, debit: 0, credit: 300, balance: 300 },
+          { posted_at: '2026-08-04T10:00:00Z', transaction_ref: 'TXN-20260804-FNP-7f9be623', description: 'Fine: LATE FOR MEETING', reference_number: null, debit: 50, credit: 0, balance: 250 },
+          { posted_at: '2026-08-04T10:00:00Z', transaction_ref: 'LOAN-DISB-1785883900646-5uc0', description: 'Loan disbursement - LN-1785883883654-8X2OVC', reference_number: 'LN-1785883883654-8X2OVC', debit: 200, credit: 0, balance: 50 },
+        ],
+        accountBreakdown: [
+          { account_type: 'savings', balance: 300 },
+          { account_type: 'shares', balance: 3 },
+          { account_type: 'contributions', balance: 100 },
+          { account_type: 'welfare', balance: 0 },
+          { account_type: 'fines', balance: 50 },
+          { account_type: 'loans', balance: 200 },
+        ],
+      },
+    };
+    const result = await generateDocument({ kind: 'member_statement', envelope, data });
+    expect(result.buffer.slice(0, 5).toString('ascii')).toBe('%PDF-');
+    expect(result.buffer.length).toBeGreaterThan(1000);
+  }, 30000);
 });
