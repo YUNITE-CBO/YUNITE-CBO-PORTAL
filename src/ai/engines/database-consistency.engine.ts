@@ -18,7 +18,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
-import type { Finding } from '../types';
+import type { Finding, Severity } from '../types';
 import { evidence, makeFinding, resetFindingSequence } from './findings';
 
 export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; records_checked: number; checks_performed: number }> {
@@ -361,6 +361,42 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       },
       evidence: [evidence({ source_label: 'accounts table', source_type: 'database', field: 'account_type', expected_value: '1 per type', actual_value: String(duplicateAccounts.length) })],
     }));
+  }
+
+  // Media asset integrity: DB media_assets rows whose storage object is missing,
+  // or entities whose legacy column points at a non-existent asset. Delegates to
+  // the Media Engine's integrityCheck() so the AI surfaces real broken-image
+  // references instead of guessing.
+  checksPerformed++;
+  try {
+    const { mediaAssetService } = await import('@/lib/services/media/media-asset.service');
+    const mediaFindings = await mediaAssetService.integrityCheck();
+    for (const mf of mediaFindings) {
+      const severity: Severity = mf.severity === 'critical' ? 'critical' : mf.severity === 'warning' ? 'medium' : 'info';
+      findings.push(makeFinding({
+        prefix: 'DB',
+        title: `Media asset storage object missing: ${mf.kind}`,
+        module: 'media',
+        category: 'data_integrity',
+        severity,
+        description: mf.detail,
+        root_cause: 'A media_assets row references a Supabase Storage object that was deleted out-of-band, or the upload was rolled back incompletely.',
+        recommendation: 'Re-upload the affected asset via the Media Engine so the storage object and DB record are consistent, or archive the orphan row.',
+        expected_value: 'media_assets.storage_path object exists in storage.objects',
+        actual_value: 'storage object missing',
+        is_systemic: false,
+        affected_records: [mf.detail],
+        location: {
+          module: 'media',
+          submodule: 'Media Assets',
+          database: { table: 'media_assets', field: 'storage_path' },
+        },
+        evidence: [evidence({ source_label: 'media_assets + storage.objects', source_type: 'database', field: 'storage_path', expected_value: 'object exists', actual_value: 'missing' })],
+      }));
+      recordsChecked++;
+    }
+  } catch {
+    // Media engine unavailable (e.g. before migration 036 applied) — non-fatal.
   }
 
   return { findings, records_checked: recordsChecked, checks_performed: checksPerformed };

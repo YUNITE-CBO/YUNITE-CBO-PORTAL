@@ -759,6 +759,82 @@ passwords/tokens/api keys/PII before anything reaches a provider).
   `Number()`/`parseFloat`/Postgres `::NUMERIC` with no strict-string-compare
   consumer anywhere. No action taken on CFG-001.
 
+## YUNITE Media & Asset Engine (`src/lib/services/media/`)
+ONE centralized engine for every image/asset in the system: organization logo,
+member profile photos, user profile photos, official stamps, document logos,
+and future system assets. **Modules consume the engine; they do NOT implement
+their own upload logic.** Upload once → store once → reuse everywhere → replace
+centrally → remove safely → keep the entire system consistent.
+- **Single source of truth**: `media_assets` table (asset record: uploaded vs
+  external URL) + `media.*` settings (upload limit / allowed types / bucket
+  names) + Supabase Storage (binary objects). The `organization.logo_url`,
+  `members.profile_photo_url`, and `users.avatar_url` legacy columns are
+  MIRRORED from the active asset so existing consumers keep working — they are
+  NOT the source of truth anymore.
+- **Core service** (`media-asset.service.ts`): `mediaAssetService.upload()`
+  validates MIME via magic bytes (NOT the extension — SVG is blocked; PNG/JPEG/
+  WebP confirmed by signature), enforces the central `media.upload_limit_mb`
+  size limit, detects dimensions, uploads to the right bucket (branding=public,
+  profiles=private), archives the previous active asset (does NOT delete its
+  storage object — it may be referenced by an immutable generated document),
+  creates the new active record (version bump → cache-bust `?v=`), mirrors the
+  legacy column, invalidates the document-engine logo cache, and audits
+  (before/after URL only — never file contents). `resolve()` returns the
+  cache-busted display URL. `setExternalUrl()` registers a legacy URL (validated
+  against protocol/scheme allowlists — javascript:/file:/data: rejected).
+  `remove()` archives + clears the legacy column + deletes the storage object
+  ONLY if no immutable generated document references it. `integrityCheck()`
+  surfaces DB-vs-storage discrepancies for the AI engine.
+- **Failure handling**: the previous image is NEVER deleted before the new
+  upload succeeds. A failed upload rolls back its storage object and leaves the
+  existing image untouched. Broken image references are never left behind.
+- **Immutability**: generated documents snapshot the logo at generation time
+  (the `generated_documents` audit row stores its own envelope). Changing the
+  org logo NEVER mutates a previously generated document — only newly generated
+  documents pick up the current logo via `resolveLogoDataUri()`.
+- **Document engine integration**: `resolveLogoDataUri()`
+  (`src/modules/documents/styles/yunite-document.styles.ts`) now resolves the
+  active ORGANIZATION_LOGO media asset FIRST (fetches its bytes + base64-encodes
+  them, re-detecting MIME from magic bytes so a mislabeled file can't slip
+  through), then falls back to the local `public/branding/logo.png` /
+  `organization.logo_url` file path. pdfmake cannot embed remote URLs, so the
+  asset's public URL is fetched + base64-encoded into a data URI.
+- **API routes**: `GET/POST/DELETE /api/media/{ownerType}/{ownerId}/{assetType}`
+  (POST accepts multipart `file` upload OR JSON `{url}` for legacy URL support).
+  `GET /api/media/integrity` (admin+) returns DB-vs-storage findings.
+  Permission model (`src/app/api/media/_guard.ts`): org branding/system assets =
+  admin+; member photos = staff+; user photos = a user manages their OWN,
+  admin+ manages another's. Never bypasses auth/role checks. All routes export
+  `dynamic = 'force-dynamic'`.
+- **Frontend**: `<YuniteImage>` (`src/components/media/YuniteImage.tsx`) is the
+  central DISPLAY component (resolves the asset, handles missing/loading/broken
+  states, falls back to an initials avatar / logo placeholder).
+  `<YuniteImageUploader>` (`src/components/media/YuniteImageUploader.tsx`) is the
+  central UPLOAD component (drag & drop + click + URL mode + preview + Replace +
+  Remove + progress + error/success states). Wired into: Settings → Media &
+  Assets (org logo + config + integrity check), Members → [id] (profile photo).
+  The dashboard layout avatar already reads `users.avatar_url` (mirrored by the
+  engine). The member-lookup frontend receives `profile_photo_url` via the
+  `/api/v1/members/{id}` workspace response (mirrored by the engine).
+- **Settings UI**: `MediaSettingsSection.tsx` (`src/components/settings/`) =
+  org logo uploader + `media.*` config form (saved via `PUT /api/configuration`
+  so audit/history is honored) + a media integrity check panel (super_admin).
+  The `media` config category is seeded by migration 036 and auto-renders in the
+  settings nav.
+- **Migration 036** (`036_media_asset_engine.sql`): `media_assets` table (source
+  discriminator, owner_type/owner_id/asset_type, storage_bucket/path, public_url,
+  external_url, mime/size/dims, version, status), unique-active index (one active
+  asset per owner+type), `updated_at` trigger, `media` config category +
+  `media.upload_limit_mb` (50)/`media.allowed_types`/`media.bucket.branding`/
+  `media.bucket.profiles` settings, ensures `members.profile_photo_url` +
+  `users.avatar_url` columns exist, creates `yunite-branding` (public) +
+  `yunite-profiles` (private) storage buckets with RLS policies. Idempotent.
+  **Deploy step**: run migration 036 in Supabase SQL Editor.
+- **Tests**: `tests/media-engine.test.ts` (20: magic-byte MIME detection incl.
+  SVG/HTML-disguised-as-PNG rejection + RIFF-not-WebP rejection, PNG dimension
+  parsing, URL validation (javascript:/file:/data: rejected), cache-busting
+  no-stack + param preservation). Run: `npx jest tests/media-engine`.
+
 ## Conventions
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export
   `export const dynamic = 'force-dynamic';` (after the imports). Without it,

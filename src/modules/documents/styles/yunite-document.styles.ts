@@ -120,16 +120,26 @@ export function _resetOrgIdentityCache(): void {
 
 /**
  * Resolve the official organization logo as a base64 data URI for embedding in
- * PDF documents. The logo is the authoritative PNG asset supplied by the org;
+ * PDF documents. The logo is the authoritative image asset supplied by the org;
  * it is used AS-IS (never recreated/redrawn). Resolution order:
- *  1. A local PNG file path (preferred) — searched in `public/branding/logo.png`
- *     and the `organization.logo_url` setting if it points at a readable file.
- *  2. Falls back to null (no logo) when no PNG is available; templates then
+ *  1. The active ORGANIZATION_LOGO media asset (the single source of truth —
+ *     uploaded via the YUNITE Media Engine). Its public URL is fetched and
+ *     base64-encoded so pdfmake can embed it (pdfmake cannot embed remote URLs
+ *     directly). When the asset is an uploaded PNG/JPEG/WebP in Supabase
+ *     Storage this yields the exact bytes the org uploaded.
+ *  2. A local PNG file path fallback — `public/branding/logo.png` and the
+ *     `organization.logo_url` setting if it points at a readable local file.
+ *  3. Falls back to null (no logo) when no image is available; templates then
  *     render the org name as text (never a substitute icon).
  *
  * pdfmake embeds `image` nodes from data URIs; the generator blocks remote
  * URLs + local FS access internally, so the logo MUST be read here as base64
  * and passed as a data URI — never a filesystem/remote path.
+ *
+ * Immutability: generated documents snapshot the logo data URI at generation
+ * time (the `generated_documents` audit row stores its own envelope), so
+ * changing the org logo NEVER mutates a previously generated document — only
+ * newly generated documents pick up the current logo.
  */
 let cachedLogoDataUri: string | null | undefined;
 
@@ -137,22 +147,32 @@ export async function resolveLogoDataUri(): Promise<string | null> {
   if (cachedLogoDataUri !== undefined) return cachedLogoDataUri;
   let resolved: string | null = null;
   try {
-    const candidates: string[] = [];
-    // 1. The canonical supplied PNG location.
-    candidates.push(path.join(process.cwd(), 'public', 'branding', 'logo.png'));
-    // 2. If the settings logo_url points at a real local file, prefer it.
-    const logoSetting = await settingsService.get('organization.logo_url');
-    if (logoSetting) {
-      const p = String(logoSetting).trim();
-      if (p && !p.startsWith('http')) candidates.unshift(path.isAbsolute(p) ? p : path.join(process.cwd(), p));
+    // 1. The Media Engine is the single source of truth. Fetch the active
+    //    ORGANIZATION_LOGO asset's bytes and base64-encode them.
+    const { mediaAssetService } = await import('@/lib/services/media/media-asset.service');
+    const { asset } = await mediaAssetService.resolve('organization', 'default', 'ORGANIZATION_LOGO');
+    if (asset && asset.publicUrl) {
+      const fetched = await fetchAsDataUri(asset.publicUrl, asset.mimeType);
+      if (fetched) resolved = fetched;
     }
-    for (const candidate of candidates) {
-      if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-        const buf = fs.readFileSync(candidate);
-        const ext = path.extname(candidate).toLowerCase();
-        const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'image/png';
-        resolved = `data:${mime};base64,${buf.toString('base64')}`;
-        break;
+
+    // 2. Local file fallbacks (canonical PNG + logo_url setting pointing at a file).
+    if (!resolved) {
+      const candidates: string[] = [];
+      candidates.push(path.join(process.cwd(), 'public', 'branding', 'logo.png'));
+      const logoSetting = await settingsService.get('organization.logo_url');
+      if (logoSetting) {
+        const p = String(logoSetting).trim();
+        if (p && !p.startsWith('http')) candidates.unshift(path.isAbsolute(p) ? p : path.join(process.cwd(), p));
+      }
+      for (const candidate of candidates) {
+        if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+          const buf = fs.readFileSync(candidate);
+          const ext = path.extname(candidate).toLowerCase();
+          const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'image/png';
+          resolved = `data:${mime};base64,${buf.toString('base64')}`;
+          break;
+        }
       }
     }
   } catch {
@@ -160,6 +180,21 @@ export async function resolveLogoDataUri(): Promise<string | null> {
   }
   cachedLogoDataUri = resolved;
   return resolved;
+}
+
+/** Fetch a remote logo URL and return a base64 data URI (pdfmake can't embed remote URLs). */
+async function fetchAsDataUri(url: string, mime?: string | null): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    // Re-detect the true MIME from magic bytes so a mislabeled file can't slip through.
+    const detected = (await import('@/lib/services/media/media-asset.service')).detectMimeType(buf);
+    const effective = detected || mime || 'image/png';
+    return `data:${effective};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
 }
 
 /** Test-only: reset the cached logo so a fresh resolve runs. */

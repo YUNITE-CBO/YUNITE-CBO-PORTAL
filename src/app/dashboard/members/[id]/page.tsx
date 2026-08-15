@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { YuniteImageUploader } from '@/components/media/YuniteImageUploader';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -699,6 +700,17 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
         {section === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+              {isAdmin && member && (
+                <YuniteImageUploader
+                  ownerType="member"
+                  ownerId={member.id}
+                  assetType="MEMBER_PROFILE_PHOTO"
+                  label="Member Profile Photo"
+                  fallbackName={`${member.first_name} ${member.last_name}`}
+                  variant="avatar"
+                  onChanged={fetchMember}
+                />
+              )}
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>

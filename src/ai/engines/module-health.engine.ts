@@ -29,7 +29,7 @@ export const MODULE_HEALTH_ORDER = [
   'members', 'compliance', 'savings', 'shares', 'contributions',
   'welfare', 'fines', 'loans', 'repayments', 'donations', 'grants',
   'unity_fund', 'statements', 'meetings', 'documents', 'users',
-  'settings', 'audit_logs', 'notifications', 'member_lookup', 'api', 'transactions',
+  'settings', 'audit_logs', 'notifications', 'member_lookup', 'api', 'transactions', 'media',
 ] as const;
 
 export function buildModuleHealthMap(findings: Finding[]): ModuleHealthEntry[] {
