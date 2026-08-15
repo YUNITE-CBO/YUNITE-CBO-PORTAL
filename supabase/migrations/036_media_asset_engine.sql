@@ -170,8 +170,11 @@ CREATE POLICY "yunite-profiles auth delete"
 -- organization.logo_url setting so legacy consumers keep working.
 INSERT INTO settings (key, value, category, data_type, help_text)
 SELECT 'organization.logo_url', ma.public_url, 'organization', 'string', 'Organization logo (managed by the Media Engine)'
-WHERE NOT EXISTS (SELECT 1 FROM settings WHERE key = 'organization.logo_url')
-  AND EXISTS (SELECT 1 FROM media_assets WHERE owner_type='organization' AND asset_type='ORGANIZATION_LOGO' AND status='active');
+FROM media_assets ma
+WHERE ma.owner_type = 'organization'
+  AND ma.asset_type = 'ORGANIZATION_LOGO'
+  AND ma.status = 'active'
+  AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'organization.logo_url');
 
 -- ============================================
 -- DEPLOY: run this migration in the Supabase SQL Editor.
