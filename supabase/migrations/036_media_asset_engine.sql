@@ -75,8 +75,10 @@ CREATE TRIGGER media_assets_updated_at BEFORE UPDATE ON media_assets
 -- Seeded under a new 'media' config category so it auto-renders in the
 -- Settings UI. The upload limit / allowed types are NOT hard-coded in
 -- multiple places — they live here as the single source of truth.
+-- sort_order 17 avoids colliding with 'api' (14) and 'system' (16) seeded
+-- in migrations 007/010.
 INSERT INTO configuration_categories (code, name, description, icon, color, sort_order)
-SELECT 'media', 'Media & Assets', 'Centralized media engine: upload limits, allowed types', 'image', '#7C3AED', 14
+SELECT 'media', 'Media & Assets', 'Centralized media engine: upload limits, allowed types', 'image', '#7C3AED', 17
 WHERE NOT EXISTS (SELECT 1 FROM configuration_categories WHERE code = 'media')
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
