@@ -208,37 +208,37 @@ export function _resetLogoCache(): void {
  */
 export const YUNITE_STYLES = {
   // Letterhead
-  orgName: { fontSize: 20, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
-  orgTagline: { fontSize: 9, color: BRAND_COLORS.navy, opacity: 0.8, font: 'Roboto' },
-  orgContacts: { fontSize: 8, color: BRAND_COLORS.muted, font: 'Roboto' },
+  orgName: { fontSize: 16, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
+  orgTagline: { fontSize: 8, color: BRAND_COLORS.navy, opacity: 0.8, font: 'Roboto' },
+  orgContacts: { fontSize: 7, color: BRAND_COLORS.muted, font: 'Roboto' },
   // Title block
-  eyebrow: { fontSize: 8, bold: true, color: BRAND_COLORS.green, font: 'Roboto' },
-  docTitle: { fontSize: 22, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
-  subtitle: { fontSize: 9, color: BRAND_COLORS.muted, font: 'Roboto' },
+  eyebrow: { fontSize: 7, bold: true, color: BRAND_COLORS.green, font: 'Roboto' },
+  docTitle: { fontSize: 16, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
+  subtitle: { fontSize: 8, color: BRAND_COLORS.muted, font: 'Roboto' },
   // Meta + sections
-  metaLabel: { fontSize: 8, color: BRAND_COLORS.muted, font: 'Roboto' },
-  metaValue: { fontSize: 9, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
-  sectionTitle: { fontSize: 13, bold: true, color: BRAND_COLORS.navy, font: 'Roboto', margin: [0, 14, 0, 4] },
+  metaLabel: { fontSize: 7, color: BRAND_COLORS.muted, font: 'Roboto' },
+  metaValue: { fontSize: 8, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
+  sectionTitle: { fontSize: 11, bold: true, color: BRAND_COLORS.navy, font: 'Roboto', margin: [0, 10, 0, 3] },
   // Body
-  body: { fontSize: 10, color: BRAND_COLORS.ink, font: 'Roboto' },
-  bodySmall: { fontSize: 8, color: BRAND_COLORS.muted, font: 'Roboto' },
+  body: { fontSize: 9, color: BRAND_COLORS.ink, font: 'Roboto' },
+  bodySmall: { fontSize: 7, color: BRAND_COLORS.muted, font: 'Roboto' },
   // Tables
-  tableHeader: { fontSize: 8.5, bold: true, color: '#FFFFFF', font: 'Roboto' },
-  tableCell: { fontSize: 9, color: BRAND_COLORS.ink, font: 'Roboto' },
-  tableCellNum: { fontSize: 9, color: BRAND_COLORS.ink, alignment: 'right', font: 'Roboto' },
-  tableFooter: { fontSize: 9, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
+  tableHeader: { fontSize: 7.5, bold: true, color: '#FFFFFF', font: 'Roboto' },
+  tableCell: { fontSize: 8, color: BRAND_COLORS.ink, font: 'Roboto' },
+  tableCellNum: { fontSize: 8, color: BRAND_COLORS.ink, alignment: 'right', font: 'Roboto' },
+  tableFooter: { fontSize: 8, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
   // KPIs
-  kpiLabel: { fontSize: 8, color: BRAND_COLORS.muted, font: 'Roboto' },
-  kpiValue: { fontSize: 15, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
+  kpiLabel: { fontSize: 7, color: BRAND_COLORS.muted, font: 'Roboto' },
+  kpiValue: { fontSize: 11, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
   // Footer
-  footerCopy: { fontSize: 7, color: BRAND_COLORS.muted, font: 'Roboto' },
-  footerMeta: { fontSize: 7, color: BRAND_COLORS.muted, font: 'Roboto' },
+  footerCopy: { fontSize: 6.5, color: BRAND_COLORS.muted, font: 'Roboto' },
+  footerMeta: { fontSize: 6.5, color: BRAND_COLORS.muted, font: 'Roboto' },
   // Severity badges (text-only in pdfmake)
-  critical: { fontSize: 8, bold: true, color: '#DC2626', font: 'Roboto' },
-  high: { fontSize: 8, bold: true, color: '#EA580C', font: 'Roboto' },
-  medium: { fontSize: 8, bold: true, color: '#D97706', font: 'Roboto' },
-  low: { fontSize: 8, bold: true, color: '#2563EB', font: 'Roboto' },
-  info: { fontSize: 8, bold: true, color: BRAND_COLORS.muted, font: 'Roboto' },
+  critical: { fontSize: 7, bold: true, color: '#DC2626', font: 'Roboto' },
+  high: { fontSize: 7, bold: true, color: '#EA580C', font: 'Roboto' },
+  medium: { fontSize: 7, bold: true, color: '#D97706', font: 'Roboto' },
+  low: { fontSize: 7, bold: true, color: '#2563EB', font: 'Roboto' },
+  info: { fontSize: 7, bold: true, color: BRAND_COLORS.muted, font: 'Roboto' },
 } as const;
 
 /** Default page geometry for A4 portrait documents. */

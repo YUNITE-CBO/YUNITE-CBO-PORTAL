@@ -88,7 +88,7 @@ export async function generatePdf(opts: GeneratePdfOptions): Promise<Buffer> {
     footer: pageFooter(org, opts.envelope) as unknown as Content,
     content: opts.content,
     styles: YUNITE_STYLES as unknown as TDocumentDefinitions['styles'],
-    defaultStyle: { font: 'Roboto', fontSize: 10, color: '#1F2937', lineHeight: 1.3 },
+    defaultStyle: { font: 'Roboto', fontSize: 9, color: '#1F2937', lineHeight: 1.3 },
     info: {
       title: opts.envelope.title,
       author: org.name,
