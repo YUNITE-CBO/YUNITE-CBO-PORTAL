@@ -113,6 +113,23 @@ describe('buildPrompt', () => {
     expect(built.system).not.toContain('SUPABASE_SERVICE_ROLE_KEY');
     expect(built.system).not.toContain('service_role');
   });
+
+  test('grounds the AI in the real storage model so it cannot invent tables/columns/routes', () => {
+    const built = buildPrompt(ctx({ scope: 'member_verification' }));
+    // The authoritative storage model must be present...
+    expect(built.system).toContain('AUTHORITATIVE STORAGE / CALCULATION MODEL');
+    // ...and must explicitly forbid the hallucinated artifacts seen in the wild:
+    // a non-existent member_financials table, a non-existent savings_balance
+    // column, a non-existent SavingsService, and a non-existent savings/balance route.
+    expect(built.system).toContain('NO "member_financials" table');
+    expect(built.system).toContain('NO "savings_balance"/"balance" column on the accounts table');
+    expect(built.system).toContain('NO /api/v1/savings/balance route');
+    expect(built.system).toContain('NO "SavingsService" class');
+    // It must teach the real calc path so the AI stops treating a reversed
+    // transaction's balance_after as a "stored balance".
+    expect(built.system).toContain('TransactionEngine.calculateBalance');
+    expect(built.system).toContain('PER-TRANSACTION SNAPSHOT');
+  });
 });
 
 describe('sanitizeForAi (PII filtering)', () => {

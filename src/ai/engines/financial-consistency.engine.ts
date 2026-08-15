@@ -91,7 +91,12 @@ export async function runFinancialConsistency(): Promise<{ findings: Finding[]; 
         location: {
           module: 'savings',
           submodule: 'Member Account Balance',
-          database: { table: 'accounts', field: 'savings_balance', record_id: m.id },
+          // NOTE: balances are NOT stored as columns — accounts has no balance
+          // column. The "stored" value is the per-transaction balance_after
+          // snapshot on the latest non-reversed transaction. The live balance
+          // is computed by TransactionEngine.calculateBalance (SUM of the
+          // ledger, reversed excluded).
+          database: { table: 'transactions', field: 'balance_after (latest snapshot)', record_id: m.id },
           backend: { module: BACKEND_MODULE, service: SERVICE, route: ROUTES.balances, method: 'GET', response_value: kes(engSavings) },
           member_id: m.id,
           member_number: m.member_number,
@@ -167,7 +172,7 @@ export async function runFinancialConsistency(): Promise<{ findings: Finding[]; 
           location: {
             module: at,
             submodule: 'Account Balance',
-            database: { table: 'accounts', field: `${at}_balance`, record_id: m.id },
+            database: { table: 'transactions', field: 'balance_after (latest snapshot)', record_id: m.id },
             backend: { module: BACKEND_MODULE, service: SERVICE, route: ROUTES.balances, method: 'GET', response_value: kes(eng) },
             member_id: m.id,
             member_number: m.member_number,

@@ -612,6 +612,32 @@ passwords/tokens/api keys/PII before anything reaches a provider).
   flagged "low / for review" — NOT a data bug; `loan.service.ts` already
   validates `1 <= period <= max`, so it is expected to persist as an info
   finding, not a defect.
+- **AI hallucinated a non-existent savings-balance storage (2026-08-15,
+  FIXED)**: a member-verification run produced a "critical" DB-001 finding
+  claiming `member_financials.savings = 300` conflicted with the ledger sum
+  of 100, citing a `SavingsService` and `GET /api/v1/savings/balance` route.
+  **All three were AI hallucinations** — there is NO `member_financials`
+  table, NO `SavingsService` class, NO `/api/v1/savings/balance` route, and
+  `accounts` has NO balance columns (only id/member_id/account_type/status).
+  Balances are computed LIVE via `transactionEngine.calculateBalance` (SUM
+  of non-reversed, non-reversal transactions → correctly 100). The "300"
+  the AI saw was `balance_after` on the *reversed* deposit transaction — a
+  per-transaction snapshot, correctly excluded from the live balance. Root
+  cause: the AI prompt said "never invent values" but never gave the AI the
+  actual storage model, so it invented tables/endpoints. Fixed by adding an
+  **AUTHORITATIVE STORAGE / CALCULATION MODEL** block to
+  `prompt-builder.ts` that explicitly lists what does/doesn't exist
+  (accounts columns, the live-calc path, the real balance routes, that
+  balance_after is a snapshot not a stored balance, that reversed rows are
+  excluded). Also fixed `financial-consistency.engine.ts` whose location
+  labels wrongly referenced non-existent `accounts.savings_balance`/
+  `${at}_balance` columns (which is what taught the AI the wrong model) —
+  they now point at `transactions.balance_after (latest snapshot)` +
+  `computed: SUM(transactions)`. Guard test added asserting the prompt
+  forbids the hallucinated artifacts. **Note**: the already-persisted finding
+  in INV-2026-0815-7WUWQ is an immutable historical row (status: unverified)
+  — it will NOT vanish from the old investigation; a NEW member-verification
+  run after this deploy is what confirms the AI no longer invents it.
 
 ## Conventions
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export
