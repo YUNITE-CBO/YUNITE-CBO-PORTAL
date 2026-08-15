@@ -638,6 +638,51 @@ passwords/tokens/api keys/PII before anything reaches a provider).
   in INV-2026-0815-7WUWQ is an immutable historical row (status: unverified)
   — it will NOT vanish from the old investigation; a NEW member-verification
   run after this deploy is what confirms the AI no longer invents it.
+- **AI reported "no member data / empty dataset" as a system finding
+  (AUD-001 gemini, DATA-001 openrouter — 2026-08-15, FIXED)**: both providers
+  independently reported `members: []` as a finding, concluding no member
+  profiles/accounts/transactions could be audited. This was NOT a member-data
+  defect — it was the AI investigation engine silently feeding the providers
+  an empty snapshot. Root cause had three parts: (1) every data getter in
+  `src/ai/tools/database-tools.ts` did `const { data } = await ...` WITHOUT
+  inspecting `.error` and fell back to `[]`/`0` — Supabase JS returns
+  `{ data: null, error }` on auth/network/RLS failure (it does NOT throw), so
+  a missing `SUPABASE_SERVICE_ROLE_KEY` (common in local/CI/misconfigured
+  deploys) silently turned EVERY collection into an empty array with zero
+  signal reaching the AI; (2) the `full_system` scope payload
+  (`src/ai/tools/index.ts`) had NO `members` key at all by design — the most
+  comprehensive scope omitted member profiles/accounts/transactions entirely,
+  so no per-member audit could ever run; (3) `prompt-builder.ts` had NO
+  fallback note when key dimensions were empty, so the AI reported the gap as
+  a finding instead of recognising a data-availability problem. The
+  deterministic engines share the same blind spot (they re-query `members`
+  independently but use the same `createServiceClient()` + `?? []` pattern,
+  no try/catch, so a DB failure → empty member list →
+  `TransactionEngine.calculateBalance` never invoked). Fixed three ways:
+  (a) `getDataAvailability()` in `database-tools.ts` — a read-only
+  connectivity probe that runs one cheap `members` count, inspects `.error`,
+  reports `db_reachable`/`service_key_configured`/`member_count`/`error`, and
+  never throws; merged into EVERY scope's payload as `data_availability`;
+  (b) `getMembersSampleRaw()` + a `members_sample` key added to `full_system`
+  so the comprehensive scope carries a small active-member financial graph
+  (financials + loans + fines + contributions + welfare + shares); (c)
+  `buildAvailabilityNote()` in `prompt-builder.ts` translates the probe into
+  an explicit prompt note — a COLLECTION FAILURE (db unreachable / key
+  missing) emits a "DATA AVAILABILITY WARNING" telling the AI NOT to report
+  "no member data" as a finding and to flag it as a data-availability gap; a
+  reachable-but-empty members table emits a "genuine empty-organization
+  state" note (info, not a defect); a reachable DB with members emits a
+  positive note. 4 new tests in `tests/ai-intelligence.test.ts` (warning,
+  empty-org, positive, back-compat-when-probe-absent). NOTE: the shared
+  `createServiceClient()` (`src/lib/supabase/server.ts`) was deliberately
+  NOT changed to throw on missing key — it is used by the entire app, not
+  just the AI engine; the loud-failure signal lives in the AI tools layer
+  where it belongs. **Note**: a separate finding CFG-001 (gemini) claiming
+  `contributions.monthly_default = '00'` was a FALSE POSITIVE — the seeded
+  value is `'1000'` (migrations 001/007 + `settings.service.ts` app-layer
+  fallback), and even `'00'` would parse to `0` identically via
+  `Number()`/`parseFloat`/Postgres `::NUMERIC` with no strict-string-compare
+  consumer anywhere. No action taken on CFG-001.
 
 ## Conventions
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export

@@ -18,7 +18,7 @@ export {
   getMemberFinancialsRaw, getSavingsTransactionsRaw, getSharesRaw, getLoansRaw,
   getLoanRepaymentsRaw, getContributionsRaw, getFinesRaw, getWelfareRaw,
   getOrganizationSettings, getBusinessRules, getAuditLogs, getModuleHealth,
-  computeLedgerSavings,
+  getDataAvailability, getMembersSampleRaw, computeLedgerSavings,
 } from './database-tools';
 export {
   getApiRoutes, inspectApiSurface, getApiResponseSchema, getApiDefinition,
@@ -41,26 +41,33 @@ export async function buildToolsPayload(
   scope: InvestigationScope,
   memberId?: string,
 ): Promise<Record<string, unknown>> {
+  // Run the connectivity probe once and merge it into every scope's payload so
+  // the AI (and admin) can tell a COLLECTION FAILURE (auth/env/RLS) from a
+  // genuine empty-organization state. Without this, silent empty arrays get
+  // reported as "no member data" findings (see AUD-001 / DATA-001).
+  const data_availability = await db.getDataAvailability();
+  const mergeAvailability = (payload: Record<string, unknown>) => ({ ...payload, data_availability });
+
   switch (scope) {
     case 'database':
-      return sanitizeForAi({
+      return sanitizeForAi(mergeAvailability({
         schema: await db.getDatabaseSchema(),
         db_stats: await db.queryReadOnlyDatabase(),
         audit_logs_sample: await db.getAuditLogs(50),
         module_health: await db.getModuleHealth(),
-      });
+      }));
     case 'api':
-      return sanitizeForAi({
+      return sanitizeForAi(mergeAvailability({
         api_definition: api.getApiDefinition(),
         api_activity: await api.getApiActivity(50),
-      });
+      }));
     case 'business_rules':
-      return sanitizeForAi({
+      return sanitizeForAi(mergeAvailability({
         settings: await db.getOrganizationSettings(),
         business_rules: await db.getBusinessRules(),
-      });
+      }));
     case 'financial':
-      return sanitizeForAi({
+      return sanitizeForAi(mergeAvailability({
         db_stats: await db.queryReadOnlyDatabase(),
         business_rules: await db.getBusinessRules(),
         loans: await db.getLoansRaw(),
@@ -68,7 +75,7 @@ export async function buildToolsPayload(
         fines: await db.getFinesRaw(),
         contributions: await db.getContributionsRaw(),
         welfare: await db.getWelfareRaw(),
-      });
+      }));
     case 'cross_module': {
       // Cross-module needs a member sample to compare relationships. If a
       // member is provided, use it; otherwise pull a small member sample.
@@ -92,14 +99,14 @@ export async function buildToolsPayload(
           shares: await db.getSharesRaw(id),
         })),
       );
-      return sanitizeForAi({
+      return sanitizeForAi(mergeAvailability({
         business_rules: await db.getBusinessRules(),
         members: perMember,
-      });
+      }));
     }
     case 'member_verification': {
       if (!memberId) return { error: 'member_id required for member_verification scope' };
-      return sanitizeForAi({
+      return sanitizeForAi(mergeAvailability({
         member: await db.getMemberRaw(memberId),
         financials: await db.getMemberFinancialsRaw(memberId),
         savings_txns: await db.getSavingsTransactionsRaw(memberId, 100),
@@ -108,10 +115,15 @@ export async function buildToolsPayload(
         contributions: await db.getContributionsRaw(memberId),
         welfare: await db.getWelfareRaw(memberId),
         shares: await db.getSharesRaw(memberId),
-      });
+      }));
     }
     case 'full_system':
-      return sanitizeForAi({
+      // full_system previously had NO member-level data by design — the most
+      // comprehensive scope omitted member profiles/accounts/transactions
+      // entirely, so no per-member audit could run. A small active-member
+      // sample (financials + loans + fines + contributions + welfare + shares)
+      // is now included so the AI can audit real member financial graphs.
+      return sanitizeForAi(mergeAvailability({
         schema: await db.getDatabaseSchema(),
         db_stats: await db.queryReadOnlyDatabase(),
         api_definition: api.getApiDefinition(),
@@ -122,10 +134,11 @@ export async function buildToolsPayload(
         fines: await db.getFinesRaw(),
         contributions: await db.getContributionsRaw(),
         welfare: await db.getWelfareRaw(),
+        members_sample: await db.getMembersSampleRaw(5),
         audit_logs_sample: await db.getAuditLogs(30),
         module_health: await db.getModuleHealth(),
-      });
+      }));
     default:
-      return {};
+      return mergeAvailability({});
   }
 }

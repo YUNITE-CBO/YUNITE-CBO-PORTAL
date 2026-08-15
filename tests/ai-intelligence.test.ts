@@ -134,6 +134,73 @@ describe('buildPrompt', () => {
     expect(built.system).toContain('LOAN REPAYMENT PERIOD');
     expect(built.system).toContain('LEGITIMATE business choice');
   });
+
+  test('injects a data-availability warning when the DB is unreachable (collection failure)', () => {
+    const c = ctx({
+      scope: 'full_system',
+      tools_payload: {
+        members_sample: [],
+        data_availability: {
+          db_reachable: false,
+          service_key_configured: false,
+          supabase_url_configured: true,
+          error: 'Invalid API key',
+          note: 'Database query failed.',
+        },
+      },
+    });
+    const built = buildPrompt(c);
+    // The prompt must tell the AI that empty arrays are a COLLECTION FAILURE,
+    // not a genuine absence of data, so it does not report "no member data".
+    expect(built.user).toContain('DATA AVAILABILITY WARNING');
+    expect(built.user).toContain('COLLECTION FAILURE');
+    expect(built.user).toContain('SUPABASE_SERVICE_ROLE_KEY is not configured');
+    expect(built.user).toContain('Do NOT report "no member data"');
+  });
+
+  test('injects a data-availability note when the DB is reachable but members table is empty', () => {
+    const c = ctx({
+      scope: 'full_system',
+      tools_payload: {
+        members_sample: [],
+        data_availability: {
+          db_reachable: true,
+          service_key_configured: true,
+          supabase_url_configured: true,
+          member_count: 0,
+          note: 'Database is reachable but the members table is empty (0 rows).',
+        },
+      },
+    });
+    const built = buildPrompt(c);
+    expect(built.user).toContain('DATA AVAILABILITY NOTE');
+    expect(built.user).toContain('genuine empty-organization state');
+    expect(built.user).toContain('do not treat it as a defect');
+  });
+
+  test('injects a positive data-availability note when the DB is reachable with members', () => {
+    const c = ctx({
+      scope: 'full_system',
+      tools_payload: {
+        members_sample: [{ member_id: 'm1', financials: { savings: 100 } }],
+        data_availability: {
+          db_reachable: true,
+          service_key_configured: true,
+          supabase_url_configured: true,
+          member_count: 42,
+          note: 'Database reachable; member-level data is available for collection.',
+        },
+      },
+    });
+    const built = buildPrompt(c);
+    expect(built.user).toContain('DATA AVAILABILITY');
+    expect(built.user).toContain('member-level data is available');
+  });
+
+  test('omits the data-availability note when the probe is absent (back-compat)', () => {
+    const built = buildPrompt(ctx({ tools_payload: { schema: { table_count: 10 } } }));
+    expect(built.user).not.toContain('DATA AVAILABILITY');
+  });
 });
 
 describe('sanitizeForAi (PII filtering)', () => {

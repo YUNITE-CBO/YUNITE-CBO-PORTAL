@@ -108,11 +108,12 @@ Confidence semantics: confirmed = backed by deterministic evidence supplied; hig
 
   const depthNote = ctx.depth ? `\nINVESTIGATION DEPTH: ${ctx.depth} (${depthDescription(ctx.depth)})` : '';
   const dualNote = ctx.dual_mode ? `\nDUAL MODE: ${ctx.dual_mode} — if dual, you are ONE of two independent investigators. Reason from the data alone; do not assume another AI's conclusions.` : '';
+  const availabilityNote = buildAvailabilityNote(ctx.tools_payload);
 
   const user = `INVESTIGATION #${ctx.investigation_id}
 SCOPE: ${ctx.scope}${depthNote}${dualNote}
 ${ctx.member_id ? `MEMBER_ID: ${ctx.member_id}` : ''}
-
+${availabilityNote}
 === DETERMINISTIC FINDINGS (computed by the YUNITE engine; authoritative) ===
 ${JSON.stringify(ctx.deterministic_findings, null, 2)}
 
@@ -122,6 +123,35 @@ ${JSON.stringify(ctx.tools_payload, null, 2)}
 Produce your independent structured FORENSIC report. Every finding must identify its exact location (database table/field, backend route/service, frontend component, member), the expected vs actual value, the difference, affected records, and a root cause (or "ROOT CAUSE NOT CONFIRMED"). Do not assume any other AI has investigated this; reason from the data above.`;
 
   return { system, user };
+}
+
+/**
+ * Translate the payload's `data_availability` probe into an explicit prompt
+ * note. Without this, an empty `members` array (caused by a collection
+ * failure — missing service key, unreachable DB, RLS) is reported by the AI
+ * as a "no member data" system finding rather than recognised as a
+ * data-availability gap (see AUD-001 / DATA-001).
+ */
+function buildAvailabilityNote(tools_payload: Record<string, unknown>): string {
+  const avail = tools_payload?.data_availability;
+  if (!avail || typeof avail !== 'object') return '';
+  const a = avail as Record<string, unknown>;
+  const dbReachable = a.db_reachable === true;
+  const memberCount = typeof a.member_count === 'number' ? a.member_count : undefined;
+  const note = typeof a.note === 'string' ? a.note : '';
+  const error = typeof a.error === 'string' ? a.error : '';
+  const keyConfigured = a.service_key_configured === true;
+
+  if (!dbReachable) {
+    const cause = !keyConfigured
+      ? 'SUPABASE_SERVICE_ROLE_KEY is not configured in this environment'
+      : error || 'database unreachable';
+    return `\n=== DATA AVAILABILITY WARNING ===\nThe investigation data snapshot could NOT be collected from the database (${cause}). Empty arrays in the snapshot (members, loans, fines, etc.) reflect a COLLECTION FAILURE, NOT a genuine absence of records. Do NOT report "no member data" or "empty dataset" as a system finding — the data simply could not be fetched. Note this as a data-availability gap requiring re-investigation with a reachable database instead.\n`;
+  }
+  if (memberCount === 0) {
+    return `\n=== DATA AVAILABILITY NOTE ===\nThe database is reachable but the members table contains 0 rows (genuine empty-organization state). It is correct that no member profiles/accounts/transactions could be audited. You may note this as an info observation, but do not treat it as a defect.\n`;
+  }
+  return note ? `\n=== DATA AVAILABILITY ===\n${note}\n` : '';
 }
 
 function depthDescription(depth: string): string {

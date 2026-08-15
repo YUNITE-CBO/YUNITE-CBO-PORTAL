@@ -221,6 +221,84 @@ export async function getModuleHealth(): Promise<Record<string, unknown>> {
   };
 }
 
+/**
+ * Connectivity / data-availability probe for the investigation payload.
+ *
+ * Every data getter in this module does `const { data } = await ...` and
+ * falls back to `[]` / `0` on failure WITHOUT inspecting `.error`. Supabase
+ * JS returns `{ data: null, error }` on auth/network/RLS failure rather than
+ * throwing, so a missing SUPABASE_SERVICE_ROLE_KEY (or an unreachable DB)
+ * silently turns every collection into an empty array — which the AI then
+ * reports as a "no member data" finding instead of recognising a collection
+ * failure.
+ *
+ * This probe runs a single cheap count against `members` and inspects the
+ * `.error` so the payload carries an explicit `data_availability` signal the
+ * prompt builder can translate into a note for the AI. It never throws.
+ */
+export async function getDataAvailability(): Promise<Record<string, unknown>> {
+  const urlSet = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const keySet = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  try {
+    const supabase = await createServiceClient();
+    const { count, error } = await supabase
+      .from('members')
+      .select('*', { count: 'exact', head: true });
+    if (error) {
+      return {
+        db_reachable: false,
+        service_key_configured: keySet,
+        supabase_url_configured: urlSet,
+        error: error.message,
+        error_code: error.code ?? null,
+        note: 'Database query failed. Empty arrays in this snapshot likely reflect a COLLECTION FAILURE (auth/env/RLS), not a genuine absence of data. Do NOT report "no member data" as a system finding — flag it as a data-availability gap instead.',
+      };
+    }
+    const empty = (count ?? 0) === 0;
+    return {
+      db_reachable: true,
+      service_key_configured: keySet,
+      supabase_url_configured: urlSet,
+      member_count: count ?? 0,
+      note: empty
+        ? 'Database is reachable but the members table is empty (0 rows). This is a genuine empty-organization state, not a collection failure.'
+        : 'Database reachable; member-level data is available for collection.',
+    };
+  } catch (e) {
+    return {
+      db_reachable: false,
+      service_key_configured: keySet,
+      supabase_url_configured: urlSet,
+      error: e instanceof Error ? e.message : String(e),
+      note: 'Database client could not be initialised. Empty arrays in this snapshot reflect a COLLECTION FAILURE, not a genuine absence of data. Do NOT report "no member data" as a system finding — flag it as a data-availability gap instead.',
+    };
+  }
+}
+
+/** A small active-member sample (profiles + financials) for full_system scope. */
+export async function getMembersSampleRaw(limit = 5) {
+  const supabase = await createServiceClient();
+  const { data: sample } = await supabase
+    .from('members')
+    .select('id, member_number, status, created_at')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  const members = sample ?? [];
+  return Promise.all(
+    members.map(async (m) => ({
+      member_id: m.id,
+      member_number: m.member_number,
+      financials: await getMemberFinancialsRaw(m.id),
+      loans: await getLoansRaw(m.id),
+      fines: await getFinesRaw(m.id),
+      contributions: await getContributionsRaw(m.id),
+      welfare: await getWelfareRaw(m.id),
+      shares: await getSharesRaw(m.id),
+    })),
+  );
+}
+
 /** Compute the ledger-derived savings for a member (deterministic). */
 export async function computeLedgerSavings(memberId: string): Promise<number> {
   return transactionEngine.calculateBalance(memberId, 'savings' as AccountType);
