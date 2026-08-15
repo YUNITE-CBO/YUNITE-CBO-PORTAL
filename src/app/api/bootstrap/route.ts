@@ -113,8 +113,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Bootstrap API] Manual bootstrap triggered by:', authUser.email);
-    
     const result = await superAdminBootstrapService.bootstrap();
 
     return NextResponse.json({
