@@ -118,9 +118,22 @@ export class DocumentExportService {
       // truth. Never blocks generation (best-effort; warns on failure).
       let dataQuality: DataQualityReport | undefined;
       try {
-        dataQuality = opts.memberId
-          ? await reportDataQualityService.reconcileMember(opts.memberId)
-          : await reportDataQualityService.reconcileOrganization();
+        if (opts.memberId) {
+          // Pass the statement's own breakdown/closing into the reconciliation
+          // so it validates the values actually rendered on the document (not
+          // a re-derivation). For non-statement member reports this is simply
+          // not supplied and the engine is cross-checked independently.
+          const stmt = (payload as any).memberStatement;
+          const statementCtx = stmt
+            ? {
+                closingBalance: stmt.closingBalance,
+                accountBreakdown: stmt.accountBreakdown,
+              }
+            : undefined;
+          dataQuality = await reportDataQualityService.reconcileMember(opts.memberId, statementCtx);
+        } else {
+          dataQuality = await reportDataQualityService.reconcileOrganization();
+        }
       } catch (e) {
         console.warn('[document-export] reconciliation failed:', e instanceof Error ? e.message : e);
       }

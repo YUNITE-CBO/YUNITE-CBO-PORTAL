@@ -213,6 +213,27 @@ export interface OrgSummaryData {
   currency: string;
 }
 
+/**
+ * Transaction types that reduce a member's NET financial position on a
+ * statement of account. These either draw down an asset account (savings /
+ * contributions / welfare withdrawals & disbursements, plus registration and
+ * annual fees that are charged against savings) or increase a liability account
+ * (a posted fine, a disbursed loan — which in this system's model are NOT
+ * offset by a tracked cash asset). Every other non-reversed transaction is a
+ * net credit (grows an asset or reduces a liability).
+ *
+ * This classification mirrors the sign logic in
+ * TransactionEngine.isDebitTransaction, extended for the statement's net-worth
+ * view where liability-increasing postings are debits.
+ */
+const NET_DEBIT_TYPES = new Set<string>([
+  'savings_withdrawal', 'savings_disbursement',
+  'contribution_withdrawal', 'contribution_disbursement',
+  'welfare_withdrawal', 'welfare_disbursement',
+  'registration_fee', 'annual_fee',
+  'fine_posting', 'loan_disbursement',
+]);
+
 export class ReportDataService {
   async getFinancialSummary(period?: ReportPeriod): Promise<FinancialSummaryData> {
     const supabase = await createServiceClient();
@@ -428,50 +449,59 @@ export class ReportDataService {
       .lte('posted_at', period.end.toISOString())
       .order('posted_at', { ascending: true });
 
-    const creditTypes = new Set([
-      'savings_deposit', 'savings_monthly', 'savings_special', 'savings_development',
-      'contribution_monthly', 'contribution_special', 'contribution_development',
-      'welfare_deposit', 'welfare_monthly', 'welfare_special', 'fine_posting',
-      'loan_disbursement', 'registration_fee', 'annual_fee',
-    ]);
-
     let running = opening;
     let totalCredits = 0;
     let totalDebits = 0;
     const rows = (txns || []).map((t: any) => {
       const amt = Number(t.amount);
-      const isCredit = creditTypes.has(t.transaction_type);
-      if (isCredit) {
-        totalCredits += amt;
-        running += amt;
-      } else {
+      // A transaction is a NET DEBIT (reduces the member's net worth) when it
+      // either draws down an asset account (savings/contributions/welfare
+      // withdrawals & disbursements, registration/annual fees charged against
+      // savings) OR increases a liability account (a posted fine, a disbursed
+      // loan). Conversely it is a NET CREDIT when it grows an asset (deposits,
+      // contributions, welfare deposits) or reduces a liability (fine
+      // payment, loan repayment). This mirrors the sign logic in
+      // TransactionEngine.isDebitTransaction while accounting for the fact
+      // that, in this system's model, loan_disbursement/fine_posting only add
+      // to a LIABILITY account (they are not offset by a cash asset) and so
+      // reduce the member's net position.
+      const isNetDebit = NET_DEBIT_TYPES.has(t.transaction_type);
+      if (isNetDebit) {
         totalDebits += amt;
         running -= amt;
+      } else {
+        totalCredits += amt;
+        running += amt;
       }
       return {
         posted_at: t.posted_at,
         transaction_ref: t.transaction_ref,
         description: t.description || t.transaction_type,
         reference_number: t.reference_number,
-        debit: isCredit ? 0 : amt,
-        credit: isCredit ? amt : 0,
+        debit: isNetDebit ? amt : 0,
+        credit: isNetDebit ? 0 : amt,
         balance: running,
       };
     });
 
     const closing = opening + totalCredits - totalDebits;
 
-    // Account breakdown (current balances per account type). Uses the
-    // authoritative transactionEngine (ledger-derived SUM) — NOT a stored
-    // balance column. Shares are derived (floor(savings / share_value)) via
-    // calculateAllBalances and MUST be included.
-    const accountTypes = ['savings', 'shares', 'contributions', 'welfare', 'fines', 'loans'];
-    const accountBreakdown = await Promise.all(
-      accountTypes.map(async (at) => ({
-        account_type: at,
-        balance: await transactionEngine.calculateBalance(memberId, at as any),
-      })),
-    );
+    // Account breakdown — current balances per account type. MUST come from the
+    // authoritative TransactionEngine.calculateAllBalances (the single source of
+    // truth): shares are DERIVED (floor(savings / share_value)), not a
+    // transaction-ledger account, and the outstanding loan balance is the
+    // SUM(loans.amount_due) over active loans — NOT the transaction-ledger sum
+    // (loan_repayment is not subtracted there). Reading these from the engine
+    // guarantees the document matches the balances API + reconciliation engine.
+    const engineBalances = await transactionEngine.calculateAllBalances(memberId);
+    const accountBreakdown = [
+      { account_type: 'savings', balance: engineBalances.savings },
+      { account_type: 'shares', balance: engineBalances.shares },
+      { account_type: 'contributions', balance: engineBalances.contributions },
+      { account_type: 'welfare', balance: engineBalances.welfare },
+      { account_type: 'fines', balance: engineBalances.fines },
+      { account_type: 'loans', balance: engineBalances.loans },
+    ];
 
     return {
       member: {
@@ -491,12 +521,11 @@ export class ReportDataService {
   }
 
   private deriveMemberBalance(priorByType: Record<string, number>): number {
-    const credit = ['savings_deposit', 'savings_monthly', 'savings_special', 'savings_development', 'contribution_monthly', 'contribution_special', 'contribution_development', 'welfare_deposit', 'welfare_monthly', 'welfare_special', 'fine_posting', 'loan_disbursement', 'registration_fee', 'annual_fee'];
-    const debit = ['savings_withdrawal', 'savings_disbursement', 'contribution_withdrawal', 'contribution_disbursement', 'welfare_withdrawal', 'welfare_disbursement', 'fine_payment', 'loan_repayment'];
+    // Opening (net) position = assets − liabilities before the period.
+    // Net-debit transaction types reduce net worth (see getMemberStatement).
     let bal = 0;
     for (const [k, v] of Object.entries(priorByType)) {
-      if (credit.includes(k)) bal += v;
-      else if (debit.includes(k)) bal -= v;
+      bal += NET_DEBIT_TYPES.has(k) ? -v : v;
     }
     return bal;
   }

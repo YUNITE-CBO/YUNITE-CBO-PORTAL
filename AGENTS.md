@@ -253,10 +253,27 @@ fines, member statement of account, welfare fund, and organization summary.
   chars) for traceability.
 - **Data service** (`report-data.service.ts`): `reportDataService`
   aggregates live data from the transaction ledger + domain tables via
-  `createServiceClient()` for all 9 report types. Member statements derive
-  opening/closing balances + per-account breakdown via
-  `transactionEngine.calculateBalance` (the authoritative ledger-derived
-  path) тАФ the breakdown now includes **shares** (previously omitted).
+  `createServiceClient()` for all 9 report types. Member statement
+  `getMemberStatement()` builds the **account breakdown from
+  `transactionEngine.calculateAllBalances(memberId)`** (the single source of
+  truth) тАФ NOT per-type `calculateBalance`. This matters because: (a) **shares
+  are DERIVED** (`floor(savings / share_value)`) and there is NO `shares` account
+  row, so `calculateBalance(memberId, 'shares')` returns 0 тАФ the old code showed
+  `Shares Ksh 0.00` instead of the real share count; (b) **loans outstanding =
+  `SUM(loans.amount_due)` over active loans** (the `loans` table), NOT the
+  transaction-ledger sum on the loans account (where `loan_repayment` is NOT
+  subtracted, so it would diverge the moment a repayment is made). The statement
+  credit/debit classification is a **net-worth** model (`NET_DEBIT_TYPES`):
+  liability-increasing postings (`fine_posting`, `loan_disbursement`) are DEBITS
+  (reduce member net position), and liability-reducing ones (`fine_payment`,
+  `loan_repayment`) are CREDITS тАФ this mirrors `TransactionEngine.isDebitTransaction`
+  extended for the net-position view. The old code classified `fine_posting` +
+  `loan_disbursement` as credits, producing `totalCredits=650, totalDebits=0`.
+  `document-export.service.ts` now passes the rendered statement's
+  `closingBalance`+`accountBreakdown` into `reconcileMember` so the data-quality
+  check validates the ACTUAL document values (the old call passed nothing тЖТ the
+  reconciliation compared every breakdown value against 0 тЖТ always flagged
+  "Member Statement Balances requires reconciliation" тЖТ the 67% you saw).
   Financial summary, org summary, and welfare reports all sum from
   `transactions WHERE reversed=false` (never stored balance snapshots).
 - **PDF/CSV** (`document-generator.ts`): `htmlToPdf(html)` renders via

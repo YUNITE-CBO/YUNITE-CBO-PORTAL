@@ -274,3 +274,55 @@ describe('member statement breakdown includes shares + uses authoritative engine
     expect(after).not.toBe(before); // proves live recompute, not a stored snapshot
   });
 });
+
+describe('member statement reconciliation against the single source of truth', () => {
+  // Reproduces the reported defect: a statement whose account breakdown was NOT
+  // sourced from transactionEngine.calculateAllBalances (e.g. shares=0 because
+  // they were read from a non-existent shares account, loans read from the
+  // unreliable transaction ledger) is flagged as REQUIRES RECONCILIATION. Once
+  // the breakdown is sourced from the engine, it reconciles (verified).
+  test('breakdown sourced from calculateAllBalances reconciles (verified)', async () => {
+    // savings=300, shares=floor(300/100)=3, contributions/welfare/fines=0,
+    // loans=200 (amount_due). This mirrors the live member from the report.
+    supabaseMock.__setMemberAccounts([{ id: 'acc-savings', member_id: 'm1', account_type: 'savings' }]);
+    supabaseMock.__setMemberTxns([{ transaction_type: 'savings_deposit', amount: 300 }]);
+    supabaseMock.__setLoanData([{ id: 'l1', loan_number: 'LN-1', total_amount: 200, amount_paid: 0, amount_due: 200, status: 'active' }]);
+    const engine = await transactionEngine.calculateAllBalances('m1');
+    expect(engine.savings).toBe(300);
+    expect(engine.shares).toBe(3); // derived — the old code showed 0
+    expect(engine.loans).toBe(200); // from loans.amount_due — the old code read the ledger
+
+    const breakdown = [
+      { account_type: 'savings', balance: engine.savings },
+      { account_type: 'shares', balance: engine.shares },
+      { account_type: 'contributions', balance: engine.contributions },
+      { account_type: 'welfare', balance: engine.welfare },
+      { account_type: 'fines', balance: engine.fines },
+      { account_type: 'loans', balance: engine.loans },
+    ];
+    const check = await reportDataQualityService.reconcileMemberStatement('m1', { accountBreakdown: breakdown });
+    expect(check.status).toBe('verified');
+    expect(check.discrepantRecords).toBe(0);
+  });
+
+  test('the old divergent breakdown (shares=0, loans from ledger) is flagged', async () => {
+    supabaseMock.__setMemberAccounts([{ id: 'acc-savings', member_id: 'm1', account_type: 'savings' }]);
+    supabaseMock.__setMemberTxns([{ transaction_type: 'savings_deposit', amount: 300 }]);
+    supabaseMock.__setLoanData([{ id: 'l1', loan_number: 'LN-1', total_amount: 200, amount_paid: 0, amount_due: 200, status: 'active' }]);
+    // The buggy breakdown the document used to render: shares=0 (no shares
+    // account exists), loans read from the transaction ledger.
+    const buggy = [
+      { account_type: 'savings', balance: 300 },
+      { account_type: 'shares', balance: 0 }, // engine says 3
+      { account_type: 'contributions', balance: 0 },
+      { account_type: 'welfare', balance: 0 },
+      { account_type: 'fines', balance: 0 },
+      { account_type: 'loans', balance: 0 }, // engine says 200 (amount_due)
+    ];
+    const check = await reportDataQualityService.reconcileMemberStatement('m1', { accountBreakdown: buggy });
+    expect(check.status).toBe('requires_reconciliation');
+    expect(check.discrepantRecords).toBeGreaterThanOrEqual(2);
+    expect(check.note).toContain('shares');
+    expect(check.note).toContain('loans');
+  });
+});
