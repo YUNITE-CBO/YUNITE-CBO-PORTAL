@@ -26,7 +26,7 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
   let checksPerformed = 0;
 
   const rules = await settingsService.getMany([
-    'shares.share_value', 'loan.max_percentage', 'loan.max_period_months',
+    'shares.share_value', 'loan.max_percentage', 'loan.min_period_months', 'loan.max_period_months',
     'loan.default_interest_rate', 'loan.max_amount', 'fees.registration',
     'fees.annual', 'welfare.monthly_amount', 'contributions.monthly_default',
   ]);
@@ -36,6 +36,7 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
   const maxPct = parseFloat(rules['loan.max_percentage']) || 75;
   const maxAmount = parseFloat(rules['loan.max_amount']) || 500000;
   const interestRate = parseFloat(rules['loan.default_interest_rate']) || 10;
+  const minPeriod = parseFloat(rules['loan.min_period_months']) || 1;
   const period = parseFloat(rules['loan.max_period_months']) || 12;
 
   // 1. Share derivation rule across active members.
@@ -176,58 +177,36 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
     }));
   }
 
-  // 7. Period drift (per-loan override below max — flagged for review).
+  // 7. Loans with a repayment period OUTSIDE the configured [min, max] range.
+  // A per-loan override WITHIN the range (e.g. 3 months when default is 12) is
+  // a legitimate business choice and is NOT a defect — only out-of-range
+  // periods violate the business rule and should have been rejected at creation.
   checksPerformed++;
-  const periodDrift = (loans ?? []).filter((l) => Number(l.repayment_period_months) !== period);
-  if (periodDrift.length) {
+  const outOfRangePeriod = (loans ?? []).filter((l) => {
+    const p = Number(l.repayment_period_months);
+    return p < minPeriod || p > period;
+  });
+  if (outOfRangePeriod.length) {
     findings.push(makeFinding({
       prefix: 'BR',
-      title: `${periodDrift.length} loan(s) use a repayment period different from the configured default (${period})`,
-      module: 'loans',
-      category: 'configuration_vs_database_result',
-      severity: 'low',
-      description: 'Per-loan override is allowed; flagged for review.',
-      root_cause: 'A loan was created with a repayment period different from the configured default (per-loan override).',
-      recommendation: 'Confirm each override is intentional and within the configured max period.',
-      human_review: true,
-      expected_value: String(period),
-      actual_value: String(periodDrift[0].repayment_period_months),
-      affected_records: periodDrift.map((l) => l.id),
-      location: {
-        module: 'loans',
-        submodule: 'Loan Records',
-        database: { table: 'loans', field: 'repayment_period_months', record_id: periodDrift[0]?.id },
-        member_id: periodDrift[0]?.member_id,
-        business_rule: 'loan.max_period_months',
-      },
-      evidence: [evidence({ source_label: 'settings', source_type: 'configuration', field: 'loan.max_period_months', actual_value: String(period) })],
-    }));
-  }
-
-  // 8. Loans exceeding the configured MAX period (should never happen post-fix).
-  checksPerformed++;
-  const overMaxPeriod = (loans ?? []).filter((l) => Number(l.repayment_period_months) > period);
-  if (overMaxPeriod.length) {
-    findings.push(makeFinding({
-      prefix: 'BR',
-      title: `${overMaxPeriod.length} loan(s) exceed the configured max repayment period (${period} months)`,
+      title: `${outOfRangePeriod.length} loan(s) have a repayment period outside the configured range (${minPeriod}–${period} months)`,
       module: 'loans',
       category: 'configuration_violation',
       severity: 'high',
-      description: 'Loans with a repayment period exceeding the configured maximum violate the business rule. These should have been rejected at creation.',
-      root_cause: 'A loan was created with a repayment period above loan.max_period_months, bypassing the creation guard.',
-      recommendation: 'Enforce repayment_period_months ≤ loan.max_period_months at loan creation and reject over-max loans.',
-      expected_value: `≤ ${period}`,
-      actual_value: String(overMaxPeriod[0].repayment_period_months),
-      affected_records: overMaxPeriod.map((l) => l.id),
+      description: `Loans with a repayment period below ${minPeriod} or above ${period} months violate the business rule. These should have been rejected at creation.`,
+      root_cause: 'A loan was created with a repayment_period_months outside loan.min_period_months..loan.max_period_months, bypassing the creation guard.',
+      recommendation: `Enforce ${minPeriod} ≤ repayment_period_months ≤ ${period} at loan creation and reject out-of-range loans.`,
+      expected_value: `${minPeriod}–${period} months`,
+      actual_value: String(outOfRangePeriod[0].repayment_period_months),
+      affected_records: outOfRangePeriod.map((l) => l.id),
       location: {
         module: 'loans',
         submodule: 'Loan Records',
-        database: { table: 'loans', field: 'repayment_period_months', record_id: overMaxPeriod[0]?.id },
-        member_id: overMaxPeriod[0]?.member_id,
-        business_rule: 'loan.max_period_months',
+        database: { table: 'loans', field: 'repayment_period_months', record_id: outOfRangePeriod[0]?.id },
+        member_id: outOfRangePeriod[0]?.member_id,
+        business_rule: 'loan.min_period_months..loan.max_period_months',
       },
-      evidence: overMaxPeriod.map((l) => evidence({ source_label: 'loans table', source_type: 'database', field: 'repayment_period_months', actual_value: String(l.repayment_period_months), expected_value: String(period), evidence_json: { record_id: l.id, loan_number: l.loan_number } })),
+      evidence: outOfRangePeriod.map((l) => evidence({ source_label: 'loans table', source_type: 'database', field: 'repayment_period_months', actual_value: String(l.repayment_period_months), expected_value: `${minPeriod}–${period}`, evidence_json: { record_id: l.id, loan_number: l.loan_number } })),
     }));
   }
 

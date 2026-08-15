@@ -82,6 +82,7 @@ ABSOLUTE RULES:
 - Reversed transactions are EXCLUDED from every balance. If a deposit of 300 was reversed, the live savings balance is computed WITHOUT it. A reversed row's balance_after=300 is NOT a defect and NOT a "stored balance mismatch".
 - The backend routes that expose balances are: GET /api/v1/members/{id}/balances and GET /api/members/:id/financials. There is NO /api/v1/savings/balance route and NO "SavingsService" class — do not cite them.
 - The member-lookup-frontend savings card reads the balance from the backend above; it does not store its own balance.
+- LOAN REPAYMENT PERIOD: the configured range is loan.min_period_months (default 1) ≤ repayment_period_months ≤ loan.max_period_months (default 12). A per-loan override WITHIN this range (e.g. a 3-month loan when the default is 12) is a LEGITIMATE business choice and is NOT a defect, NOT a "drift", and NOT a finding. Only a repayment_period_months BELOW the min or ABOVE the max is a violation. Do NOT flag in-range overrides.
 === END STORAGE MODEL ===
 
 4. Treat PII minimally: do not echo personal data beyond what is necessary to explain a finding.

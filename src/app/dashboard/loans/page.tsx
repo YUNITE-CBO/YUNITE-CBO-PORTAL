@@ -517,9 +517,9 @@ export default function LoansPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 required
               >
-                {[3, 6, 12, 18, 24, 36, 48, 60].map((months) => (
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((months) => (
                   <option key={months} value={months}>
-                    {months} months
+                    {months} {months === 1 ? 'month' : 'months'}
                   </option>
                 ))}
               </select>

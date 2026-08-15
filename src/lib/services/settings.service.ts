@@ -69,6 +69,7 @@ export class SettingsService {
     const defaults = [
       { key: 'shares.share_value', value: '100', category: 'financial' },
       { key: 'loan.max_percentage', value: '75', category: 'loan' },
+      { key: 'loan.min_period_months', value: '1', category: 'loan' },
       { key: 'loan.max_period_months', value: '12', category: 'loan' },
       { key: 'loan.default_period_months', value: '12', category: 'loan' },
       { key: 'loan.default_interest_rate', value: '10', category: 'loan' },

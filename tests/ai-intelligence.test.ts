@@ -129,6 +129,10 @@ describe('buildPrompt', () => {
     // transaction's balance_after as a "stored balance".
     expect(built.system).toContain('TransactionEngine.calculateBalance');
     expect(built.system).toContain('PER-TRANSACTION SNAPSHOT');
+    // It must teach the loan repayment-period range so the AI stops flagging
+    // legitimate in-range per-loan overrides (e.g. a 3-month loan) as defects.
+    expect(built.system).toContain('LOAN REPAYMENT PERIOD');
+    expect(built.system).toContain('LEGITIMATE business choice');
   });
 });
 
