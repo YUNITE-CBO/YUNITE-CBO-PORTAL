@@ -535,6 +535,19 @@ passwords/tokens/api keys/PII before anything reaches a provider).
   fallback if the setting row is absent. Tests: `tests/ai-settings.test.ts`
   (13: precedence DB>env, explicit override, defaults, non-fatal on DB error).
   Run: `npx jest tests/ai- --testTimeout=15000 --forceExit`.
+  **Lazy seeding (upsert)**: the toggle works EVEN BEFORE migration 033 is
+  applied. `PUT /api/ai/settings` uses `ConfigurationService.upsertMany`
+  (new) → `upsertSetting`, which INSERTs the `ai.*` row with full metadata
+  (category/description/data_type/help_text) if it doesn't exist, or updates
+  it if it does. The insert is defensive: if the live DB is missing an
+  optional column from migration 007 (partially-applied), it retries with
+  only the guaranteed core columns (key/value/category/description/data_type).
+  Concurrent-insert races (PG 23505) fall back to update. Migration 033's
+  seed uses `ON CONFLICT DO UPDATE SET` (not NOTHING) so running it later
+  enriches any lazily-created rows with full metadata. The dashboard +
+  settings section now surface the `details` array from a failed update so
+  the real DB error is visible instead of the generic "Some AI settings
+  failed to update".
 
 ## Conventions
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export

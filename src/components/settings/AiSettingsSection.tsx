@@ -118,7 +118,8 @@ export default function AiSettingsSection({ onBack }: Props) {
         setEdited({});
         await loadSettings();
       } else {
-        setError(json.error || 'Failed to save AI settings');
+        const detail = Array.isArray(json.details) && json.details.length ? ` (${json.details.join('; ')})` : '';
+        setError(`${json.error || 'Failed to save AI settings'}${detail}`);
       }
     } catch {
       setError('Failed to save AI settings');

@@ -90,3 +90,48 @@ export const AI_SETTINGS_KEYS = [
   INVESTIGATIONS_ENABLED_KEY,
   ALERTS_CRITICAL_ENABLED_KEY,
 ] as const;
+
+/**
+ * Full metadata for each AI setting. Used by the settings route to upsert
+ * (lazily seed) rows when migration 033 has not yet been applied to the live
+ * DB, so the toggle works immediately after deploy without a manual SQL step.
+ */
+export interface AiSettingMeta {
+  key: string;
+  category: string;
+  description: string;
+  data_type: string;
+  is_public: boolean;
+  display_order: number;
+  help_text: string;
+}
+
+export const AI_SETTINGS_META: AiSettingMeta[] = [
+  {
+    key: DUAL_MODE_KEY,
+    category: 'ai',
+    description: 'Dual AI Mode — run Gemini and OpenRouter as two independent (blind) investigators for full-system and member-verification scopes, then reconcile their findings via the comparison engine. When OFF, only the primary provider runs.',
+    data_type: 'boolean',
+    is_public: false,
+    display_order: 1,
+    help_text: 'Turning this ON runs both AI providers per investigation (higher cost/latency, deeper coverage). The dashboard "AI Mode" dropdown still lets you force single/dual per run regardless of this toggle.',
+  },
+  {
+    key: INVESTIGATIONS_ENABLED_KEY,
+    category: 'ai',
+    description: 'Master switch for the AI Intelligence investigation engine. When OFF, manual and scheduled investigations are blocked (deterministic engines still run; AI providers are skipped).',
+    data_type: 'boolean',
+    is_public: false,
+    display_order: 2,
+    help_text: 'Disable to pause all AI provider calls without removing configuration.',
+  },
+  {
+    key: ALERTS_CRITICAL_ENABLED_KEY,
+    category: 'ai',
+    description: 'Emit internal YUNITE notifications (and best-effort email) to super admins whenever an investigation produces CRITICAL findings.',
+    data_type: 'boolean',
+    is_public: false,
+    display_order: 3,
+    help_text: 'No sensitive financial values are sent in email; full evidence stays in the Admin Console.',
+  },
+];

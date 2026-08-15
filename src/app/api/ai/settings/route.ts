@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '../_guard';
 import { configurationService } from '@/lib/services/configuration.service';
-import { AI_SETTINGS_KEYS } from '@/ai/settings';
+import { AI_SETTINGS_KEYS, AI_SETTINGS_META } from '@/ai/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,8 +71,27 @@ export async function PUT(request: NextRequest) {
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '';
     const userAgent = request.headers.get('user-agent') || '';
 
-    const result = await configurationService.updateMany(
-      updates,
+    // Build upsert entries with full metadata so the rows are lazily seeded
+    // (created with the correct category/description/data_type) if migration
+    // 033 has not yet been applied to the live DB. When the rows already
+    // exist, upsertMany falls back to a plain update.
+    const metaByKey = new Map(AI_SETTINGS_META.map((m) => [m.key, m]));
+    const upsertEntries = Object.entries(updates).map(([key, value]) => {
+      const meta = metaByKey.get(key)!;
+      return {
+        key,
+        value,
+        category: meta.category,
+        description: meta.description,
+        data_type: meta.data_type,
+        is_public: meta.is_public,
+        display_order: meta.display_order,
+        help_text: meta.help_text,
+      };
+    });
+
+    const result = await configurationService.upsertMany(
+      upsertEntries,
       auth.userId || '',
       'admin',
       'AI Intelligence settings update',

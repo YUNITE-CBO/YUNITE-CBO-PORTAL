@@ -303,6 +303,141 @@ export class ConfigurationService {
   }
 
   /**
+   * Update a setting, INSERTING it if the row does not yet exist.
+   *
+   * Used by surfaces that seed their own settings lazily (e.g. the AI
+   * Intelligence toggle) so a toggle works even before the seeding
+   * migration has been applied to the live DB. The insert carries the
+   * provided category/description/data_type metadata so the row shows up
+   * correctly in the Settings UI once created. Audit/history are still
+   * recorded (best-effort) exactly like updateSetting.
+   */
+  async upsertSetting(
+    key: string,
+    newValue: string,
+    options: {
+      userId?: string;
+      userName?: string;
+      reason?: string;
+      ipAddress?: string;
+      userAgent?: string;
+      category: string;
+      description?: string;
+      data_type?: string;
+      is_public?: boolean;
+      display_order?: number;
+      help_text?: string;
+    },
+  ): Promise<{ success: boolean; error?: string; created?: boolean }> {
+    const supabase = await createServiceClient();
+
+    const { data: current, error: fetchError } = await supabase
+      .from('settings')
+      .select('value, data_type')
+      .eq('key', key)
+      .maybeSingle();
+
+    if (fetchError) {
+      return { success: false, error: `Failed to read setting: ${fetchError.message}` };
+    }
+
+    const userId = options.userId;
+    const userName = options.userName;
+    const reason = options.reason;
+    const ipAddress = options.ipAddress;
+    const userAgent = options.userAgent;
+
+    // Row missing → create it with the supplied metadata.
+    if (!current) {
+      // Try the full insert (incl. optional columns from migration 007). If
+      // the live DB is missing any optional column, retry with only the
+      // guaranteed core columns so the toggle still works.
+      const { error: insertError } = await supabase.from('settings').insert({
+        id: uuidv4(),
+        key,
+        value: newValue,
+        description: options.description ?? null,
+        category: options.category,
+        data_type: options.data_type ?? 'text',
+        is_public: options.is_public ?? false,
+        display_order: options.display_order ?? 0,
+        help_text: options.help_text ?? null,
+        updated_by: userId,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (insertError) {
+        // Race: another request inserted it concurrently — retry as update.
+        if (insertError.code === '23505') {
+          return this.updateSetting(key, newValue, userId, userName, reason, ipAddress, userAgent);
+        }
+        // Missing optional column (partially-applied migration 007) → retry
+        // with only the guaranteed core columns.
+        if (insertError.message && /column .* does not exist/i.test(insertError.message)) {
+          const { error: coreError } = await supabase.from('settings').insert({
+            id: uuidv4(),
+            key,
+            value: newValue,
+            description: options.description ?? null,
+            category: options.category,
+            data_type: options.data_type ?? 'text',
+            updated_by: userId,
+            updated_at: new Date().toISOString(),
+          });
+          if (coreError) {
+            if (coreError.code === '23505') {
+              return this.updateSetting(key, newValue, userId, userName, reason, ipAddress, userAgent);
+            }
+            return { success: false, error: `Failed to create setting: ${coreError.message}` };
+          }
+        } else {
+          return { success: false, error: `Failed to create setting: ${insertError.message}` };
+        }
+      }
+
+      // Best-effort audit/history for the newly created row.
+      try {
+        await supabase.from('configuration_history').insert({
+          id: uuidv4(),
+          setting_key: key,
+          old_value: null,
+          new_value: newValue,
+          old_value_masked: null,
+          new_value_masked: newValue,
+          changed_by: userId,
+          changed_by_name: userName,
+          reason: reason || null,
+          ip_address: ipAddress || null,
+          user_agent: userAgent || null,
+          created_at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('Failed to record configuration history:', e);
+      }
+      try {
+        await supabase.from('audit_logs').insert({
+          id: uuidv4(),
+          user_id: userId || 'system',
+          action: 'configuration.created',
+          record_id: key,
+          before_value: null,
+          after_value: { key, value: newValue },
+          description: `Configuration created: ${key}`,
+          ip_address: ipAddress,
+          created_at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('Failed to record audit log:', e);
+      }
+
+      return { success: true, created: true };
+    }
+
+    // Row exists → delegate to the normal update path.
+    return this.updateSetting(key, newValue, userId, userName, reason, ipAddress, userAgent);
+  }
+
+  /**
    * Update multiple settings at once
    */
   async updateMany(
@@ -319,6 +454,48 @@ export class ConfigurationService {
       const result = await this.updateSetting(key, value, userId, userName, reason, ipAddress, userAgent);
       if (!result.success && result.error) {
         errors.push(`${key}: ${result.error}`);
+      }
+    }
+
+    return { success: errors.length === 0, errors };
+  }
+
+  /**
+   * Upsert multiple settings at once. Each entry carries the metadata needed
+   * to create the row if it does not yet exist (lazy seeding). Falls back to
+   * a plain update when the row already exists.
+   */
+  async upsertMany(
+    updates: Array<{
+      key: string;
+      value: string;
+      category: string;
+      description?: string;
+      data_type?: string;
+      is_public?: boolean;
+      display_order?: number;
+      help_text?: string;
+    }>,
+    userId?: string,
+    userName?: string,
+    reason?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ success: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    for (const u of updates) {
+      const result = await this.upsertSetting(u.key, u.value, {
+        userId, userName, reason, ipAddress, userAgent,
+        category: u.category,
+        description: u.description,
+        data_type: u.data_type,
+        is_public: u.is_public,
+        display_order: u.display_order,
+        help_text: u.help_text,
+      });
+      if (!result.success && result.error) {
+        errors.push(`${u.key}: ${result.error}`);
       }
     }
 

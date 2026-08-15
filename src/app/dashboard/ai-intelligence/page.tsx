@@ -224,7 +224,8 @@ export default function AiIntelligencePage() {
         setInfo(`Dual AI Mode is now ${next === 'true' ? 'ON — Gemini and OpenRouter will both investigate (full system / member verification), then be reconciled.' : 'OFF — only the primary AI provider will run.'} The next investigation picks this up automatically.`);
         await loadHealth();
       } else {
-        setError(json.error || 'Failed to toggle Dual AI Mode');
+        const detail = Array.isArray(json.details) && json.details.length ? ` (${json.details.join('; ')})` : '';
+        setError(`${json.error || 'Failed to toggle Dual AI Mode'}${detail}`);
       }
     } catch (e: any) {
       setError(`Failed to toggle Dual AI Mode: ${e?.message || e}`);
