@@ -174,7 +174,12 @@ FROM media_assets ma
 WHERE ma.owner_type = 'organization'
   AND ma.asset_type = 'ORGANIZATION_LOGO'
   AND ma.status = 'active'
-  AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'organization.logo_url');
+  AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'organization.logo_url')
+-- Multiple organizations may each hold an active ORGANIZATION_LOGO asset, so
+-- the SELECT above can yield several rows that all share the single global
+-- key 'organization.logo_url' (UNIQUE NOT NULL). Keep only the first to avoid
+-- a unique_violation at runtime; ON CONFLICT also makes this re-runnable.
+ON CONFLICT (key) DO NOTHING;
 
 -- ============================================
 -- DEPLOY: run this migration in the Supabase SQL Editor.
