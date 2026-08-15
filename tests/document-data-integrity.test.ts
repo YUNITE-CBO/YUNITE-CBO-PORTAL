@@ -23,6 +23,7 @@ jest.mock('@/lib/supabase/server', () => {
   let finePaymentTxns: any[] = [];
   let memberAccounts: any[] = [];
   let memberTxns: any[] = [];
+  let memberRow: any = null;
   const chain = (rows: () => any[]) => {
     const c: any = {
       select: () => c,
@@ -51,6 +52,24 @@ jest.mock('@/lib/supabase/server', () => {
     from(table: string) {
       if (table === 'loans') return chain(() => loanData);
       if (table === 'fines') return chain(() => fineData);
+      if (table === 'members') {
+        const mc: any = {
+          select: () => mc,
+          eq: () => mc,
+          in: () => mc,
+          neq: () => mc,
+          gte: () => mc,
+          lte: () => mc,
+          lt: () => mc,
+          order: () => mc,
+          maybeSingle: async () => ({ data: memberRow, error: null }),
+          single: async () => ({ data: memberRow, error: null }),
+        };
+        mc.then = (resolve: any, reject: any) => {
+          Promise.resolve({ data: memberRow ? [memberRow] : [], error: null }).then(resolve, reject);
+        };
+        return mc;
+      }
       if (table === 'accounts') {
         // calculateBalance looks up the member's account row via .single().
         const ac: any = {
@@ -108,6 +127,7 @@ jest.mock('@/lib/supabase/server', () => {
     __setFinePaymentTxns: (d: any[]) => { finePaymentTxns = d; },
     __setMemberAccounts: (d: any[]) => { memberAccounts = d; },
     __setMemberTxns: (d: any[]) => { memberTxns = d; },
+    __setMemberRow: (d: any) => { memberRow = d; },
   };
   return {
     createServiceClient: async () => builder,
@@ -130,6 +150,7 @@ const supabaseMock = (require('@/lib/supabase/server') as any).__supabaseMock as
   __setFinePaymentTxns: (d: any[]) => void;
   __setMemberAccounts: (d: any[]) => void;
   __setMemberTxns: (d: any[]) => void;
+  __setMemberRow: (d: any) => void;
 };
 
 beforeEach(() => {
@@ -140,6 +161,7 @@ beforeEach(() => {
   supabaseMock.__setFinePaymentTxns([]);
   supabaseMock.__setMemberAccounts([]);
   supabaseMock.__setMemberTxns([]);
+  supabaseMock.__setMemberRow(null);
 });
 
 describe('org identity — registration number is never invented', () => {
@@ -238,23 +260,72 @@ describe('data-quality report aggregates real results', () => {
 
 describe('member statement breakdown includes shares + uses authoritative engine', () => {
   test('getMemberStatement account breakdown covers all six account types incl. shares', async () => {
-    // The statement calls transactionEngine.calculateBalance per account type.
-    // transactionEngine looks up the member's 'accounts' rows then sums txns.
-    // Provide one account row per type so calculateBalance returns the txns sum.
-    const types = ['savings', 'shares', 'contributions', 'welfare', 'fines', 'loans'];
-    supabaseMock.__setMemberAccounts(
-      types.map((t) => ({ id: `acc-${t}`, member_id: 'm1', account_type: t })),
+    // The statement must list all six account types, including 'shares'.
+    supabaseMock.__setMemberRow({
+      id: 'm1',
+      member_number: 'YUN-001',
+      first_name: 'Ada',
+      last_name: 'Lovelace',
+      email: 'ada@example.com',
+      phone: null,
+      status: 'active',
+    });
+    // One savings deposit of 1000 → savings balance = 1000; with the engine's
+    // default share value of 100 (no settings row in mock), shares = floor(1000/100) = 10.
+    supabaseMock.__setMemberAccounts([
+      { id: 'acc-savings', member_id: 'm1', account_type: 'savings' },
+    ]);
+    supabaseMock.__setMemberTxns([{ transaction_type: 'savings_deposit', amount: 1000 }]);
+    const start = new Date('2026-01-01T00:00:00Z');
+    const end = new Date('2026-12-31T23:59:59Z');
+    const stmt = await reportDataService.getMemberStatement('m1', { start, end, label: 'FY2026' });
+    const types = stmt.accountBreakdown.map((b) => b.account_type);
+    expect(types).toEqual(
+      expect.arrayContaining(['savings', 'shares', 'contributions', 'welfare', 'fines', 'loans']),
     );
-    supabaseMock.__setMemberTxns(
-      types.flatMap((t) => [
-        { transaction_type: 'savings_deposit', amount: 100 },
-      ]),
-    );
-    // Member record is fetched via members table → returns null in mock (single()).
-    // getMemberStatement throws if member not found; so test the breakdown list
-    // of account types directly instead.
-    // (The six-type coverage including 'shares' is the invariant under test.)
-    expect(types).toContain('shares');
+  });
+
+  test('shares balance is derived from savings via calculateAllBalances — never 0 when savings exist', async () => {
+    // Regression: previously the breakdown called calculateBalance(memberId,
+    // 'shares'), which queries an empty 'shares' account row and returns 0.
+    // That produced a false-positive reconciliation discrepancy because the
+    // reconciliation engine compares the statement's shares balance against
+    // calculateAllBalances().shares (floor(savings / share_value)). The
+    // breakdown must now source shares from calculateAllBalances directly.
+    supabaseMock.__setMemberRow({
+      id: 'm1',
+      member_number: 'YUN-001',
+      first_name: 'Ada',
+      last_name: 'Lovelace',
+      email: 'ada@example.com',
+      phone: null,
+      status: 'active',
+    });
+    supabaseMock.__setMemberAccounts([
+      { id: 'acc-savings', member_id: 'm1', account_type: 'savings' },
+    ]);
+    supabaseMock.__setMemberTxns([{ transaction_type: 'savings_deposit', amount: 1000 }]);
+    const engineBalances = await transactionEngine.calculateAllBalances('m1');
+    const expectedShares = Number((engineBalances as any).shares ?? 0);
+    // Sanity: with savings=1000 and the engine's default share value of 100,
+    // shares = floor(1000 / 100) = 10 > 0.
+    expect(expectedShares).toBeGreaterThan(0);
+
+    const start = new Date('2026-01-01T00:00:00Z');
+    const end = new Date('2026-12-31T23:59:59Z');
+    const stmt = await reportDataService.getMemberStatement('m1', { start, end, label: 'FY2026' });
+    const sharesEntry = stmt.accountBreakdown.find((b) => b.account_type === 'shares');
+    expect(sharesEntry).toBeDefined();
+    // The statement's shares balance MUST equal the engine-derived shares,
+    // otherwise reconcileMemberStatement flags a false discrepancy.
+    expect(sharesEntry!.balance).toBe(expectedShares);
+
+    // And the reconciliation check over that same statement must be clean.
+    const dq = await reportDataQualityService.reconcileMemberStatement('m1', {
+      closingBalance: stmt.closingBalance,
+      accountBreakdown: stmt.accountBreakdown as Array<{ account_type: string; balance: number }>,
+    });
+    expect(dq.status).toBe('verified');
   });
 
   test('documents change when underlying data changes — engine recomputes from ledger', async () => {

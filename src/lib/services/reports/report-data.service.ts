@@ -463,15 +463,17 @@ export class ReportDataService {
 
     // Account breakdown (current balances per account type). Uses the
     // authoritative transactionEngine (ledger-derived SUM) — NOT a stored
-    // balance column. Shares are derived (floor(savings / share_value)) via
-    // calculateAllBalances and MUST be included.
-    const accountTypes = ['savings', 'shares', 'contributions', 'welfare', 'fines', 'loans'];
-    const accountBreakdown = await Promise.all(
-      accountTypes.map(async (at) => ({
-        account_type: at,
-        balance: await transactionEngine.calculateBalance(memberId, at as any),
-      })),
-    );
+    // balance column. calculateAllBalances is the single source of truth so
+    // shares is derived consistently (floor(savings / share_value)) — calling
+    // calculateBalance(memberId, 'shares') would hit an empty 'shares' account
+    // row (shares are never stored as transactions) and always return 0, which
+    // would then trip a false-positive reconciliation discrepancy.
+    const balances = await transactionEngine.calculateAllBalances(memberId);
+    const accountTypes = ['savings', 'shares', 'contributions', 'welfare', 'fines', 'loans'] as const;
+    const accountBreakdown = accountTypes.map((at) => ({
+      account_type: at,
+      balance: Number((balances as unknown as Record<string, number>)[at] ?? 0),
+    }));
 
     return {
       member: {

@@ -12,7 +12,6 @@ import { resolveOrgIdentity } from '../styles/yunite-document.styles';
 import type { DocumentEnvelope } from '../types/document.types';
 import { titleBlock, metaBlock, certificationStamp, signatureArea, pageBreak } from '../utils/headers';
 import { divider } from '../utils/tables';
-import { money, text } from '../utils/formatting';
 import { BRAND_COLORS } from '@/lib/services/reports/brand';
 import type { DataQualityReport } from '@/lib/services/reports/report-data-quality.service';
 
