@@ -76,7 +76,7 @@ export class SettingsService {
       { key: 'loan.max_amount', value: '500000', category: 'loan' },
       { key: 'fees.registration', value: '500', category: 'fees' },
       { key: 'fees.annual', value: '2000', category: 'fees' },
-      { key: 'organization.name', value: 'YUNITE CBO', category: 'organization' },
+      { key: 'organization.name', value: 'YUNITE PAMOJA CBO', category: 'organization' },
       { key: 'organization.currency', value: 'KES', category: 'organization' },
       { key: 'welfare.monthly_amount', value: '500', category: 'welfare' },
       { key: 'contributions.monthly_default', value: '1000', category: 'contributions' },

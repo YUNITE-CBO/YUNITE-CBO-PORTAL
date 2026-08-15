@@ -142,17 +142,22 @@ function computeHash(ref: string, type: string, generatedAt: string): string {
 
 function letterhead(): string {
   const org = ORG_IDENTITY;
+  const regLine = org.registrationNumber
+    ? `${esc(org.tagline)} · Reg. ${esc(org.registrationNumber)}`
+    : `${esc(org.tagline)} · Reg. Not Configured`;
+  const contactBits = [org.address, org.city, org.country].filter((p) => p && p.trim());
+  const addrLine = contactBits.join(', ');
+  const commBits = [org.email, org.phone, org.website].filter((p) => p && p.trim());
+  const commLine = commBits.join(' · ');
+  const contactsBlock = [addrLine, commLine].filter((p) => p.trim()).join('<br/>');
   return `
   <header class="letterhead">
     <div class="lh-row">
       <div class="lh-logo">${LOGO_SVG}</div>
       <div class="lh-org">
         <h1>${esc(org.name)}</h1>
-        <p class="lh-tagline">${esc(org.tagline)} · Reg. ${esc(org.registrationNumber)}</p>
-        <p class="lh-contacts">
-          ${esc(org.address)}, ${esc(org.city)}, ${esc(org.country)}<br/>
-          ${esc(org.email)} · ${esc(org.phone)} · ${esc(org.website)}
-        </p>
+        <p class="lh-tagline">${regLine}</p>
+        ${contactsBlock ? `<p class="lh-contacts">${contactsBlock}</p>` : ''}
       </div>
     </div>
     <div class="lh-accent"></div>
@@ -169,8 +174,11 @@ function footer(ref: string, hash: string, generatedAt: string, generatedBy?: st
       <div class="footer-copy">${ORG_IDENTITY.copyright}</div>
     </div>
     <div class="footer-meta">
+      <span>${esc(ORG_IDENTITY.name)} · System Generated Document</span>
+      <span>Prepared By: YUNITE PAMOJA CBO System</span>
+    </div>
+    <div class="footer-meta">
       <span>Doc Ref: <strong>${esc(ref)}</strong></span>
-      <span>Auth Hash: <strong>${esc(hash)}</strong></span>
       <span>Generated: ${esc(generatedAt)}${by}</span>
       <span>Verify: ${esc(verifyUrl)}</span>
     </div>

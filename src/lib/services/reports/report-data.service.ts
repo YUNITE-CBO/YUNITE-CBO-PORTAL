@@ -461,8 +461,11 @@ export class ReportDataService {
 
     const closing = opening + totalCredits - totalDebits;
 
-    // Account breakdown (current balances per account type)
-    const accountTypes = ['savings', 'contributions', 'welfare', 'fines', 'loans'];
+    // Account breakdown (current balances per account type). Uses the
+    // authoritative transactionEngine (ledger-derived SUM) — NOT a stored
+    // balance column. Shares are derived (floor(savings / share_value)) via
+    // calculateAllBalances and MUST be included.
+    const accountTypes = ['savings', 'shares', 'contributions', 'welfare', 'fines', 'loans'];
     const accountBreakdown = await Promise.all(
       accountTypes.map(async (at) => ({
         account_type: at,

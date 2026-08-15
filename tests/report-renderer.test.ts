@@ -18,16 +18,20 @@ import {
 import type { ReportContext } from '@/lib/services/reports/report-data.service';
 
 describe('brand identity', () => {
-  test('carries the official Yunite Pamoja CBO identity', () => {
-    expect(ORG_IDENTITY.name).toBe('Yunite Pamoja CBO');
-    expect(ORG_IDENTITY.email).toBe('info.yunite.ke@gmail.com');
+  test('carries the official YUNITE PAMOJA CBO identity', () => {
+    expect(ORG_IDENTITY.name).toBe('YUNITE PAMOJA CBO');
     expect(ORG_IDENTITY.city).toBe('Nairobi');
     expect(ORG_IDENTITY.country).toBe('Kenya');
-    expect(ORG_IDENTITY.address).toContain('Kariobangi');
+    // The canonical fallback carries NO invented contact details or
+    // registration number — those must come from Settings.
+    expect(ORG_IDENTITY.registrationNumber).toBe('');
+    expect(ORG_IDENTITY.email).toBe('');
+    expect(ORG_IDENTITY.phone).toBe('');
+    expect(ORG_IDENTITY.website).toBe('');
   });
 
   test('copyright text is present and current', () => {
-    expect(ORG_IDENTITY.copyright).toContain('Yunite Pamoja CBO');
+    expect(ORG_IDENTITY.copyright).toContain('YUNITE PAMOJA CBO');
     expect(ORG_IDENTITY.copyright).toContain('All rights reserved');
     expect(ORG_IDENTITY.copyright).toContain(String(new Date().getFullYear()));
   });

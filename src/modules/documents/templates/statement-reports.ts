@@ -7,16 +7,17 @@
 
 import type { Content } from 'pdfmake';
 import { kpiRow, sectionHeader, preamble, closing } from './shared';
+import { resolveOrgIdentity } from '../styles/yunite-document.styles';
 import { buildTable, emptyNote } from '../utils/tables';
 import { money, signedMoney, text, titleCase, formatDate } from '../utils/formatting';
 import { capRows } from '../utils/pagination';
 import type { MemberStatementData } from '@/lib/services/reports/report-data.service';
 import type { FinancialStandingData, LoanStatementData, DocumentEnvelope } from '../types/document.types';
 
-const cur = 'KES';
-
 /** Member statement of account: opening/closing + transaction ledger + breakdown. */
 export async function memberStatementTemplate(env: DocumentEnvelope, data: MemberStatementData): Promise<Content[]> {
+  const org = await resolveOrgIdentity();
+  const cur = org.currency;
   const content: Content[] = await preamble(
     env,
     `${data.member.name} — Member No. ${data.member.member_number}`,
@@ -76,6 +77,8 @@ export async function memberStatementTemplate(env: DocumentEnvelope, data: Membe
 
 /** Member financial standing: balances + outstanding loan + obligations. */
 export async function memberFinancialStandingTemplate(env: DocumentEnvelope, data: FinancialStandingData): Promise<Content[]> {
+  const org = await resolveOrgIdentity();
+  const cur = org.currency;
   const content: Content[] = await preamble(
     env,
     `${data.member.name} — Member No. ${data.member.member_number}`,
@@ -118,6 +121,8 @@ export async function memberFinancialStandingTemplate(env: DocumentEnvelope, dat
 
 /** Loan statement: loan terms + repayment schedule + next obligation. */
 export async function loanStatementTemplate(env: DocumentEnvelope, data: LoanStatementData): Promise<Content[]> {
+  const org = await resolveOrgIdentity();
+  const cur = org.currency;
   const l = data.loan;
   const content: Content[] = await preamble(
     env,

@@ -8,6 +8,7 @@
 
 import type { Content } from 'pdfmake';
 import { kpiRow, sectionHeader, preamble, closing } from './shared';
+import { resolveOrgIdentity } from '../styles/yunite-document.styles';
 import { buildTable } from '../utils/tables';
 import { money, signedMoney, text, titleCase } from '../utils/formatting';
 import type { FinancialSummaryData, OrgSummaryData, WelfareData } from '@/lib/services/reports/report-data.service';
@@ -15,7 +16,7 @@ import type { DocumentEnvelope } from '../types/document.types';
 
 /** Build the financial-summary KPI grid + fund tables. */
 export async function financialSummaryTemplate(env: DocumentEnvelope, data: FinancialSummaryData): Promise<Content[]> {
-  const cur = 'KES';
+  const cur = (await resolveOrgIdentity()).currency;
   const content: Content[] = await preamble(env, 'Comprehensive financial position across all funds');
 
   content.push(
@@ -64,7 +65,7 @@ export async function financialSummaryTemplate(env: DocumentEnvelope, data: Fina
 
 /** Organization summary: member counts + financial KPIs + pending items. */
 export async function organizationSummaryTemplate(env: DocumentEnvelope, data: OrgSummaryData): Promise<Content[]> {
-  const cur = data.currency || 'KES';
+  const cur = data.currency || (await resolveOrgIdentity()).currency;
   const content: Content[] = await preamble(env, `${data.memberCounts.total} members · ${data.memberCounts.active} active`);
 
   content.push(
@@ -113,7 +114,7 @@ export async function organizationSummaryTemplate(env: DocumentEnvelope, data: O
 
 /** Welfare fund report. */
 export async function welfareReportTemplate(env: DocumentEnvelope, data: WelfareData): Promise<Content[]> {
-  const cur = 'KES';
+  const cur = (await resolveOrgIdentity()).currency;
   const content: Content[] = await preamble(env, 'Welfare fund deposits, disbursements, and balance');
 
   content.push(

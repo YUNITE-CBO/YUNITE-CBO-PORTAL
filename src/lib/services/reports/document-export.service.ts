@@ -26,6 +26,7 @@ import {
 } from './report-data.service';
 import { renderDocument, type ReportPayload } from './report-renderer';
 import { reportToCsv } from './document-generator';
+import { reportDataQualityService, type DataQualityReport } from './report-data-quality.service';
 import { getClientIP, getUserAgent } from '@/lib/auth/server-auth';
 import {
   documentService,
@@ -112,6 +113,17 @@ export class DocumentExportService {
       const issuer: DocumentIssuer | undefined = opts.generatedBy
         ? { id: opts.generatedBy.id, name: opts.generatedBy.name, role: opts.generatedBy.role }
         : undefined;
+      // Run data-quality reconciliation so the document surfaces any
+      // stored-vs-ledger discrepancies instead of presenting them as verified
+      // truth. Never blocks generation (best-effort; warns on failure).
+      let dataQuality: DataQualityReport | undefined;
+      try {
+        dataQuality = opts.memberId
+          ? await reportDataQualityService.reconcileMember(opts.memberId)
+          : await reportDataQualityService.reconcileOrganization();
+      } catch (e) {
+        console.warn('[document-export] reconciliation failed:', e instanceof Error ? e.message : e);
+      }
       const envelope = await buildEnvelope({
         kind,
         title: meta.title,
@@ -121,6 +133,7 @@ export class DocumentExportService {
         memberNumber,
         classification: 'Confidential',
       });
+      if (dataQuality) envelope.dataQuality = dataQuality;
       const data = payloadToDocumentData(kind, ctx.type, payload, ctx);
       const doc = await generateDocument({ kind, envelope, data });
       content = doc.buffer;

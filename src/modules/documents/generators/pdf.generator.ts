@@ -13,7 +13,7 @@
  */
 
 import type { Content, TDocumentDefinitions, CustomTableLayout } from 'pdfmake/interfaces';
-import { resolveOrgIdentity, YUNITE_STYLES, PAGE_GEOMETRY, YUNITE_TABLE_LAYOUT } from '../styles/yunite-document.styles';
+import { resolveOrgIdentity, resolveLogoDataUri, YUNITE_STYLES, PAGE_GEOMETRY, YUNITE_TABLE_LAYOUT } from '../styles/yunite-document.styles';
 import { pageHeader, pageFooter } from '../utils/headers';
 import type { DocumentRequest } from '../types/document.types';
 
@@ -79,11 +79,12 @@ export interface GeneratePdfOptions {
 export async function generatePdf(opts: GeneratePdfOptions): Promise<Buffer> {
   ensureInitialised();
   const org = await resolveOrgIdentity();
+  const logoDataUri = await resolveLogoDataUri();
   const geometry = opts.orientation === 'landscape' ? PAGE_GEOMETRY.landscape : PAGE_GEOMETRY.portrait;
 
   const docDefinition: TDocumentDefinitions = {
     ...(geometry as unknown as Partial<TDocumentDefinitions>),
-    header: pageHeader(org, opts.envelope) as unknown as Content,
+    header: pageHeader(org, opts.envelope, logoDataUri) as unknown as Content,
     footer: pageFooter(org, opts.envelope) as unknown as Content,
     content: opts.content,
     styles: YUNITE_STYLES as unknown as TDocumentDefinitions['styles'],
@@ -101,5 +102,5 @@ export async function generatePdf(opts: GeneratePdfOptions): Promise<Buffer> {
   return buffer;
 }
 
-/** Re-export the brand resolver so templates can build org-aware content. */
-export { resolveOrgIdentity } from '../styles/yunite-document.styles';
+/** Re-export the brand + logo resolvers so templates can build org-aware content. */
+export { resolveOrgIdentity, resolveLogoDataUri } from '../styles/yunite-document.styles';

@@ -27,21 +27,33 @@ export interface OrgIdentity {
   registrationNumber: string;
   currency: string;
   copyright: string;
+  logoUrl: string;
 }
 
+/**
+ * CANONICAL FALLBACK identity ONLY.
+ *
+ * These values are used solely when a given `organization.*` setting is not
+ * configured in the database. The organization NAME is fixed
+ * ('YUNITE PAMOJA CBO'); the registration number is deliberately EMPTY here
+ * so that an unconfigured org never fabricates one — `resolveOrgIdentity`
+ * surfaces a 'Not Configured' indicator instead. Contacts are best-effort
+ * placeholders that real deployments override via Settings.
+ */
 export const ORG_IDENTITY: OrgIdentity = {
-  name: 'Yunite Pamoja CBO',
-  shortName: 'Yunite Pamoja',
+  name: 'YUNITE PAMOJA CBO',
+  shortName: 'YUNITE PAMOJA',
   tagline: 'Community-Based Organization',
-  email: 'info.yunite.ke@gmail.com',
-  phone: '+254 700 000 000',
-  address: 'Kariobangi North',
+  email: '',
+  phone: '',
+  address: '',
   city: 'Nairobi',
   country: 'Kenya',
-  website: 'yunitepamoja.org',
-  registrationNumber: 'CBO/NAI/YP/001',
+  website: '',
+  registrationNumber: '',
   currency: 'KES',
-  copyright: `© ${new Date().getFullYear()} Yunite Pamoja CBO. All rights reserved. This is a computer-generated, digitally certified document issued by Yunite Pamoja CBO. Unauthorized alteration, forgery, or reproduction of this document is prohibited and may constitute an offence under Kenyan law.`,
+  logoUrl: '',
+  copyright: `© ${new Date().getFullYear()} YUNITE PAMOJA CBO. All rights reserved. This is a computer-generated, digitally certified document issued by YUNITE PAMOJA CBO. Unauthorized alteration, forgery, or reproduction of this document is prohibited and may constitute an offence under Kenyan law.`,
 };
 
 /** Brand palette — mirrors the official logo. */

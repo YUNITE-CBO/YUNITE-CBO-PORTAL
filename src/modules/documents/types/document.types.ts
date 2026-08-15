@@ -64,6 +64,12 @@ export interface DocumentEnvelope {
   classification?: string;
   /** Optional member scope (for member-scoped documents). */
   memberNumber?: string;
+  /**
+   * Optional data-quality / reconciliation report. When present, templates
+   * render a data-quality indicator so discrepancies are never silently
+   * presented as verified truth (requirement: data integrity over appearance).
+   */
+  dataQuality?: import('@/lib/services/reports/report-data-quality.service').DataQualityReport;
 }
 
 /** The union of all generatable document kinds. */

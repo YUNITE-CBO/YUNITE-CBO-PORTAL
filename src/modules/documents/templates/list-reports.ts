@@ -8,6 +8,7 @@
 
 import type { Content } from 'pdfmake';
 import { sectionHeader, preamble, closing } from './shared';
+import { resolveOrgIdentity } from '../styles/yunite-document.styles';
 import { buildTable, emptyNote } from '../utils/tables';
 import { money, text, titleCase, formatDate } from '../utils/formatting';
 import { capRows } from '../utils/pagination';
@@ -20,10 +21,9 @@ import type {
 } from '@/lib/services/reports/report-data.service';
 import type { DocumentEnvelope } from '../types/document.types';
 
-const cur = 'KES';
-
 /** Member register. */
 export async function memberListTemplate(env: DocumentEnvelope, members: MemberRow[], total: number): Promise<Content[]> {
+  const cur = (await resolveOrgIdentity()).currency;
   const content: Content[] = await preamble(env, `${total} members on record`);
   content.push(...sectionHeader('Member Register'));
 
@@ -59,6 +59,7 @@ export async function memberListTemplate(env: DocumentEnvelope, members: MemberR
 
 /** Loan portfolio report. */
 export async function loanReportTemplate(env: DocumentEnvelope, loans: LoanRow[], total: number): Promise<Content[]> {
+  const cur = (await resolveOrgIdentity()).currency;
   const content: Content[] = await preamble(env, `${total} loans on record`);
   content.push(...sectionHeader('Loan Portfolio'));
 
@@ -118,6 +119,7 @@ export async function loanReportTemplate(env: DocumentEnvelope, loans: LoanRow[]
 
 /** Transaction ledger report (landscape for the wider table). */
 export async function transactionReportTemplate(env: DocumentEnvelope, transactions: TransactionRow[], total: number): Promise<Content[]> {
+  const cur = (await resolveOrgIdentity()).currency;
   const content: Content[] = await preamble(env, `${total} transactions in the period`);
   content.push(...sectionHeader('Transaction Ledger'));
 
@@ -157,6 +159,7 @@ export async function transactionReportTemplate(env: DocumentEnvelope, transacti
 
 /** Contributions report. */
 export async function contributionReportTemplate(env: DocumentEnvelope, rowsData: ContributionRow[], total: number, totalAmount: number): Promise<Content[]> {
+  const cur = (await resolveOrgIdentity()).currency;
   const content: Content[] = await preamble(env, `${total} contribution transactions · ${money(totalAmount, cur)} total`);
   content.push(...sectionHeader('Contributions'));
 
@@ -178,6 +181,7 @@ export async function contributionReportTemplate(env: DocumentEnvelope, rowsData
 
 /** Fines report. */
 export async function fineReportTemplate(env: DocumentEnvelope, fines: FineRow[], total: number): Promise<Content[]> {
+  const cur = (await resolveOrgIdentity()).currency;
   const content: Content[] = await preamble(env, `${total} fines on record`);
   content.push(...sectionHeader('Fines Register'));
 
