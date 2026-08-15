@@ -75,7 +75,7 @@ CREATE TRIGGER media_assets_updated_at BEFORE UPDATE ON media_assets
 -- Seeded under a new 'media' config category so it auto-renders in the
 -- Settings UI. The upload limit / allowed types are NOT hard-coded in
 -- multiple places — they live here as the single source of truth.
-INSERT INTO configuration_categories (code, name, description, icon, color, display_order)
+INSERT INTO configuration_categories (code, name, description, icon, color, sort_order)
 SELECT 'media', 'Media & Assets', 'Centralized media engine: upload limits, allowed types', 'image', '#7C3AED', 14
 WHERE NOT EXISTS (SELECT 1 FROM configuration_categories WHERE code = 'media')
 ON CONFLICT (code) DO UPDATE SET
