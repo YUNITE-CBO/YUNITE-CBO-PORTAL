@@ -101,12 +101,49 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'memberId is required' }, { status: 400 });
     }
 
-    const data = await documentService.getMemberComplianceStatus(memberId);
-    if (!data) {
-      return NextResponse.json({ success: false, error: 'Member compliance not found' }, { status: 404 });
+    // Fetch compliance records directly so the UI can reflect manual overrides
+    // even when no member_approval_workflow row exists yet.
+    const supabase = await createServiceClient();
+    const { data: complianceRecords, error: crError } = await supabase
+      .from('compliance_records')
+      .select('*')
+      .eq('member_id', memberId);
+    if (crError) console.warn('compliance_records fetch error:', crError);
+
+    const { data: memberCompliance, error: mcError } = await supabase
+      .from('member_compliance')
+      .select('*')
+      .eq('member_id', memberId);
+    if (mcError) console.warn('member_compliance fetch error:', mcError);
+
+    // Merge both sources keyed by category code / compliance_type
+    const recordsByCode: Record<string, any> = {};
+    (complianceRecords || []).forEach((r: any) => {
+      recordsByCode[r.compliance_type] = { ...r, source: 'compliance_records' };
+    });
+    (memberCompliance || []).forEach((r: any) => {
+      const key = r.document_category_code || r.compliance_type;
+      if (!recordsByCode[key]) {
+        recordsByCode[key] = { ...r, source: 'member_compliance' };
+      }
+    });
+
+    // Try the full workflow-backed status; fall back gracefully if no workflow row.
+    let workflowData: any = null;
+    try {
+      workflowData = await documentService.getMemberComplianceStatus(memberId);
+    } catch {
+      workflowData = null;
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...(workflowData || {}),
+        records: Object.values(recordsByCode),
+        recordsByCode,
+      },
+    });
   } catch (error) {
     console.error('Error fetching compliance:', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch compliance' }, { status: 500 });
@@ -222,6 +259,167 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: true, 
         message: `All compliance records marked as ${status}` 
+      });
+    }
+
+    // Manual complete: an admin manually marks ALL required compliance requirements
+    // as complete (e.g. physical documents verified outside the system). This:
+    // 1. Approves any existing uploaded documents for required categories.
+    // 2. Upserts compliance_records (status='complete') + member_compliance (status='approved')
+    //    for every required member category (creating rows if none exist).
+    // 3. Sets member_approval_workflow.compliance_score = 100, required_documents_complete = true.
+    if (action === 'manual_complete' && memberId) {
+      const { MemberDocumentsConfig } = await import('@/lib/services/documents/module-configurations');
+      const requiredCategories = Object.values(MemberDocumentsConfig.categories)
+        .filter(c => c.isRequired);
+
+      if (requiredCategories.length === 0) {
+        return NextResponse.json({ success: false, error: 'No required compliance categories configured' }, { status: 400 });
+      }
+
+      const now = new Date().toISOString();
+      let approvedDocs = 0;
+
+      // 1. Approve any existing uploaded documents for required categories
+      const { data: existingDocs } = await supabase
+        .from('documents')
+        .select('id, category_code')
+        .eq('module', 'members')
+        .eq('entity_id', memberId)
+        .eq('is_archived', false)
+        .in('category_code', requiredCategories.map(c => c.code));
+
+      if (existingDocs && existingDocs.length > 0) {
+        const docIds = existingDocs.map(d => d.id);
+        const { error: docErr } = await supabase
+          .from('documents')
+          .update({
+            status: 'approved',
+            is_verified: true,
+            verified_by: session.user.id,
+            verified_at: now,
+            verification_notes: notes || 'Manually marked complete by admin',
+          })
+          .in('id', docIds);
+        if (docErr) console.warn('Failed to approve documents during manual_complete:', docErr);
+        approvedDocs = existingDocs.length;
+      }
+
+      // 2. Upsert compliance_records + member_compliance for each required category
+      for (const cat of requiredCategories) {
+        // compliance_records (uses compliance_type = category code)
+        const { data: existingCR } = await supabase
+          .from('compliance_records')
+          .select('id')
+          .eq('member_id', memberId)
+          .eq('compliance_type', cat.code)
+          .maybeSingle();
+
+        if (existingCR) {
+          await supabase
+            .from('compliance_records')
+            .update({
+              status: 'complete',
+              completed_date: now,
+              notes: notes || 'Manually marked complete by admin',
+              updated_at: now,
+            })
+            .eq('id', existingCR.id);
+        } else {
+          await supabase
+            .from('compliance_records')
+            .insert({
+              id: uuidv4(),
+              member_id: memberId,
+              compliance_type: cat.code,
+              description: cat.name,
+              status: 'complete',
+              completed_date: now,
+              notes: notes || 'Manually marked complete by admin',
+              created_at: now,
+              updated_at: now,
+            });
+        }
+
+        // member_compliance (uses document_category_code)
+        const { data: existingMC } = await supabase
+          .from('member_compliance')
+          .select('id')
+          .eq('member_id', memberId)
+          .eq('document_category_code', cat.code)
+          .maybeSingle();
+
+        if (existingMC) {
+          await supabase
+            .from('member_compliance')
+            .update({
+              status: 'approved',
+              reviewed_by: session.user.id,
+              reviewed_at: now,
+              review_notes: notes || 'Manually marked complete by admin',
+              updated_at: now,
+            })
+            .eq('id', existingMC.id);
+        } else {
+          await supabase
+            .from('member_compliance')
+            .insert({
+              id: uuidv4(),
+              member_id: memberId,
+              document_category_code: cat.code,
+              status: 'approved',
+              reviewed_by: session.user.id,
+              reviewed_at: now,
+              review_notes: notes || 'Manually marked complete by admin',
+              created_at: now,
+              updated_at: now,
+            });
+        }
+      }
+
+      // 3. Update workflow compliance score
+      const { error: wfError } = await supabase
+        .from('member_approval_workflow')
+        .update({
+          compliance_score: 100,
+          required_documents_complete: true,
+          updated_at: now,
+        })
+        .eq('member_id', memberId);
+
+      if (wfError) {
+        // Workflow row may not exist; create it so the score is persisted.
+        await supabase
+          .from('member_approval_workflow')
+          .insert({
+            id: uuidv4(),
+            member_id: memberId,
+            current_stage: 'compliance_review',
+            compliance_score: 100,
+            required_documents_complete: true,
+            notes: notes || 'Manually marked complete by admin',
+            created_at: now,
+            updated_at: now,
+          })
+          .select()
+          .single()
+          .then(() => {});
+      }
+
+      // Audit log
+      await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        user_id: session.user.id,
+        action: 'compliance.manual_complete',
+        record_id: memberId,
+        description: `Manually marked all compliance requirements complete for member ${memberId} (${approvedDocs} document(s) approved)`,
+        created_at: now,
+      }).then(() => {});
+
+      return NextResponse.json({
+        success: true,
+        message: `All compliance requirements marked complete (${approvedDocs} document(s) approved)`,
+        data: { approved_documents: approvedDocs, requirements: requiredCategories.length },
       });
     }
 

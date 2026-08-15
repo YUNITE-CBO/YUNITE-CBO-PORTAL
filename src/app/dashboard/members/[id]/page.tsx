@@ -219,6 +219,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   const [documents, setDocuments] = useState<Document[]>([]);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [documentCategories, setDocumentCategories] = useState<DocumentCategory[]>([]);
+  const [complianceRecordsByCode, setComplianceRecordsByCode] = useState<Record<string, any>>({});
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
@@ -313,7 +314,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchMember(), fetchDocuments(), fetchDocumentCategories(), fetchActivities()]);
+      await Promise.all([fetchMember(), fetchDocuments(), fetchDocumentCategories(), fetchActivities(), fetchComplianceRecords()]);
     } finally {
       setLoading(false);
     }
@@ -371,6 +372,18 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
     } catch (err) { console.error('Failed to fetch document categories:', err); }
   };
 
+  const fetchComplianceRecords = async () => {
+    try {
+      const res = await fetch(`/api/compliance?memberId=${id}`);
+      const data = await res.json();
+      if (data.success && data.data?.recordsByCode) {
+        setComplianceRecordsByCode(data.data.recordsByCode);
+      } else {
+        setComplianceRecordsByCode({});
+      }
+    } catch (err) { console.error('Failed to fetch compliance records:', err); }
+  };
+
   const fetchActivities = async () => {
     try {
       const res = await fetch(`/api/audit?record_id=${id}&limit=100`);
@@ -409,12 +422,28 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
     }
   };
   const getWorkflowStageIndex = (stage: string) => WORKFLOW_STAGES.findIndex(s => s.key === stage);
+  // Enterprise documents are returned with camelCase `categoryCode`; legacy docs
+  // use snake_case `category_code`. Normalize so uploads always match a category.
+  const docCategoryCode = (d: Document) => d.categoryCode || d.category_code || '';
   const getComplianceStatus = () => {
     const required = documentCategories.filter(c => c.is_required);
+    const isComplete = (code: string) => {
+      const doc = documents.find(d => docCategoryCode(d) === code);
+      if (doc && (doc.status === 'verified' || doc.status === 'approved')) return true;
+      // A manually-marked-complete compliance record also counts.
+      const rec = complianceRecordsByCode[code];
+      if (rec && (rec.status === 'complete' || rec.status === 'approved')) return true;
+      return false;
+    };
+    const complete = required.filter(c => isComplete(c.code)).length;
     const uploaded = documents.filter(d => d.status === 'verified' || d.status === 'approved');
     const pending = documents.filter(d => d.status === 'pending' || d.status === 'submitted');
-    const missing = required.filter(c => !documents.find(d => d.category_code === c.code));
-    return { total: required.length, complete: uploaded.length, pending: pending.length, missing: missing.length, score: required.length > 0 ? Math.round((uploaded.length / required.length) * 100) : 0 };
+    const missing = required.filter(c => {
+      const doc = documents.find(d => docCategoryCode(d) === c.code);
+      const rec = complianceRecordsByCode[c.code];
+      return !doc && !rec;
+    });
+    return { total: required.length, complete, pending: pending.length, missing: missing.length, score: required.length > 0 ? Math.round((complete / required.length) * 100) : 0 };
   };
 
   // Action handlers
@@ -496,11 +525,15 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
     if (!selectedDocument) return;
     setSubmitting(true);
     try {
+      // The PUT /api/documents/[id] route switches on `action`. Map the
+      // verification form status to the corresponding action so the document
+      // is actually verified/approved/rejected (and compliance auto-updates).
+      const action = verificationForm.status === 'rejected' ? 'reject' : 'verify';
       const res = await fetch(`/api/documents/${selectedDocument.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: verificationForm.status, verification_notes: verificationForm.notes }),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, notes: verificationForm.notes }),
       });
       const data = await res.json();
-      if (data.success) { showMessage('success', `Document ${verificationForm.status}`); setActionModal(null); setSelectedDocument(null); fetchDocuments(); fetchActivities(); }
+      if (data.success) { showMessage('success', `Document ${verificationForm.status}`); setActionModal(null); setSelectedDocument(null); fetchDocuments(); fetchActivities(); fetchComplianceRecords(); }
       else showMessage('error', data.error || 'Failed to verify document');
     } catch { showMessage('error', 'Failed to verify document'); } finally { setSubmitting(false); }
   };
@@ -549,7 +582,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       formData.append('documentName', file.name);
       const res = await fetch('/api/documents', { method: 'POST', body: formData });
       const data = await res.json();
-      if (data.success) { showMessage('success', 'Document uploaded successfully'); setActionModal(null); setSelectedCategory(null); fetchDocuments(); fetchActivities(); }
+      if (data.success) { showMessage('success', 'Document uploaded successfully'); setActionModal(null); setSelectedCategory(null); fetchDocuments(); fetchActivities(); fetchComplianceRecords(); }
       else showMessage('error', data.error || 'Failed to upload document');
     } catch { showMessage('error', 'Failed to upload document'); } finally { setSubmitting(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
@@ -864,14 +897,14 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                 <div className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-medium text-gray-900">National Identification</h3>
-                    {documents.find(d => d.category_code === 'member_national_id')?.status === 'verified' ? <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-600">Verified</span> : <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-600">Pending</span>}
+                    {documents.find(d => docCategoryCode(d) === 'member_national_id')?.status === 'verified' ? <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-600">Verified</span> : <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-600">Pending</span>}
                   </div>
                   <InfoCard label="ID Number" value={member.id_number || 'Not provided'} />
                 </div>
                 <div className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-medium text-gray-900">KRA PIN Certificate</h3>
-                    {documents.find(d => d.category_code === 'member_kra_pin')?.status === 'verified' ? <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-600">Verified</span> : <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-600">Pending</span>}
+                    {documents.find(d => docCategoryCode(d) === 'member_kra_pin')?.status === 'verified' ? <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-600">Verified</span> : <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-600">Pending</span>}
                   </div>
                   <InfoCard label="KRA PIN" value={member.kra_pin || 'Not provided'} />
                 </div>
@@ -957,18 +990,29 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                 <h2 className="text-lg font-semibold text-gray-900">Compliance Requirements</h2>
                 {isAdmin && (
                   <button
-                    onClick={() => {
-                      if (confirm('Mark all requirements as complete?')) {
-                        fetch(`/api/compliance`, {
+                    onClick={async () => {
+                      if (!confirm('Mark all requirements as complete? This will approve any uploaded documents and mark all compliance records complete.')) return;
+                      setSubmitting(true);
+                      try {
+                        const res = await fetch(`/api/compliance`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ memberId: id, action: 'batch_update', status: 'complete', notes: 'Marked complete by admin' })
-                        }).then(() => fetchMember());
-                      }
+                          body: JSON.stringify({ memberId: id, action: 'manual_complete', notes: 'Marked complete by admin' })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          showMessage('success', data.message || 'All requirements marked complete');
+                          await Promise.all([fetchDocuments(), fetchComplianceRecords(), fetchActivities()]);
+                        } else {
+                          showMessage('error', data.error || 'Failed to mark complete');
+                        }
+                      } catch { showMessage('error', 'Failed to mark complete'); }
+                      finally { setSubmitting(false); }
                     }}
-                    className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    disabled={submitting}
+                    className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                   >
-                    Mark All Complete
+                    {submitting ? 'Processing...' : 'Mark All Complete'}
                   </button>
                 )}
               </div>
@@ -983,25 +1027,28 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
               </div>
               <div className="space-y-3">
                 {documentCategories.filter(c => c.is_required).map(category => {
-                  const doc = documents.find(d => d.category_code === category.code);
-                  const isComplete = doc?.status === 'verified' || doc?.status === 'approved';
+                  const doc = documents.find(d => docCategoryCode(d) === category.code);
+                  const rec = complianceRecordsByCode[category.code];
+                  const isComplete = (doc?.status === 'verified' || doc?.status === 'approved') || (rec && (rec.status === 'complete' || rec.status === 'approved'));
+                  const hasDoc = !!doc;
                   return (
                     <div key={category.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         {isComplete ? (
                           <span className="text-green-500 text-xl">✓</span>
-                        ) : doc ? (
+                        ) : hasDoc ? (
                           <span className="text-yellow-500 text-xl">⏳</span>
                         ) : (
                           <span className="text-red-500 text-xl">✗</span>
                         )}
                         <div>
                           <h3 className="font-medium text-gray-900">{category.name}</h3>
-                          <p className="text-xs text-gray-500">{doc ? `${doc.document_name || 'Document'} • Uploaded ${formatDate(doc.created_at)}` : 'Not uploaded'}</p>
+                          <p className="text-xs text-gray-500">{doc ? `${doc.fileName || doc.document_name || 'Document'} • Uploaded ${formatDate(doc.uploadedAt || doc.created_at)}` : (rec ? 'Manually marked complete' : 'Not uploaded')}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         {doc && <span className={`px-3 py-1 text-xs rounded-full ${getDocumentStatusColor(doc.status)}`}>{doc.status}</span>}
+                        {!hasDoc && rec && (rec.status === 'complete' || rec.status === 'approved') && <span className="px-3 py-1 text-xs rounded-full bg-green-100 text-green-700">Manual ✓</span>}
                         {isAdmin && (
                           <button
                             onClick={() => {
@@ -1024,59 +1071,80 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
             {isAdmin && (
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Manual Compliance Actions</h2>
-                <p className="text-sm text-gray-500 mb-4">Use these to manually mark requirements as complete when documents have been verified manually.</p>
+                <p className="text-sm text-gray-500 mb-4">Use these to manually mark requirements as complete when documents have been verified manually. "Mark All Complete" approves any uploaded documents and marks every requirement complete.</p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={async () => {
-                      if (confirm('Mark all requirements as COMPLETE?')) {
+                      if (!confirm('Mark all requirements as COMPLETE? This will approve any uploaded documents and mark all compliance records complete.')) return;
+                      setSubmitting(true);
+                      try {
                         const res = await fetch(`/api/compliance`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ memberId: id, action: 'batch_update', status: 'complete', notes: 'Manually marked complete' })
+                          body: JSON.stringify({ memberId: id, action: 'manual_complete', notes: 'Manually marked complete' })
                         });
-                        if (res.ok) {
-                          alert('All requirements marked as complete!');
-                          fetchMember();
+                        const data = await res.json();
+                        if (data.success) {
+                          showMessage('success', data.message || 'All requirements marked as complete!');
+                          await Promise.all([fetchDocuments(), fetchComplianceRecords(), fetchActivities()]);
+                        } else {
+                          showMessage('error', data.error || 'Failed to mark complete');
                         }
-                      }
+                      } catch { showMessage('error', 'Failed to mark complete'); }
+                      finally { setSubmitting(false); }
                     }}
-                    className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
+                    disabled={submitting}
+                    className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium disabled:opacity-50"
                   >
                     ✓ Mark All Complete
                   </button>
                   <button
                     onClick={async () => {
-                      if (confirm('Mark all requirements as PENDING?')) {
+                      if (!confirm('Mark all requirements as PENDING?')) return;
+                      setSubmitting(true);
+                      try {
                         const res = await fetch(`/api/compliance`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ memberId: id, action: 'batch_update', status: 'pending', notes: 'Reset to pending' })
                         });
-                        if (res.ok) {
-                          alert('All requirements marked as pending!');
-                          fetchMember();
+                        const data = await res.json();
+                        if (data.success) {
+                          showMessage('success', 'All requirements marked as pending!');
+                          await Promise.all([fetchDocuments(), fetchComplianceRecords()]);
+                        } else {
+                          showMessage('error', data.error || 'Failed to update');
                         }
-                      }
+                      } catch { showMessage('error', 'Failed to update'); }
+                      finally { setSubmitting(false); }
                     }}
-                    className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm font-medium"
+                    disabled={submitting}
+                    className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm font-medium disabled:opacity-50"
                   >
                     ⏳ Mark All Pending
                   </button>
                   <button
                     onClick={async () => {
-                      if (confirm('Mark all requirements as MISSING?')) {
+                      if (!confirm('Mark all requirements as MISSING?')) return;
+                      setSubmitting(true);
+                      try {
                         const res = await fetch(`/api/compliance`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ memberId: id, action: 'batch_update', status: 'missing', notes: 'Marked as missing' })
                         });
-                        if (res.ok) {
-                          alert('All requirements marked as missing!');
-                          fetchMember();
+                        const data = await res.json();
+                        if (data.success) {
+                          showMessage('success', 'All requirements marked as missing!');
+                          await Promise.all([fetchDocuments(), fetchComplianceRecords()]);
+                        } else {
+                          showMessage('error', data.error || 'Failed to update');
                         }
-                      }
+                      } catch { showMessage('error', 'Failed to update'); }
+                      finally { setSubmitting(false); }
                     }}
-                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
+                    disabled={submitting}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium disabled:opacity-50"
                   >
                     ✗ Mark All Missing
                   </button>
