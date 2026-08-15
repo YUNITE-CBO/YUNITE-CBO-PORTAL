@@ -18,9 +18,10 @@ jest.mock('@/lib/services/configuration.service', () => ({
 }));
 
 import { configurationService } from '@/lib/services/configuration.service';
-import { resolveDualMode, isAiInvestigationsEnabled, isAiCriticalAlertsEnabled } from '@/ai/settings';
+import { resolveDualMode, isAiInvestigationsEnabled, isAiCriticalAlertsEnabled, readAiSettings } from '@/ai/settings';
 
 const mockedGetSetting = configurationService.getSetting as jest.MockedFunction<typeof configurationService.getSetting>;
+const mockedGetMany = configurationService.getMany as jest.MockedFunction<typeof configurationService.getMany>;
 
 afterEach(() => {
   jest.resetAllMocks();
@@ -103,5 +104,30 @@ describe('isAiCriticalAlertsEnabled', () => {
   it('returns the DB value when set', async () => {
     mockedGetSetting.mockResolvedValue('false');
     expect(await isAiCriticalAlertsEnabled()).toBe(false);
+  });
+});
+
+describe('readAiSettings (health endpoint)', () => {
+  it('returns the DB values keyed by setting key', async () => {
+    mockedGetMany.mockResolvedValue({
+      'ai.dual_mode': 'true',
+      'ai.investigations.enabled': 'false',
+      'ai.alerts.critical_enabled': 'true',
+    });
+    expect(await readAiSettings()).toEqual({
+      'ai.dual_mode': 'true',
+      'ai.investigations.enabled': 'false',
+      'ai.alerts.critical_enabled': 'true',
+    });
+  });
+
+  it('returns an empty map when the DB has no rows', async () => {
+    mockedGetMany.mockResolvedValue({});
+    expect(await readAiSettings()).toEqual({});
+  });
+
+  it('returns an empty map instead of throwing when the DB read fails', async () => {
+    mockedGetMany.mockRejectedValue(new Error('supabase down'));
+    await expect(readAiSettings()).resolves.toEqual({});
   });
 });
