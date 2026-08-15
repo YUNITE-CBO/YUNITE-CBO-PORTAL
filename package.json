@@ -16,11 +16,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:api": "jest --testPathPattern=tests/",
-    "postinstall": "node scripts/install-browser.js || echo '[postinstall] browser install skipped'"
+    "test:api": "jest --testPathPattern=tests/"
   },
   "dependencies": {
-    "@puppeteer/browsers": "^2.13.2",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.45.0",
     "@types/bcryptjs": "^2.4.6",
@@ -41,8 +39,8 @@
     "jose": "^5.6.3",
     "next": "14.2.5",
     "nodemailer": "6.10.1",
+    "pdfmake": "^0.3.11",
     "postcss": "^8.5.25",
-    "puppeteer-core": "^23.11.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.0",
@@ -53,6 +51,7 @@
   "devDependencies": {
     "@testing-library/react": "^16.3.2",
     "@types/jest": "^30.0.0",
+    "@types/pdfmake": "^0.3.3",
     "@types/supertest": "^7.2.1",
     "glob": "^11.0.0",
     "jest": "^30.4.2",

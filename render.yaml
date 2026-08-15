@@ -7,32 +7,15 @@ services:
     runtime: node
     region: oregon
     plan: free
-    # Chromium for PDF generation is installed by the npm `postinstall` hook
-    # (scripts/install-browser.js), which force-downloads the pinned Chrome
-    # build directly via @puppeteer/browsers, regardless of env vars. No
-    # system package or root install is needed.
-    #
-    # WHY puppeteer-core (not puppeteer): the app imports `puppeteer-core`,
-    # which ships NO postinstall download step. The `puppeteer` package's
-    # install.mjs downloads chrome + chrome-headless-shell + firefox during
-    # `npm ci`, and Render persists /opt/render/.cache across builds; a
-    # previous build can leave a CORRUPT cache entry (folder exists,
-    # executable missing), making install.mjs THROW "Failed to set up chrome
-    # ... folder exists but executable is missing" and ABORT `npm ci` before
-    # our postinstall ever runs. Using puppeteer-core removes that step
-    # entirely, so the build can't fail there. scripts/install-browser.js
-    # then installs the single chrome build we actually use directly via
-    # @puppeteer/browsers (that call is NOT gated by env vars). We do NOT
-    # set PUPPETEER_EXECUTABLE_PATH (stale values mask the bundled cache at
-    # runtime); the document generator probes the cache directly.
+    # PDF generation uses pdfmake (pure JavaScript, server-side, no browser).
+    # No Chromium download, no postinstall hook, no PUPPETEER_* env vars —
+    # `npm ci && npm run build` is all that's needed.
     buildCommand: rm -rf .next && npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_SKIP_DOWNLOAD
-        value: "true"
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY

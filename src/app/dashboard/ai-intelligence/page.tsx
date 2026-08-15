@@ -1229,7 +1229,15 @@ function HistorySection({ investigations, onOpen, detail }: { investigations: In
       </div>
       {detail && (
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Investigation {detail.investigation.investigation_number} — detail</h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-700">Investigation {detail.investigation.investigation_number} — detail</h3>
+            <a
+              href={`/api/ai/investigations/${detail.investigation.id}/pdf`}
+              className="inline-flex items-center gap-1 rounded-md bg-[#0B2A4A] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#14365C]"
+            >
+              <span>⬇</span> Download PDF
+            </a>
+          </div>
           {detail.verification && <VerificationResultView result={detail.verification} />}
           {detail.provider_runs?.length > 0 && (
             <div className="mt-4">

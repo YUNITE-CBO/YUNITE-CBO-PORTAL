@@ -15,9 +15,7 @@ export {
 } from './report-renderer';
 
 export {
-  htmlToPdf,
   reportToCsv,
-  closeBrowser,
   type CsvPayload,
 } from './document-generator';
 

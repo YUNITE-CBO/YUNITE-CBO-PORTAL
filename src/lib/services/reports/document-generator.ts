@@ -1,25 +1,14 @@
 /**
- * DOCUMENT GENERATOR (PDF + CSV)
+ * DOCUMENT GENERATOR (CSV)
  *
- * PDF: renders the self-contained HTML report via headless Chromium using
- * `puppeteer-core` (NOT `puppeteer`). `puppeteer-core` ships NO postinstall
- * download step, so `npm ci` can never fail on a corrupt browser cache the
- * way the `puppeteer` package's `install.mjs` does ("Failed to set up chrome
- * ... folder exists but executable is missing"). The Chromium binary is
- * installed separately by `scripts/install-browser.js` (run as an npm
- * `postinstall` during `npm ci`) directly via `@puppeteer/browsers`,
- * independent of PUPPETEER_EXECUTABLE_PATH / PUPPETEER_SKIP_DOWNLOAD, so the
- * browser is always present at runtime even when stale env vars are set.
+ * CSV exports are produced directly from the report data (no browser needed)
+ * for fast, lossless spreadsheet exports.
  *
- * CSV: produced directly from the report data (no browser needed) for fast,
- * lossless spreadsheet exports.
+ * PDF generation moved to `src/modules/documents` (pdfmake, browser-free, no
+ * Chromium dependency). See `document-export.service.ts` for the PDF path and
+ * `src/modules/documents/generators/pdf.generator.ts` for the engine.
  */
 
-import puppeteer, { type Browser as PuppeteerBrowser } from 'puppeteer-core';
-import { existsSync } from 'fs';
-import os from 'os';
-import path from 'path';
-import { getInstalledBrowsers, Browser as InstalledBrowserBrand } from '@puppeteer/browsers';
 import {
   ReportContext,
   FinancialSummaryData,
@@ -32,135 +21,7 @@ import {
   WelfareData,
   OrgSummaryData,
 } from './report-data.service';
-import { formatMoney, formatDate } from './brand';
-
-// System Chromium executables consulted as a last resort when the bundled
-// browser cache is absent (e.g. a host that already ships Chrome/Chromium).
-// These are the real binaries, not launcher scripts — on some distros
-// `/usr/bin/chromium` is a tiny shell wrapper whose real binary lives in
-// `/usr/lib/chromium/chromium`, so we list both and the executable itself.
-const SYSTEM_PATHS = [
-  '/usr/bin/chromium',
-  '/usr/bin/chromium-browser',
-  '/usr/bin/google-chrome',
-  '/usr/bin/google-chrome-stable',
-  '/usr/local/bin/chromium',
-  '/usr/lib/chromium/chromium',
-  '/usr/lib/chromium-browser/chromium',
-  '/opt/google/chrome/chrome',
-];
-
-/**
- * Resolve the Chromium executable to launch.
- *
- * Priority:
- *   1. PUPPETEER_EXECUTABLE_PATH / CHROMIUM_PATH / CHROME_PATH env override
- *      (only when the referenced file actually exists on disk — a stale env
- *      var pointing at a missing path is skipped, not fatal),
- *   2. the bundled browser cache (populated by the postinstall script
- *      `scripts/install-browser.js`, which forces the download regardless of
- *      env vars, so this works even when PUPPETEER_EXECUTABLE_PATH is set).
- *      Detection uses @puppeteer/browsers' getInstalledBrowsers(), which
- *      reads the cache directly and is env-agnostic, so a stale
- *      PUPPETEER_EXECUTABLE_PATH cannot mask the bundled browser, and an
- *      empty cache dir is handled cleanly (returns []).
- *   3. common system Chromium/Chrome locations.
- *
- * The bundled cache is the default in production (no root/system package
- * needed). We never call puppeteer.executablePath() for detection, because
- * it honors PUPPETEER_EXECUTABLE_PATH and would thus miss the cache when
- * that env var is stale.
- */
-async function resolveChromium(): Promise<string> {
-  const checked: string[] = [];
-
-  for (const p of [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    process.env.CHROMIUM_PATH,
-    process.env.CHROME_PATH,
-  ].filter(Boolean) as string[]) {
-    checked.push(p);
-    if (existsSync(p)) return p;
-  }
-
-  // Bundled browser cache. getInstalledBrowsers() reads the cache directly
-  // (env-agnostic) and returns the authoritative executablePath for each
-  // installed browser, including the pinned build from the postinstall
-  // script. Robust to a stale PUPPETEER_EXECUTABLE_PATH and to a cache
-  // directory that exists but is empty (it simply returns []).
-  try {
-    const installed = await getInstalledBrowsers({
-      cacheDir: process.env.PUPPETEER_CACHE_DIR || path.join(os.homedir(), '.cache', 'puppeteer'),
-    });
-    for (const b of installed) {
-      if (b.browser === InstalledBrowserBrand.CHROME && b.executablePath) {
-        checked.push(b.executablePath);
-        if (existsSync(b.executablePath)) return b.executablePath;
-      }
-    }
-  } catch {
-    // cache unreadable / @puppeteer/browsers unavailable; fall through
-  }
-
-  for (const p of SYSTEM_PATHS) {
-    checked.push(p);
-    if (existsSync(p)) return p;
-  }
-
-  throw new Error(
-    'Chromium executable not found for PDF generation. The bundled browser ' +
-      'is downloaded by the postinstall script (scripts/install-browser.js) ' +
-      'during `npm ci`; ensure that step ran and the cache persists to ' +
-      'runtime. If the host provides a system Chromium, set ' +
-      'PUPPETEER_EXECUTABLE_PATH to its real binary path. Checked: ' +
-      (Array.from(new Set(checked)).join(', ') || '(none)') +
-      '.',
-  );
-}
-
-let cachedBrowser: PuppeteerBrowser | null = null;
-
-async function getBrowser(): Promise<PuppeteerBrowser> {
-  if (cachedBrowser && cachedBrowser.connected) {
-    return cachedBrowser;
-  }
-  const executablePath = await resolveChromium();
-  cachedBrowser = await puppeteer.launch({
-    executablePath,
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-gpu',
-      '--disable-dev-shm-usage',
-      '--disable-features=site-per-process',
-    ],
-  });
-  return cachedBrowser;
-}
-
-export async function htmlToPdf(html: string): Promise<Buffer> {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '14mm', right: '14mm', bottom: '18mm', left: '14mm' },
-    });
-    return Buffer.from(pdf);
-  } finally {
-    await page.close();
-  }
-}
-
-export async function closeBrowser(): Promise<void> {
-  if (cachedBrowser) {
-    await cachedBrowser.close();
-    cachedBrowser = null;
-  }
-}
+import { formatDate } from './brand';
 
 function csvCell(value: unknown): string {
   if (value === null || value === undefined) return '';

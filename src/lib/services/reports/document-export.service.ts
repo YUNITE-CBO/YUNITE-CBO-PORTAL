@@ -1,9 +1,14 @@
 /**
  * DOCUMENT EXPORT SERVICE
  *
- * High-level orchestrator: gathers live report data → renders the branded
- * HTML → generates PDF/CSV → persists an immutable audit record in
- * generated_documents (doc_ref + auth_hash) for traceability.
+ * High-level orchestrator: gathers live report data → renders the document
+ * (PDF via the browser-free pdfmake engine, or CSV/HTML) → persists an
+ * immutable audit record in generated_documents (doc_ref + auth_hash) for
+ * traceability.
+ *
+ * PDF generation uses `src/modules/documents` (pdfmake, no Chromium). CSV
+ * exports are produced directly from the report payload. HTML preview stays
+ * available via the report-renderer for the dashboard preview banner.
  *
  * Every exported document is therefore marked, traceable, and
  * authenticatable in the system via /api/reports/verify/[ref].
@@ -19,15 +24,17 @@ import {
   ReportPeriod,
   REPORT_META,
 } from './report-data.service';
-import {
-  renderDocument,
-  type ReportPayload,
-} from './report-renderer';
-import {
-  htmlToPdf,
-  reportToCsv,
-} from './document-generator';
+import { renderDocument, type ReportPayload } from './report-renderer';
+import { reportToCsv } from './document-generator';
 import { getClientIP, getUserAgent } from '@/lib/auth/server-auth';
+import {
+  documentService,
+  buildEnvelope,
+  generateDocument,
+  type DocumentData,
+  type DocumentKind,
+  type DocumentIssuer,
+} from '@/modules/documents';
 
 export type DocumentFormat = 'pdf' | 'csv' | 'html';
 
@@ -71,34 +78,68 @@ export class DocumentExportService {
     }
 
     const payload = await this.gatherData(ctx);
-    const rendered = renderDocument(ctx, payload);
+
+    // For PDF, use the browser-free pdfmake document engine. CSV/HTML keep
+    // their existing paths (CSV is a direct spreadsheet export; HTML is the
+    // preview banner rendered by report-renderer).
+    const meta = REPORT_META[opts.type];
 
     let content: Buffer | string;
     let contentType: string;
     let fileExtension: string;
+    let ref: string;
+    let hash: string;
+    let title: string;
+    let generatedAt: string;
 
     if (opts.format === 'csv') {
       content = reportToCsv(ctx, payload as any);
       contentType = 'text/csv; charset=utf-8';
       fileExtension = 'csv';
+      const rendered = renderDocument(ctx, payload);
+      ref = rendered.ref; hash = rendered.hash; title = rendered.title; generatedAt = rendered.generatedAt;
     } else if (opts.format === 'html') {
+      const rendered = renderDocument(ctx, payload);
       content = rendered.html;
       contentType = 'text/html; charset=utf-8';
       fileExtension = 'html';
+      ref = rendered.ref; hash = rendered.hash; title = rendered.title; generatedAt = rendered.generatedAt;
     } else {
-      content = await htmlToPdf(rendered.html);
-      contentType = 'application/pdf';
-      fileExtension = 'pdf';
+      // PDF via pdfmake (no Chromium). Build the document request from the
+      // gathered payload + envelope, then generate.
+      const kind = reportTypeToDocumentKind(opts.type);
+      const memberNumber = opts.memberId ? (await reportDataService.getMemberById(opts.memberId))?.member_number : undefined;
+      const issuer: DocumentIssuer | undefined = opts.generatedBy
+        ? { id: opts.generatedBy.id, name: opts.generatedBy.name, role: opts.generatedBy.role }
+        : undefined;
+      const envelope = await buildEnvelope({
+        kind,
+        title: meta.title,
+        eyebrow: meta.title,
+        period: ctx.period,
+        issuer,
+        memberNumber,
+        classification: 'Confidential',
+      });
+      const data = payloadToDocumentData(kind, ctx.type, payload, ctx);
+      const doc = await generateDocument({ kind, envelope, data });
+      content = doc.buffer;
+      contentType = doc.contentType;
+      fileExtension = doc.fileExtension;
+      ref = envelope.documentNumber;
+      hash = envelope.authHash;
+      title = envelope.title;
+      generatedAt = envelope.generatedAt;
     }
 
     // Persist audit record (best-effort: never block the download on the
     // audit row; warn instead, matching the project convention).
     try {
       await this.recordGeneration({
-        ref: rendered.ref,
-        hash: rendered.hash,
+        ref,
+        hash,
         type: opts.type,
-        title: rendered.title,
+        title,
         format: opts.format,
         period: ctx.period,
         memberId: opts.memberId,
@@ -111,14 +152,14 @@ export class DocumentExportService {
     }
 
     return {
-      ref: rendered.ref,
-      hash: rendered.hash,
-      title: rendered.title,
+      ref,
+      hash,
+      title,
       format: opts.format,
       contentType,
       fileExtension,
       content,
-      generatedAt: rendered.generatedAt,
+      generatedAt,
       periodLabel: ctx.period.label,
     };
   }
@@ -230,3 +271,53 @@ export class DocumentExportService {
 }
 
 export const documentExportService = new DocumentExportService();
+
+/**
+ * Map a legacy ReportType to the new DocumentKind. The 9 existing report types
+ * map 1:1 to financial/list/statement document kinds. New AI Intelligence
+ * document kinds are produced directly via the document service (not via this
+ * export service, which is report-data-scoped).
+ */
+function reportTypeToDocumentKind(type: ReportType): DocumentKind {
+  const map: Record<ReportType, DocumentKind> = {
+    financial_summary: 'financial_summary',
+    member_list: 'member_list',
+    loan_report: 'loan_report',
+    transaction_report: 'transaction_report',
+    contribution_report: 'contribution_report',
+    fine_report: 'fine_report',
+    member_statement: 'member_statement',
+    welfare_report: 'welfare_report',
+    organization_summary: 'organization_summary',
+  };
+  return map[type];
+}
+
+/**
+ * Convert the gathered ReportPayload into a DocumentData discriminated union.
+ * The payload shape mirrors the document data shape 1:1 for the 9 report types.
+ */
+function payloadToDocumentData(kind: DocumentKind, type: ReportType, payload: ReportPayload, ctx: ReportContext): DocumentData {
+  switch (kind) {
+    case 'financial_summary':
+      return { kind, summary: payload.financialSummary! };
+    case 'member_list':
+      return { kind, members: payload.memberList!.members, total: payload.memberList!.total };
+    case 'loan_report':
+      return { kind, loans: payload.loanReport!.loans, total: payload.loanReport!.total };
+    case 'transaction_report':
+      return { kind, transactions: payload.transactionReport!.transactions, total: payload.transactionReport!.total };
+    case 'contribution_report':
+      return { kind, rows: payload.contributionReport!.rows, total: payload.contributionReport!.total, totalAmount: payload.contributionReport!.totalAmount };
+    case 'fine_report':
+      return { kind, fines: payload.fineReport!.fines, total: payload.fineReport!.total };
+    case 'member_statement':
+      return { kind, statement: payload.memberStatement! };
+    case 'welfare_report':
+      return { kind, welfare: payload.welfareReport! };
+    case 'organization_summary':
+      return { kind, summary: payload.orgSummary! };
+    default:
+      throw new Error(`Unsupported report type for PDF: ${type}`);
+  }
+}
