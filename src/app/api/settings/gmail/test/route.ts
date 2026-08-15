@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { action = 'test', testRecipient } = body;
 
-    console.log(`Gmail API test requested - action: ${action}`);
 
     // Get configuration status (without exposing secrets)
     const configStatus = gmailApiAdapter.getConfigStatus();
