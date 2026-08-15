@@ -34,22 +34,24 @@ export async function GET(request: NextRequest) {
         .from('compliance_records')
         .select('*');
 
-      if (oldError) console.warn('Old compliance_records error:', oldError);
+      // Graceful fallback: missing/old compliance_records are treated as empty.
+      const oldComplianceData = oldError ? [] : (oldCompliance || []);
 
       const { data: newCompliance, error: newError } = await supabase
         .from('member_compliance')
         .select('*');
 
-      if (newError) console.warn('New member_compliance error:', newError);
+      // Graceful fallback: missing/member_compliance are treated as empty.
+      const newComplianceData = newError ? [] : (newCompliance || []);
 
       // Combine and deduplicate compliance records
       const allCompliance = [
-        ...(oldCompliance || []).map(r => ({
+        ...(oldComplianceData).map(r => ({
           ...r,
           source: 'compliance_records',
           category_name: r.compliance_type || r.compliance_type,
         })),
-        ...(newCompliance || []).map(r => ({
+        ...(newComplianceData).map(r => ({
           ...r,
           source: 'member_compliance',
           category_name: r.document_category_code || r.compliance_type,
@@ -108,20 +110,22 @@ export async function GET(request: NextRequest) {
       .from('compliance_records')
       .select('*')
       .eq('member_id', memberId);
-    if (crError) console.warn('compliance_records fetch error:', crError);
+    // Graceful fallback: missing compliance_records are treated as empty.
+    const crData = crError ? [] : (complianceRecords || []);
 
     const { data: memberCompliance, error: mcError } = await supabase
       .from('member_compliance')
       .select('*')
       .eq('member_id', memberId);
-    if (mcError) console.warn('member_compliance fetch error:', mcError);
+    // Graceful fallback: missing member_compliance are treated as empty.
+    const mcData = mcError ? [] : (memberCompliance || []);
 
     // Merge both sources keyed by category code / compliance_type
     const recordsByCode: Record<string, any> = {};
-    (complianceRecords || []).forEach((r: any) => {
+    crData.forEach((r: any) => {
       recordsByCode[r.compliance_type] = { ...r, source: 'compliance_records' };
     });
-    (memberCompliance || []).forEach((r: any) => {
+    mcData.forEach((r: any) => {
       const key = r.document_category_code || r.compliance_type;
       if (!recordsByCode[key]) {
         recordsByCode[key] = { ...r, source: 'member_compliance' };
@@ -301,7 +305,12 @@ export async function POST(request: NextRequest) {
             verification_notes: notes || 'Manually marked complete by admin',
           })
           .in('id', docIds);
-        if (docErr) console.warn('Failed to approve documents during manual_complete:', docErr);
+        if (docErr) {
+          return NextResponse.json({
+            success: false,
+            error: 'Failed to approve documents during manual verification'
+          }, { status: 500 });
+        }
         approvedDocs = existingDocs.length;
       }
 
@@ -389,21 +398,21 @@ export async function POST(request: NextRequest) {
 
       if (wfError) {
         // Workflow row may not exist; create it so the score is persisted.
+        // NOTE: current_stage must satisfy the DB CHECK constraint
+        // ('documentation', 'review', 'approval', 'completed', 'rejected').
+        // 'compliance_review' is NOT a valid stage and would raise a Postgres error.
         await supabase
           .from('member_approval_workflow')
           .insert({
             id: uuidv4(),
             member_id: memberId,
-            current_stage: 'compliance_review',
+            current_stage: 'review',
             compliance_score: 100,
             required_documents_complete: true,
             notes: notes || 'Manually marked complete by admin',
             created_at: now,
             updated_at: now,
-          })
-          .select()
-          .single()
-          .then(() => {});
+          });
       }
 
       // Audit log
@@ -414,7 +423,7 @@ export async function POST(request: NextRequest) {
         record_id: memberId,
         description: `Manually marked all compliance requirements complete for member ${memberId} (${approvedDocs} document(s) approved)`,
         created_at: now,
-      }).then(() => {});
+      });
 
       return NextResponse.json({
         success: true,
