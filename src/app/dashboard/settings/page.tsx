@@ -16,6 +16,7 @@ import ApiSettingsSection from '@/components/settings/ApiSettingsSection';
 import WorkflowsSettingsSection from '@/components/settings/WorkflowsSettingsSection';
 import AiSettingsSection from '@/components/settings/AiSettingsSection';
 import { MediaSettingsSection } from '@/components/settings/MediaSettingsSection';
+import { YuniteImageUploader } from '@/components/media/YuniteImageUploader';
 
 interface Setting {
   id: string;
@@ -693,6 +694,26 @@ export default function EnhancedSettingsPage() {
                       {editedSettings[setting.key] === 'true' ? 'Enabled' : 'Disabled'}
                     </span>
                   </label>
+                ) : setting.key === 'organization.logo_url' ? (
+                  /* The org logo is managed by the central Media Engine uploader,
+                     not a free-text URL field. Upload/replace/remove here writes
+                     the active ORGANIZATION_LOGO asset and mirrors this column. */
+                  <div className="space-y-3">
+                    <YuniteImageUploader
+                      ownerType="organization"
+                      ownerId="default"
+                      assetType="ORGANIZATION_LOGO"
+                      label="Organization Logo"
+                      fallbackName="YUNITE PAMOJA CBO"
+                      variant="logo"
+                      onChanged={fetchConfiguration}
+                    />
+                    {setting.value && (
+                      <p className="text-xs text-gray-400">
+                        Current URL: <span className="font-mono break-all">{setting.value}</span>
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <input
                     type={setting.data_type === 'number' ? 'number' : 'text'}

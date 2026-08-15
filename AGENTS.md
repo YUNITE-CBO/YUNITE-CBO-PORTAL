@@ -811,9 +811,17 @@ centrally → remove safely → keep the entire system consistent.
   states, falls back to an initials avatar / logo placeholder).
   `<YuniteImageUploader>` (`src/components/media/YuniteImageUploader.tsx`) is the
   central UPLOAD component (drag & drop + click + URL mode + preview + Replace +
-  Remove + progress + error/success states). Wired into: Settings → Media &
-  Assets (org logo + config + integrity check), Members → [id] (profile photo).
-  The dashboard layout avatar already reads `users.avatar_url` (mirrored by the
+  Remove + progress + error/success states). Wired into:
+  - Settings → Organization → "Logo Url" field (renders the uploader IN-LINE
+    instead of a free-text URL input — the primary place admins expect to
+    manage the logo; `onChanged=fetchConfiguration` refreshes the settings).
+  - Settings → Media & Assets (org logo + config + integrity check).
+  - Members → [id] → profile photo uploader (staff+) + the member header now
+    DISPLAYS the uploaded photo (`profile_photo_url`) instead of initials-only.
+  - User Profile page (`/profile`) → avatar uploader (a user manages their OWN
+    photo; `onChanged=refreshSession` refreshes the auth context + sidebar
+    avatar).
+  The dashboard layout sidebar avatar reads `users.avatar_url` (mirrored by the
   engine). The member-lookup frontend receives `profile_photo_url` via the
   `/api/v1/members/{id}` workspace response (mirrored by the engine).
 - **Settings UI**: `MediaSettingsSection.tsx` (`src/components/settings/`) =

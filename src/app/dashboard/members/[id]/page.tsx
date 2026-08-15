@@ -622,9 +622,17 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
             <div className="flex items-center gap-4">
               <Link href="/dashboard/members" className="text-gray-400 hover:text-gray-600 text-2xl">←</Link>
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center text-2xl font-bold text-indigo-600">
-                  {member.first_name?.[0]}{member.last_name?.[0]}
-                </div>
+                {member.profile_photo_url ? (
+                  <img
+                    src={member.profile_photo_url}
+                    alt={`${member.first_name} ${member.last_name}`}
+                    className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center text-2xl font-bold text-indigo-600">
+                    {member.first_name?.[0]}{member.last_name?.[0]}
+                  </div>
+                )}
                 <div>
                   <div className="flex items-center gap-3">
                     <h1 className="text-2xl font-bold text-gray-900">{member.first_name} {member.last_name}</h1>

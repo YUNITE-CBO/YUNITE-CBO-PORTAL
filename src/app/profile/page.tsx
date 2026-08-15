@@ -4,11 +4,12 @@ import { useState, FormEvent, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, formatRole, getRoleBadgeColor } from '@/lib/auth';
+import { YuniteImageUploader } from '@/components/media/YuniteImageUploader';
 
 function ProfilePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user: authUser, updateProfile, changePassword, logout } = useAuth();
+  const { user: authUser, updateProfile, changePassword, logout, refreshSession } = useAuth();
   const forcePasswordChange = searchParams.get('force_password_change') === 'true';
 
   const [loading, setLoading] = useState(true);
@@ -217,6 +218,21 @@ function ProfilePageContent() {
                   {formatRole(authUser?.role || '')}
                 </span>
               </div>
+
+              {/* Avatar uploader (Media Engine) */}
+              {authUser?.id && (
+                <div className="px-6 pt-4">
+                  <YuniteImageUploader
+                    ownerType="user"
+                    ownerId={authUser.id}
+                    assetType="USER_PROFILE_PHOTO"
+                    label="Profile Photo"
+                    fallbackName={authUser.full_name || 'User'}
+                    variant="avatar"
+                    onChanged={refreshSession}
+                  />
+                </div>
+              )}
 
               {/* Account Info */}
               <div className="p-6 space-y-4">
