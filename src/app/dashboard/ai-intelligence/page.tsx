@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth, formatRole } from '@/lib/auth';
 
 /**
@@ -35,6 +35,8 @@ interface HealthData {
   };
   overall_intelligence_score: number;
   recent_totals: { critical: number; high: number; medium: number; low: number; unresolved: number };
+  accumulated_totals?: { critical: number; high: number; medium: number; low: number; unresolved: number };
+  latest_investigation?: { id: string; investigation_number: string; scope: string; started_at: string } | null;
   recent_provider_runs: any[];
   configured: { primary: string; gemini_model: string; openrouter_model: string; dual_mode: boolean; dual_mode_source?: string };
   ai_settings?: Record<string, string>;
@@ -136,6 +138,39 @@ const MODULE_STATUS_ICON: Record<string, string> = {
   inconsistent: '✕',
 };
 
+/** Mirror of the backend normalizeModule so the drill-down matches the map. */
+function normalizeModule(mod?: string): string | undefined {
+  if (!mod) return undefined;
+  const m = mod.toLowerCase().trim();
+  const aliases: Record<string, string> = {
+    member: 'members',
+    member_verification: 'member_lookup',
+    'member-lookup': 'member_lookup',
+    loan: 'loans',
+    loan_repayments: 'repayments',
+    repayment: 'repayments',
+    fine: 'fines',
+    contribution: 'contributions',
+    campaign: 'contributions',
+    account: 'accounts',
+    accounts: 'savings',
+    transaction: 'transactions',
+    document: 'documents',
+    compliance_records: 'compliance',
+    user: 'users',
+    setting: 'settings',
+    audit_log: 'audit_logs',
+    notification: 'notifications',
+    meeting: 'meetings',
+    welfare_fund: 'welfare',
+    unity: 'unity_fund',
+    grant: 'grants',
+    donation: 'donations',
+    statement: 'statements',
+  };
+  return aliases[m] ?? m;
+}
+
 export default function AiIntelligencePage() {
   const { user, isLoading } = useAuth();
   const [tab, setTab] = useState<Tab>('overview');
@@ -159,6 +194,12 @@ export default function AiIntelligencePage() {
   const isSuperAdmin = user?.role === 'super_admin';
   const isAdmin = user?.role === 'admin' || isSuperAdmin;
 
+  // Refs used to break circular deps between loaders (loadHealth triggers
+  // openInvestigation, which itself is declared later). The ref always points
+  // at the latest callback.
+  const autoLoadedRef = useRef(false);
+  const openInvestigationRef = useRef<(id: string) => void>(() => {});
+
   const loadHealth = useCallback(async () => {
     try {
       const res = await fetch('/api/ai/health', { credentials: 'include' });
@@ -166,11 +207,20 @@ export default function AiIntelligencePage() {
       if (json.success) {
         setHealth(json.data);
         if (json.data.ai_settings) setAiSettings(json.data.ai_settings);
+        // Auto-open the latest investigation so the Evidence / Recommendations /
+        // Critical / Modules tabs are populated immediately (the user should not
+        // have to click a row just to see that data exists). Only do this when
+        // the user has NOT already selected an investigation manually.
+        const latest = json.data.latest_investigation;
+        if (latest?.id && !autoLoadedRef.current && !detail) {
+          autoLoadedRef.current = true;
+          openInvestigationRef.current(latest.id);
+        }
       }
     } catch (e: any) {
       setError(`Health load failed: ${e?.message || e}`);
     }
-  }, []);
+  }, [detail]);
 
   const loadInvestigations = useCallback(async () => {
     try {
@@ -264,7 +314,14 @@ export default function AiIntelligencePage() {
         );
         await loadHealth();
         await loadInvestigations();
-        await loadModuleHealth();
+        // Auto-open the just-run investigation so the Evidence / Recommendations
+        // / Critical / Modules tabs reflect the fresh results immediately (this
+        // also reloads module health for that investigation).
+        if (json.data.investigation_id) {
+          await openInvestigationRef.current(json.data.investigation_id);
+        } else {
+          await loadModuleHealth();
+        }
       } else {
         setError(json.error || 'Investigation failed');
       }
@@ -342,12 +399,22 @@ export default function AiIntelligencePage() {
     try {
       const res = await fetch(`/api/ai/investigations/${id}`, { credentials: 'include' });
       const json = await res.json();
-      if (json.success) setDetail(json.data);
-      else setError(json.error || 'Failed to load investigation');
+      if (json.success) {
+        setDetail(json.data);
+        // Keep the module health map in sync with the selected investigation so
+        // the map + the findings tabs always reflect the same data source.
+        await loadModuleHealth(id);
+      } else {
+        setError(json.error || 'Failed to load investigation');
+      }
     } catch (e: any) {
       setError(`Load failed: ${e?.message || e}`);
     }
-  }, []);
+  }, [loadModuleHealth]);
+
+  // Keep the openInvestigation ref in sync so loadHealth can call it without a
+  // circular useCallback dependency.
+  openInvestigationRef.current = openInvestigation;
 
   if (isLoading) {
     return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading…</div>;
@@ -573,7 +640,11 @@ function OverviewSection({ health, investigations, moduleHealth, onRun, running,
   detail: InvestigationDetail | null;
 }) {
   const totals = health?.recent_totals ?? { critical: 0, high: 0, medium: 0, low: 0, unresolved: 0 };
+  const acc = health?.accumulated_totals;
+  const latest = health?.latest_investigation;
   const inconsistentModules = moduleHealth.filter((m) => m.status === 'inconsistent');
+  const warningModules = moduleHealth.filter((m) => m.status === 'warning');
+  const healthyModules = moduleHealth.filter((m) => m.status === 'healthy');
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -583,20 +654,44 @@ function OverviewSection({ health, investigations, moduleHealth, onRun, running,
         <StatCard label="Dual Mode" value={health?.configured.dual_mode ? 'ENABLED' : 'OFF'} color={health?.configured.dual_mode ? '#7C3AED' : '#6b7280'} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <FindingCard label="Critical" value={totals.critical} color={SEVERITY_COLORS.critical} />
-        <FindingCard label="High" value={totals.high} color={SEVERITY_COLORS.high} />
-        <FindingCard label="Medium" value={totals.medium} color={SEVERITY_COLORS.medium} />
-        <FindingCard label="Low" value={totals.low} color={SEVERITY_COLORS.low} />
-        <FindingCard label="Unresolved" value={totals.unresolved} color={SEVERITY_COLORS.info} />
+      {/* Current-state severity cards. These reflect the LATEST investigation
+          only (not an accumulated sum), so they update when problems are fixed. */}
+      <div>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-700">Current Findings (latest investigation)</h3>
+          {latest && (
+            <span className="text-xs text-slate-500">
+              {latest.investigation_number} · {SCOPE_LABELS[latest.scope] ?? latest.scope} · {fmt(latest.started_at)}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+          <FindingCard label="Critical" value={totals.critical} color={SEVERITY_COLORS.critical} />
+          <FindingCard label="High" value={totals.high} color={SEVERITY_COLORS.high} />
+          <FindingCard label="Medium" value={totals.medium} color={SEVERITY_COLORS.medium} />
+          <FindingCard label="Low" value={totals.low} color={SEVERITY_COLORS.low} />
+          <FindingCard label="Unresolved" value={totals.unresolved} color={SEVERITY_COLORS.info} />
+        </div>
+        {acc && (acc.critical || acc.high || acc.medium || acc.low) ? (
+          <p className="mt-1 text-xs text-slate-400">
+            Historical total across the last 20 investigations: {acc.critical} critical, {acc.high} high, {acc.medium} medium, {acc.low} low (these accumulate and do not reflect fixes — the cards above show current state).
+          </p>
+        ) : null}
       </div>
 
-      {/* Module health map summary (req. #20) */}
+      {/* Module health map summary (req. #20). Shows ALL modules — no slice. */}
       {moduleHealth.length > 0 && (
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Module Health Map</h3>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-700">Module Health Map ({moduleHealth.length} modules)</h3>
+            <div className="flex gap-3 text-xs">
+              <span className="text-red-600">{inconsistentModules.length} inconsistent</span>
+              <span className="text-amber-600">{warningModules.length} warning</span>
+              <span className="text-green-600">{healthyModules.length} healthy</span>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-            {moduleHealth.slice(0, 18).map((m) => (
+            {moduleHealth.map((m) => (
               <div key={m.module} className={`rounded-md border px-3 py-2 text-xs ${
                 m.status === 'healthy' ? 'border-green-200 bg-green-50' :
                 m.status === 'warning' ? 'border-amber-200 bg-amber-50' :
@@ -608,7 +703,7 @@ function OverviewSection({ health, investigations, moduleHealth, onRun, running,
                     {MODULE_STATUS_ICON[m.status]} {m.status.toUpperCase()}
                   </span>
                 </div>
-                {m.findings_count > 0 && <div className="mt-0.5 text-slate-400">{m.findings_count} finding(s)</div>}
+                {m.findings_count > 0 && <div className="mt-0.5 text-slate-400">{m.findings_count} finding(s), {m.critical_count} crit</div>}
               </div>
             ))}
           </div>
@@ -649,7 +744,9 @@ function ModulesTab({ moduleHealth, findings, selectedModule, onSelect, onOpen, 
   detail: InvestigationDetail | null;
   investigations: Investigation[];
 }) {
-  const moduleFindings = selectedModule ? findings.filter((f) => f.module === selectedModule || f.location?.module === selectedModule) : [];
+  const moduleFindings = selectedModule
+    ? findings.filter((f) => normalizeModule(f.module ?? f.location?.module) === selectedModule)
+    : [];
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -714,7 +811,7 @@ function FindingsTab({ findings, title, onOpen, detail, investigations }: {
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-slate-700">{title} ({findings.length})</h3>
         {findings.length === 0 ? (
-          <p className="text-xs text-slate-400">No findings in this category. Run an investigation and select it from history to see findings here.</p>
+          <p className="text-xs text-slate-400">No findings in this category for the selected investigation. {detail ? '' : 'The latest investigation auto-loads; select a different one from the table below, or run a new investigation.'}</p>
         ) : (
           <div className="space-y-2">
             {findings.map((f, i) => <DeepFindingCard key={i} finding={f} />)}
@@ -881,15 +978,44 @@ function EvidenceTab({ findings, onOpen, detail, investigations }: {
   detail: InvestigationDetail | null;
   investigations: Investigation[];
 }) {
+  const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const sorted = [...findings].sort((a, b) => (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9));
+  const withEvidence = sorted.filter((f) => (f.evidence?.length ?? 0) > 0 || f.location || f.expected_value || f.actual_value);
+  const byModule = new Map<string, any[]>();
+  for (const f of sorted) {
+    const mod = f.module ?? f.location?.module ?? 'general';
+    const arr = byModule.get(mod) ?? [];
+    arr.push(f);
+    byModule.set(mod, arr);
+  }
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-slate-700">Evidence — all findings with full evidence chain ({findings.length})</h3>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-700">Evidence — full evidence chain ({findings.length})</h3>
+          <span className="text-xs text-slate-500">{withEvidence.length} with traceable evidence · {byModule.size} module(s)</span>
+        </div>
+        <p className="mb-3 text-xs text-slate-500">
+          Each finding pinpoints the exact database table/field, backend route/service, frontend component, and member where the error
+          occurs, with expected vs actual values and the evidence chain. This is the single source of truth for where an error is and
+          how to resolve it.
+        </p>
         {findings.length === 0 ? (
-          <p className="text-xs text-slate-400">No evidence available. Select an investigation from the table below.</p>
+          <p className="text-xs text-slate-400">
+            No evidence available yet. {detail ? 'The selected investigation produced no findings.' : 'Select (or run) an investigation from the table below — the latest one auto-loads.'}
+          </p>
         ) : (
-          <div className="space-y-2">
-            {findings.map((f, i) => <DeepFindingCard key={i} finding={f} />)}
+          <div className="space-y-4">
+            {Array.from(byModule.entries()).map(([mod, fs]) => (
+              <div key={mod} className="rounded-md border border-slate-100">
+                <div className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-semibold capitalize text-slate-700">
+                  {mod} ({fs.length})
+                </div>
+                <div className="space-y-2 p-2">
+                  {fs.map((f, i) => <DeepFindingCard key={i} finding={f} />)}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -904,18 +1030,29 @@ function RecommendationsTab({ findings, onOpen, detail, investigations }: {
   detail: InvestigationDetail | null;
   investigations: Investigation[];
 }) {
-  const withRecs = findings.filter((f) => f.recommendation || f.root_cause);
+  const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const withRecs = findings
+    .filter((f) => f.recommendation || f.root_cause)
+    .sort((a, b) => (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9));
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-slate-700">Recommendations & Root Causes ({withRecs.length})</h3>
         {withRecs.length === 0 ? (
-          <p className="text-xs text-slate-400">No recommendations yet. Select an investigation from the table below.</p>
+          <p className="text-xs text-slate-400">
+            No recommendations yet. {detail ? 'The selected investigation produced no findings with a root cause/recommendation.' : 'Select (or run) an investigation from the table below — the latest one auto-loads.'}
+          </p>
         ) : (
           <div className="space-y-2">
             {withRecs.map((f, i) => (
               <div key={i} className="rounded-md border border-slate-100 px-3 py-2 text-xs">
-                <div className="font-medium text-slate-800">{f.finding_code}: {f.title}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-slate-800">{f.finding_code}: {f.title}</span>
+                  <span className="flex items-center gap-2">
+                    {f.module && <span className="text-slate-400 capitalize">{f.module}</span>}
+                    <span style={{ color: SEVERITY_COLORS[f.severity] ?? '#6b7280' }} className="font-bold uppercase">{f.severity}</span>
+                  </span>
+                </div>
                 {f.root_cause && <div className="mt-1 text-slate-600"><span className="text-slate-400">Root cause:</span> {f.root_cause}</div>}
                 {f.recommendation && <div className="mt-1 text-slate-600"><span className="text-slate-400">Recommendation:</span> {f.recommendation}</div>}
               </div>
@@ -989,15 +1126,25 @@ function ProviderSection({ provider, health, investigations, onOpen, detail }: {
 
 function ComparisonSection({ investigations, onOpen, detail }: { investigations: Investigation[]; onOpen: (id: string) => void; detail: InvestigationDetail | null }) {
   const cmp = detail?.comparison;
+  const dualEligible = investigations.filter((i) => i.scope === 'full_system' || i.scope === 'member_verification');
+  const deterministicFindings = detail?.findings?.filter((f: any) => f.sources?.includes('deterministic') || f.sources?.length === 0) ?? [];
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-xs text-slate-500">
-          Select a dual-mode investigation to compare Gemini and OpenRouter findings. Disputed findings are never auto-promoted to facts (req. #10, #29).
+          Select a dual-mode (full-system or member-verification) investigation to compare Gemini and OpenRouter findings.
+          Disputed findings are never auto-promoted to facts (req. #10, #29). If one or both AI providers are degraded/unavailable,
+          no comparison is produced for that run — but the deterministic (confirmed) findings are always available below.
         </p>
+        {dualEligible.length === 0 && (
+          <p className="mt-2 text-xs text-amber-700">
+            No dual-mode investigations yet. Run a “Full Investigation” (full_system) or verify a member (member_verification) to
+            produce a comparison. Single-scope investigations (database/api/financial/…) run one provider and have no comparison.
+          </p>
+        )}
         <div className="mt-3">
           <InvestigationsTable
-            investigations={investigations.filter((i) => i.scope === 'full_system' || i.scope === 'member_verification')}
+            investigations={dualEligible}
             onOpen={onOpen}
             selectedId={detail?.investigation.id}
           />
@@ -1007,8 +1154,20 @@ function ComparisonSection({ investigations, onOpen, detail }: { investigations:
       {detail && !cmp && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           {detail.investigation.ai_status === 'partial'
-            ? 'PARTIAL DUAL INVESTIGATION — only one provider succeeded. No comparison available, but the successful report is preserved (req. #30).'
-            : 'No comparison available. Comparisons are produced when both Gemini and OpenRouter ran independently.'}
+            ? 'PARTIAL DUAL INVESTIGATION — only one AI provider succeeded. No comparison available, but the successful report is preserved (req. #30).'
+            : detail.investigation.ai_status === 'unavailable'
+              ? 'AI was unavailable for this investigation (both providers failed or are not configured). No comparison was produced, but the deterministic (confirmed) findings below are still valid — these do not depend on AI.'
+              : 'No comparison available. Comparisons are produced when both Gemini and OpenRouter ran independently.'}
+        </div>
+      )}
+
+      {/* Deterministic findings are always available, even when AI is degraded. */}
+      {detail && !cmp && deterministicFindings.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Confirmed (deterministic) findings ({deterministicFindings.length})</h3>
+          <div className="space-y-2">
+            {deterministicFindings.map((f: any, i: number) => <DeepFindingCard key={i} finding={f} />)}
+          </div>
         </div>
       )}
 

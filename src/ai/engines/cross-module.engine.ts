@@ -70,6 +70,8 @@ export async function runCrossModuleConsistency(): Promise<{ findings: Finding[]
         category: 'cross_module_mismatch',
         severity: 'high',
         description: `Engine loan balance = ${balances.loans}, but SUM(amount_due) of active loans = ${sumDue}.`,
+        root_cause: 'The loan ledger balance and the sum of active loan amount_due diverged (a repayment/adjustment updated one but not the other).',
+        recommendation: 'Reconcile the loan ledger with SUM(amount_due) for the member; re-post the missing repayment or recompute amount_due.',
         evidence: [
           evidence({ source_label: 'transaction engine', source_type: 'calculation', field: 'loans', actual_value: String(balances.loans) }),
           evidence({ source_label: 'loans table', source_type: 'database', field: 'amount_due', actual_value: String(sumDue), difference: String(balances.loans - sumDue) }),
@@ -93,6 +95,8 @@ export async function runCrossModuleConsistency(): Promise<{ findings: Finding[]
         category: 'cross_module_mismatch',
         severity: 'medium',
         description: `Engine fines balance = ${balances.fines}, but open-fines outstanding = ${openFinesDue}.`,
+        root_cause: 'The fines ledger balance and the open-fines outstanding diverged (a fine_payment updated the ledger but not amount_paid, or vice versa).',
+        recommendation: 'Reconcile the fines ledger with SUM(amount - amount_paid) for open fines; re-post the missing payment or recompute amount_paid.',
         evidence: [
           evidence({ source_label: 'transaction engine', source_type: 'calculation', field: 'fines', actual_value: String(balances.fines) }),
           evidence({ source_label: 'fines table', source_type: 'database', field: 'amount - amount_paid', actual_value: String(openFinesDue), difference: String(balances.fines - openFinesDue) }),
@@ -116,6 +120,8 @@ export async function runCrossModuleConsistency(): Promise<{ findings: Finding[]
         category: 'missing_relationships',
         severity: 'medium',
         description: 'An active member should have the standard set of logical accounts.',
+        root_cause: 'The member was activated without creating the full standard account set (savings/contributions/welfare/fines).',
+        recommendation: 'Create the missing standard account rows for the member so the engine can derive balances correctly.',
         evidence: [evidence({ source_label: 'accounts table', source_type: 'database', field: 'account_type', expected_value: required.join(','), actual_value: presentTypes.join(',') })],
       }));
     }

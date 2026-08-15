@@ -549,6 +549,49 @@ passwords/tokens/api keys/PII before anything reaches a provider).
   the real DB error is visible instead of the generic "Some AI settings
   failed to update".
 
+- **AI Intelligence dashboard "stale/accumulated" bug (2026-08-15, FIXED)**:
+  the Overview stat cards (Critical/High/Medium/Low counts) showed
+  ACCUMULATED totals across ~20 historical investigations (kept growing even
+  after fixing problems), while the Module Health Map showed fewer — because
+  the health route's `recent_totals` summed severity counts across all recent
+  investigations instead of reflecting the LATEST one. The cards now reflect
+  CURRENT STATE: `/api/ai/health` (`src/app/api/ai/health/route.ts`) computes
+  `recent_totals` from the single latest investigation only (its
+  `ai_reports.report_json.counts`), and also returns `accumulated_totals`
+  (historical sum) + `latest_investigation` (id/number/scope/ai_status/score)
+  for context. The dashboard Overview shows both ("current" big +
+  "accumulated across N investigations" small) so an admin can tell current
+  state from trend. `page.tsx` auto-loads the latest investigation detail on
+  mount via a `useRef` pattern (`openInvestigationRef` + `autoLoadedRef`) so
+  the Evidence / Recommendations / Critical / Modules tabs populate without a
+  manual click; `runInvestigation` auto-opens the just-run investigation via
+  the ref (note: must use the ref, NOT the `openInvestigation` callback in the
+  deps array, to avoid a TDZ ReferenceError since `openInvestigation` is
+  declared after `runInvestigation`). The Module Health Map no longer slices
+  to 18 entries (`MODULE_HEALTH_ORDER` now lists ~22 canonical modules
+  including `api`, `member_lookup`, `members`, `transactions`, `settings`,
+  `notifications`, `audit_logs`); `buildModuleHealthMap([])` returns a healthy
+  entry for every canonical module. The Modules-tab drill-down uses a local
+  `normalizeModule` (mirror of the backend aliases) so clicking a normalized
+  module (e.g. `member_lookup`) matches findings whose raw `module` is an
+  alias (e.g. `member_verification`).
+- **AI Intelligence Recommendations were empty (2026-08-15, FIXED)**: the
+  Recommendations & Root Causes tab filtered findings to those with
+  `root_cause`/`recommendation`, but most deterministic engine findings had
+  NEITHER field — only AI-parsed findings carried them. So when AI was
+  degraded/unavailable (the common case locally), the tab showed 0 even
+  though there were confirmed deterministic findings. Fixed by adding
+  `root_cause` + `recommendation` to EVERY deterministic finding in all five
+  engines: `database-consistency.engine.ts` (~10 findings), `financial-consistency.engine.ts`
+  (~4), `api-consistency.engine.ts` (~6), `business-rules.engine.ts` (~9),
+  `cross-module.engine.ts` (~4). The Recommendations tab now sorts by
+  severity and shows the module + severity badge; the Evidence tab is now the
+  "epicentre of facts": grouped by module, sorted by severity, each finding
+  shows the full location chain (DB table/field → backend route/service →
+  frontend component → member) + expected vs actual + the evidence chain. The
+  Comparison tab now explains the degraded/unavailable AI state and surfaces
+  the deterministic (confirmed) findings even when no AI comparison exists.
+
 ## Conventions
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export
   `export const dynamic = 'force-dynamic';` (after the imports). Without it,

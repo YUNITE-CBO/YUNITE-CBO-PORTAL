@@ -67,6 +67,8 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       category: 'duplicate_records',
       severity: 'high',
       description: `${dupRefs.length} transaction_ref value(s) are non-unique, which breaks ledger traceability.`,
+      root_cause: 'Transaction reference generation is not enforced unique at insert (no UNIQUE constraint or collision retry).',
+      recommendation: 'Add a UNIQUE constraint on transactions.transaction_ref and regenerate colliding references.',
       evidence: [evidence({ source_label: 'transactions table', source_type: 'database', field: 'transaction_ref', actual_value: dupRefs.map(([r]) => r).join(', ') })],
     }));
   }
@@ -85,6 +87,8 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       category: 'missing_relationships',
       severity: 'high',
       description: `${orphanAccounts.length} account row(s) have a member_id that does not exist in the members table.`,
+      root_cause: 'Account rows were inserted without a valid foreign key to members (FK constraint missing or bypassed).',
+      recommendation: 'Add a FK constraint accounts.member_id → members.id ON DELETE CASCADE and reassign or delete orphan rows.',
       evidence: [evidence({ source_label: 'accounts table', source_type: 'database', field: 'member_id', actual_value: orphanAccounts.slice(0, 10).map((a) => a.id).join(', ') })],
     }));
   }
@@ -100,6 +104,8 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       category: 'missing_member_references',
       severity: 'high',
       description: 'Transactions without a member_id break per-member balance derivation.',
+      root_cause: 'Transactions were inserted without resolving the owning member (no NOT NULL + FK enforcement).',
+      recommendation: 'Backfill member_id from the account_id → member_id mapping and enforce NOT NULL with a FK.',
       evidence: [evidence({ source_label: 'transactions table', source_type: 'database', field: 'member_id', actual_value: 'null' })],
     }));
   }
@@ -116,6 +122,7 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       category: 'negative_values',
       severity: 'medium',
       description: `${negSavings} transaction row(s) recorded a negative balance_after, which the engine guards against for debit transactions.`,
+      root_cause: 'A debit was applied without a sufficient-balance guard, or a stale balance_after was persisted after a reversal.',
       recommendation: 'Audit these transactions for unguarded withdrawals or stale balance snapshots.',
       evidence: [evidence({ source_label: 'transactions table', source_type: 'database', field: 'balance_after', actual_value: String(negSavings) })],
     }));
@@ -137,6 +144,8 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       category: 'inconsistent_totals',
       severity: 'high',
       description: `${loanMismatches.length} loan row(s) have an amount_due that does not equal total_amount - amount_paid.`,
+      root_cause: 'amount_due is not recomputed when total_amount or amount_paid changes (denormalized field drift).',
+      recommendation: 'Recompute amount_due = GREATEST(0, total_amount - amount_paid) on every payment/adjustment and add a trigger to keep it in sync.',
       evidence: loanMismatches.slice(0, 5).map((l) => evidence({
         source_label: 'loans table',
         source_type: 'database',
@@ -159,6 +168,8 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       category: 'invalid_statuses',
       severity: 'medium',
       description: 'A loan marked completed should have amount_due <= 0.',
+      root_cause: 'Loan status was set to "completed" without zeroing amount_due, or amount_due was not recomputed on final payment.',
+      recommendation: 'On marking a loan completed, set amount_due = 0 and verify amount_paid >= total_amount.',
       evidence: completedWithDue.slice(0, 5).map((l) => evidence({
         source_label: 'loans table', source_type: 'database', field: 'amount_due', actual_value: String(l.amount_due), expected_value: '0',
       })),
@@ -178,6 +189,8 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       category: 'invalid_statuses',
       severity: 'medium',
       description: 'Fines with status "paid" should have amount_paid >= amount.',
+      root_cause: 'Fine status was set to "paid" without fully settling the amount, or amount_paid was not updated on the status change.',
+      recommendation: 'On marking a fine paid, set amount_paid = amount and verify the linked payment transaction exists.',
       evidence: finePaidMismatch.slice(0, 5).map((f) => evidence({
         source_label: 'fines table', source_type: 'database', field: 'amount_paid', expected_value: String(f.amount), actual_value: String(f.amount_paid),
       })),
@@ -204,6 +217,8 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
         category: 'stale_calculated_values',
         severity: 'medium',
         description: 'The stored campaign aggregate has drifted from the authoritative ledger sum.',
+        root_cause: 'total_collected is a denormalized aggregate that is not recomputed when a contribution transaction is added/reversed.',
+        recommendation: 'Recompute total_collected from SUM(transactions) for the campaign on every contribution/reversal, or expose it as a view instead of a stored column.',
         evidence: [evidence({ source_label: 'campaign row', source_type: 'database', field: 'total_collected', expected_value: String(ledgerSum), actual_value: String(c.total_collected), difference: String(Number(c.total_collected) - ledgerSum) })],
       }));
     }
@@ -233,6 +248,8 @@ export async function runDatabaseConsistency(): Promise<{ findings: Finding[]; r
       category: 'duplicate_records',
       severity: 'high',
       description: 'A member should have exactly one account per account_type (UNIQUE constraint).',
+      root_cause: 'No UNIQUE(member_id, account_type) constraint exists, so duplicate accounts were created.',
+      recommendation: 'Add a UNIQUE(member_id, account_type) constraint on accounts and merge/duplicate the duplicate rows.',
       evidence: [evidence({ source_label: 'accounts table', source_type: 'database', field: 'account_type', actual_value: String(duplicateAccounts.length) })],
     }));
   }

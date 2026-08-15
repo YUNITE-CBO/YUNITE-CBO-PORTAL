@@ -56,6 +56,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'configuration_vs_implementation',
       severity: 'high',
       description: `Configured shares.share_value = ${shareValue}; ${shareRuleViolations} active member(s) have a share count inconsistent with that rule.`,
+      root_cause: 'The shares balance was adjusted directly (not derived from savings / share_value), or the share_value setting changed without recomputing shares.',
+      recommendation: 'Recompute shares = floor(savings / shares.share_value) for the affected members, or stop mutating shares independently of savings.',
       evidence: [evidence({ source_label: 'settings', source_type: 'configuration', field: 'shares.share_value', actual_value: String(shareValue) })],
     }));
   }
@@ -76,6 +78,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'configuration_vs_database_result',
       severity: 'high',
       description: 'Interest should equal principal_amount × interest_rate / 100.',
+      root_cause: 'interest_amount was stored independently of the principal × rate formula (manual override or stale value after a rate change).',
+      recommendation: 'Recompute interest_amount = principal_amount × interest_rate / 100 for the affected loans and re-derive total_amount.',
       evidence: interestMismatches.slice(0, 5).map((l) => evidence({
         source_label: 'loans table', source_type: 'database', field: 'interest_amount',
         expected_value: String((Number(l.principal_amount) * Number(l.interest_rate)) / 100),
@@ -98,6 +102,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'configuration_vs_database_result',
       severity: 'medium',
       description: 'Monthly repayment should equal total_amount / repayment_period_months.',
+      root_cause: 'monthly_repayment was rounded or stored independently of total_amount / repayment_period_months.',
+      recommendation: 'Recompute monthly_repayment = total_amount / repayment_period_months for the affected loans (apply consistent rounding).',
       evidence: repaymentMismatches.slice(0, 5).map((l) => evidence({
         source_label: 'loans table', source_type: 'database', field: 'monthly_repayment',
         expected_value: String(Number(l.total_amount) / Number(l.repayment_period_months)),
@@ -117,6 +123,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'configuration_vs_database_result',
       severity: 'high',
       description: 'No loan principal should exceed the configured maximum.',
+      root_cause: 'A loan was created with a principal above loan.max_amount, bypassing the eligibility guard.',
+      recommendation: 'Enforce the loan.max_amount cap at creation and reject (or require super_admin override) for any principal above it.',
       evidence: overLimit.slice(0, 5).map((l) => evidence({
         source_label: 'loans table', source_type: 'database', field: 'principal_amount', actual_value: String(l.principal_amount), expected_value: String(maxAmount),
       })),
@@ -141,6 +149,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'business_rule_violation',
       severity: 'high',
       description: 'Loan eligibility caps the principal at savings × max_percentage and the absolute max_amount.',
+      root_cause: 'A loan was issued above the eligibility cap (savings × max_percentage or max_amount), bypassing the eligibility check.',
+      recommendation: 'Enforce the eligibility cap at loan creation: principal ≤ min(savings × max_percentage, max_amount). Reject over-cap loans.',
       evidence: eligibilityViolations.slice(0, 5).map((v) => evidence({
         source_label: 'loans + ledger', source_type: 'calculation', field: 'principal_amount',
         actual_value: String(v.principal), expected_value: String(Math.min((v.savings * maxPct) / 100, maxAmount)),
@@ -159,6 +169,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'configuration_vs_database_result',
       severity: 'low',
       description: 'This may be intentional (per-loan override) but is flagged for review.',
+      root_cause: 'A loan was created with an interest rate different from the configured default (per-loan override or stale default).',
+      recommendation: 'Confirm each override is intentional; otherwise re-apply the configured default interest rate.',
       human_review: true,
       evidence: [evidence({ source_label: 'settings', source_type: 'configuration', field: 'loan.default_interest_rate', actual_value: String(interestRate) })],
     }));
@@ -175,6 +187,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'configuration_vs_database_result',
       severity: 'low',
       description: 'Per-loan override is allowed; flagged for review.',
+      root_cause: 'A loan was created with a repayment period different from the configured default (per-loan override).',
+      recommendation: 'Confirm each override is intentional and within the configured max period.',
       human_review: true,
       expected_value: String(period),
       actual_value: String(periodDrift[0].repayment_period_months),
@@ -201,6 +215,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'configuration_violation',
       severity: 'high',
       description: 'Loans with a repayment period exceeding the configured maximum violate the business rule. These should have been rejected at creation.',
+      root_cause: 'A loan was created with a repayment period above loan.max_period_months, bypassing the creation guard.',
+      recommendation: 'Enforce repayment_period_months ≤ loan.max_period_months at loan creation and reject over-max loans.',
       expected_value: `≤ ${period}`,
       actual_value: String(overMaxPeriod[0].repayment_period_months),
       affected_records: overMaxPeriod.map((l) => l.id),
@@ -231,6 +247,8 @@ export async function runBusinessRuleConsistency(): Promise<{ findings: Finding[
       category: 'data_integrity',
       severity: 'high',
       description: 'Transactions without a member_id break per-member balance derivation.',
+      root_cause: 'Transactions were inserted without resolving the owning member (no NOT NULL + FK enforcement on member_id).',
+      recommendation: 'Backfill member_id from account_id → member_id and enforce NOT NULL with a FK on transactions.member_id.',
       expected_value: 'Valid UUID',
       actual_value: 'null',
       is_systemic: orphans.length > 3,

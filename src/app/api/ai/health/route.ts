@@ -26,24 +26,46 @@ export async function GET() {
     readAiSettings(),
   ]);
 
-  // Recent critical/high findings across the last 20 investigations → overall score.
+  // The dashboard cards reflect the CURRENT state of the system, which is the
+  // LATEST completed investigation's severity counts. Previously this summed
+  // counts across the last 20 investigations, which accumulated stale findings
+  // (the same issue re-discovered on every run) so the numbers only ever grew
+  // and never reflected fixes. The latest investigation is the source of truth
+  // for "what is wrong right now".
   const supabase = await createServiceClient();
   const { data: recentInvs } = await supabase
     .from('ai_investigations')
-    .select('overall_score, critical_count, high_count, medium_count, low_count, unresolved_count')
+    .select('id, investigation_number, scope, status, ai_status, overall_score, critical_count, high_count, medium_count, low_count, info_count, unresolved_count, started_at')
     .order('started_at', { ascending: false })
     .limit(20);
 
   let latestScore = 100;
-  let totalCritical = 0, totalHigh = 0, totalMedium = 0, totalLow = 0, totalUnresolved = 0;
+  let latestId: string | null = null;
+  let latestNumber: string | null = null;
+  let latestStartedAt: string | null = null;
+  let latestScope: string | null = null;
+  // Current state = the latest investigation (first row).
+  let curCritical = 0, curHigh = 0, curMedium = 0, curLow = 0, curUnresolved = 0;
+  // Accumulated total across the window (kept for transparency, not the cards).
+  let accCritical = 0, accHigh = 0, accMedium = 0, accLow = 0, accUnresolved = 0;
   if (recentInvs && recentInvs.length) {
-    latestScore = recentInvs[0].overall_score ?? 100;
+    const latest = recentInvs[0];
+    latestScore = latest.overall_score ?? 100;
+    latestId = latest.id;
+    latestNumber = latest.investigation_number;
+    latestStartedAt = latest.started_at;
+    latestScope = latest.scope;
+    curCritical = latest.critical_count ?? 0;
+    curHigh = latest.high_count ?? 0;
+    curMedium = latest.medium_count ?? 0;
+    curLow = latest.low_count ?? 0;
+    curUnresolved = latest.unresolved_count ?? 0;
     for (const inv of recentInvs) {
-      totalCritical += inv.critical_count ?? 0;
-      totalHigh += inv.high_count ?? 0;
-      totalMedium += inv.medium_count ?? 0;
-      totalLow += inv.low_count ?? 0;
-      totalUnresolved += inv.unresolved_count ?? 0;
+      accCritical += inv.critical_count ?? 0;
+      accHigh += inv.high_count ?? 0;
+      accMedium += inv.medium_count ?? 0;
+      accLow += inv.low_count ?? 0;
+      accUnresolved += inv.unresolved_count ?? 0;
     }
   }
 
@@ -55,9 +77,18 @@ export async function GET() {
         openrouter: { live: openrouter, latest_snapshot: latestSnapshots.openrouter ?? null },
       },
       overall_intelligence_score: latestScore,
+      // `recent_totals` is the CURRENT STATE (latest investigation only) so the
+      // cards update when problems are fixed. `accumulated_totals` is the old
+      // sum-across-20 figure, kept for the history view only.
       recent_totals: {
-        critical: totalCritical, high: totalHigh, medium: totalMedium, low: totalLow, unresolved: totalUnresolved,
+        critical: curCritical, high: curHigh, medium: curMedium, low: curLow, unresolved: curUnresolved,
       },
+      accumulated_totals: {
+        critical: accCritical, high: accHigh, medium: accMedium, low: accLow, unresolved: accUnresolved,
+      },
+      latest_investigation: latestId
+        ? { id: latestId, investigation_number: latestNumber, scope: latestScope, started_at: latestStartedAt }
+        : null,
       recent_provider_runs: recentRuns,
       configured: {
         primary: process.env.AI_PROVIDER || 'gemini',

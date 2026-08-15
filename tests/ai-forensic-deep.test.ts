@@ -251,6 +251,23 @@ describe('module health map (req. #20, #21)', () => {
     expect(map.every((m) => m.status === 'healthy')).toBe(true);
   });
 
+  test('the canonical module list includes api and every business module', () => {
+    // The map must surface API + UI-relevant modules so the admin sees the full
+    // surface, not just the financial ones.
+    expect(MODULE_HEALTH_ORDER).toContain('api');
+    expect(MODULE_HEALTH_ORDER).toContain('member_lookup');
+    expect(MODULE_HEALTH_ORDER).toContain('members');
+    expect(MODULE_HEALTH_ORDER).toContain('transactions');
+    expect(MODULE_HEALTH_ORDER).toContain('loans');
+    expect(MODULE_HEALTH_ORDER).toContain('savings');
+    expect(MODULE_HEALTH_ORDER).toContain('contributions');
+    expect(MODULE_HEALTH_ORDER).toContain('welfare');
+    expect(MODULE_HEALTH_ORDER).toContain('fines');
+    expect(MODULE_HEALTH_ORDER).toContain('settings');
+    expect(MODULE_HEALTH_ORDER).toContain('notifications');
+    expect(MODULE_HEALTH_ORDER).toContain('audit_logs');
+  });
+
   test('a critical finding makes the module inconsistent', () => {
     const findings: Finding[] = [
       { finding_code: 'FIN-001', title: 'savings mismatch', module: 'savings', category: 'incorrect_balances', description: '', severity: 'critical', confidence: 'confirmed', verification_status: 'confirmed', human_review_required: false, sources: ['deterministic'], evidence: [], location: { member_number: 'MBR-001' }, affected_records: ['MBR-001'] },

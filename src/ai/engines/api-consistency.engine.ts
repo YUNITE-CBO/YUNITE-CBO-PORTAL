@@ -34,6 +34,8 @@ export async function runApiConsistency(): Promise<{ findings: Finding[]; record
       category: 'duplicate_routes',
       severity: 'high',
       description: 'Two manifest entries resolve to the same method+path, causing route ambiguity.',
+      root_cause: 'Two manifest entries share the same HTTP method + path, so the Next.js route resolver cannot disambiguate them.',
+      recommendation: 'Give each endpoint a unique method+path combination, or merge the duplicate manifest entries.',
       evidence: [evidence({ source_label: 'manifest', source_type: 'api', actual_value: dupKeys.join(', ') })],
     }));
   }
@@ -45,6 +47,8 @@ export async function runApiConsistency(): Promise<{ findings: Finding[]; record
       category: 'duplicate_routes',
       severity: 'high',
       description: 'createHandler() throws 500 for an unknown/ambiguous endpoint id.',
+      root_cause: 'Two manifest entries share the same endpoint id, so createHandler(id) cannot resolve to a single handler.',
+      recommendation: 'Ensure every manifest endpoint id is unique; rename one of the colliding entries and its route file.',
       evidence: [evidence({ source_label: 'manifest', source_type: 'api', actual_value: dupIds.join(', ') })],
     }));
   }
@@ -60,6 +64,8 @@ export async function runApiConsistency(): Promise<{ findings: Finding[]; record
       category: 'incorrect_permissions',
       severity: 'medium',
       description: 'Non-identity-scoped required endpoints should declare a minRole for explicit RBAC.',
+      root_cause: 'A required endpoint was added to the manifest without a minRole, so authorization falls back to "any authenticated session".',
+      recommendation: 'Set an explicit minRole (e.g. staff/admin) on each required endpoint in the manifest, except identity-scoped auth.* endpoints.',
       evidence: requiredNoMinRole.slice(0, 5).map((e) => evidence({ source_label: 'manifest', source_type: 'api', field: 'minRole', actual_value: e.id })),
     }));
   }
@@ -75,6 +81,8 @@ export async function runApiConsistency(): Promise<{ findings: Finding[]; record
       category: 'incorrect_permissions',
       severity: 'high',
       description: 'Financial (write) operations should require staff+ at minimum.',
+      root_cause: 'A financial endpoint was registered with minRole=viewer, allowing under-privileged write access.',
+      recommendation: 'Raise the minRole on the affected financial endpoints to staff (or higher) in the manifest.',
       expected_value: 'staff',
       actual_value: 'viewer',
       affected_records: financialLow.map((e) => e.id),
@@ -115,6 +123,8 @@ export async function runApiConsistency(): Promise<{ findings: Finding[]; record
       category: 'broken_routes',
       severity: 'high',
       description: 'A registered endpoint is failing on a meaningful fraction of requests.',
+      root_cause: 'The endpoint handler is throwing on a meaningful fraction of requests (e.g. unhandled edge case, DB error, or missing env var).',
+      recommendation: 'Inspect the endpoint handler logs for the 5xx errors and fix the underlying throw; add error handling so it returns a structured 4xx.',
       evidence: [evidence({ source_label: 'api_request_logs', source_type: 'api', field: 'status_code', actual_value: `${r.err5xx}/${r.total}` })],
     }));
   }
@@ -130,6 +140,8 @@ export async function runApiConsistency(): Promise<{ findings: Finding[]; record
       category: 'stale_routes',
       severity: 'low',
       description: 'A route is administratively disabled. Confirm this is intentional.',
+      root_cause: 'An api_endpoint_overrides row set is_active=false for this endpoint, removing it from the live surface.',
+      recommendation: 'If intentional, document why; if stale, remove the override row to re-enable the endpoint.',
       human_review: true,
       evidence: [evidence({ source_label: 'api_endpoint_overrides', source_type: 'api', field: 'is_active', actual_value: 'false' })],
     }));
