@@ -16,6 +16,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Finding } from './types';
+import { isAiCriticalAlertsEnabled } from './settings';
 
 const ADMIN_CRITICAL_TEMPLATE = 'admin.ai_critical_alert';
 
@@ -25,6 +26,11 @@ export async function alertCriticalFindings(
 ): Promise<{ notified: number; skipped: number }> {
   const criticals = findings.filter((f) => f.severity === 'critical' && f.verification_status !== 'rejected');
   if (criticals.length === 0) return { notified: 0, skipped: 0 };
+
+  // Honor the admin toggle (ai.alerts.critical_enabled). Default ON.
+  if (!(await isAiCriticalAlertsEnabled())) {
+    return { notified: 0, skipped: criticals.length };
+  }
 
   const supabase = await createServiceClient();
 

@@ -11,17 +11,19 @@ import { requireAdminAuth } from '../_guard';
 import { getHealth } from '@/ai';
 import { geminiProvider, openRouterProvider } from '@/ai';
 import { getLatestHealth, listProviderRuns } from '@/ai/persistence';
+import { readAiSettings } from '@/ai/settings';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export async function GET() {
   const auth = await requireAdminAuth();
   if (!auth.ok) return auth.response!;
 
-  const [gemini, openrouter, latestSnapshots, recentRuns] = await Promise.all([
+  const [gemini, openrouter, latestSnapshots, recentRuns, aiSettings] = await Promise.all([
     getHealth(geminiProvider).catch(() => ({ provider: 'gemini' as const, status: 'unknown' as const, availability_pct: 0, success_count: 0, failure_count: 0, timeout_count: 0, rate_limited_count: 0, fallback_count: 0 })),
     getHealth(openRouterProvider).catch(() => ({ provider: 'openrouter' as const, status: 'unknown' as const, availability_pct: 0, success_count: 0, failure_count: 0, timeout_count: 0, rate_limited_count: 0, fallback_count: 0 })),
     getLatestHealth(),
     listProviderRuns(undefined, 20),
+    readAiSettings(),
   ]);
 
   // Recent critical/high findings across the last 20 investigations → overall score.
@@ -61,8 +63,12 @@ export async function GET() {
         primary: process.env.AI_PROVIDER || 'gemini',
         gemini_model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
         openrouter_model: process.env.OPENROUTER_MODEL || '(unset)',
-        dual_mode: process.env.AI_DUAL_MODE === 'true',
+        // DB `ai.dual_mode` is the source of truth (migration 033); fall back to
+        // the AI_DUAL_MODE env var when the setting row is absent.
+        dual_mode: aiSettings['ai.dual_mode'] === 'true' || (aiSettings['ai.dual_mode'] == null && process.env.AI_DUAL_MODE === 'true'),
+        dual_mode_source: aiSettings['ai.dual_mode'] != null ? 'setting' : 'env',
       },
+      ai_settings: aiSettings,
     },
   });
 }

@@ -502,6 +502,40 @@ passwords/tokens/api keys/PII before anything reaches a provider).
     all passing. Run: `npx jest tests/ai- --testTimeout=15000 --forceExit`.
   - **Deploy steps**: run migration 031 in Supabase SQL Editor (after 030).
 
+- **AI Intelligence settings (Dual Mode toggle)**: the AI Intelligence
+  dashboard's "Dual Mode: OFF" stat card previously reflected ONLY the
+  `AI_DUAL_MODE` env var (a Render redeploy to change, no UI control). The
+  per-run "AI Mode" dropdown only affected the next run, not a persistent
+  setting. Fixed: Dual AI Mode is now a first-class, persistent,
+  admin-toggleable organization setting. Migration `033_ai_intelligence_settings.sql`
+  creates an `ai` configuration category + three settings rows
+  (`ai.dual_mode`, `ai.investigations.enabled`, `ai.alerts.critical_enabled`).
+  `src/ai/settings.ts` is the resolver: `resolveDualMode(dualMode)` returns
+  'single'/'dual' honoring precedence — explicit per-run 'single'/'dual' wins;
+  'auto' uses the DB `ai.dual_mode` setting (source of truth), then the
+  `AI_DUAL_MODE` env var (deployment-time fallback), then OFF.
+  `isAiInvestigationsEnabled()` / `isAiCriticalAlertsEnabled()` gate the AI
+  provider phase + alerting respectively (both default ON if the row is
+  absent, so the engine keeps working before migration 033 is applied).
+  `investigation.engine.ts` uses these: when the master switch is OFF the AI
+  provider phase is skipped entirely (deterministic findings still produced,
+  `ai_status='unavailable'`); dual mode runs both providers only for
+  dual-capable scopes (full_system / member_verification) when the effective
+  mode is 'dual'. `alerting.service.ts` honors `ai.alerts.critical_enabled`.
+  New routes: `GET/PUT /api/ai/settings` (admin+, delegates to
+  ConfigurationService so audit/history is honored, rejects unknown keys).
+  `/api/ai/health` now returns `configured.dual_mode` from the DB setting
+  (with `dual_mode_source: 'setting'|'env'`) + an `ai_settings` map. Dashboard
+  (`dashboard/ai-intelligence/page.tsx`): a prominent ON/OFF switch in the
+  actions bar persists via `PUT /api/ai/settings` and the StatCard reflects
+  it. Settings → System Configuration gets a new **AI Intelligence** tab
+  (`AiSettingsSection.tsx`) with all three toggles + the dual-mode explainer.
+  **Deploy steps**: run migration 033 in Supabase SQL Editor. The `AI_DUAL_MODE`
+  env var is no longer load-bearing (DB setting wins) but is honored as a
+  fallback if the setting row is absent. Tests: `tests/ai-settings.test.ts`
+  (13: precedence DB>env, explicit override, defaults, non-fatal on DB error).
+  Run: `npx jest tests/ai- --testTimeout=15000 --forceExit`.
+
 ## Conventions
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export
   `export const dynamic = 'force-dynamic';` (after the imports). Without it,

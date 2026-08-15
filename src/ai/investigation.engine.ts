@@ -37,6 +37,7 @@ import {
   runMemberVerification,
   runMemberForensic,
 } from './engines';
+import { resolveDualMode, isAiInvestigationsEnabled } from './settings';
 import { compareReports } from './comparison.engine';
 import { buildFinalReport, computeScore, type FinalReport } from './report.engine';
 import {
@@ -199,13 +200,24 @@ export async function runInvestigation(
   };
   deterministicReportId = await persistReport(investigation_id, detReport);
 
-  // Resolve dual mode: explicit 'dual' → always dual; 'single' → never;
-  // 'auto' → honor env AI_DUAL_MODE for dual scopes.
-  const dual = dualMode === 'dual'
-    || (dualMode === 'auto' && (DUAL_SCOPES.has(scope) || process.env.AI_DUAL_MODE === 'true'));
+  // Resolve dual mode: explicit 'dual' → always dual (any scope, user
+  // override); 'single' → never; 'auto' → dual only when (a) the scope is a
+  // dual-capable scope (full_system / member_verification) AND (b) the
+  // effective mode resolves to 'dual'. The effective mode for 'auto' comes
+  // from the DB `ai.dual_mode` setting (source of truth) then the
+  // AI_DUAL_MODE env var (deployment-time fallback).
+  const effectiveDual = await resolveDualMode(dualMode);
+  const dual = effectiveDual === 'dual' && (dualMode === 'dual' || DUAL_SCOPES.has(scope));
+
+  // Master switch (ai.investigations.enabled): when OFF, skip the AI provider
+  // phase entirely. Deterministic findings are still produced + persisted; the
+  // investigation is marked 'unavailable' for the AI dimension. Default ON.
+  const aiEnabled = await isAiInvestigationsEnabled();
 
   try {
-    if (dual) {
+    if (!aiEnabled) {
+      aiStatus = 'unavailable';
+    } else if (dual) {
       // Run both INDEPENDENTLY in parallel. Neither sees the other's result.
       const results = await Promise.allSettled([
         geminiProvider.investigate(ctx),

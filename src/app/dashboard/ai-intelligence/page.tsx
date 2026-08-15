@@ -36,7 +36,8 @@ interface HealthData {
   overall_intelligence_score: number;
   recent_totals: { critical: number; high: number; medium: number; low: number; unresolved: number };
   recent_provider_runs: any[];
-  configured: { primary: string; gemini_model: string; openrouter_model: string; dual_mode: boolean };
+  configured: { primary: string; gemini_model: string; openrouter_model: string; dual_mode: boolean; dual_mode_source?: string };
+  ai_settings?: Record<string, string>;
 }
 
 interface Investigation {
@@ -152,6 +153,8 @@ export default function AiIntelligencePage() {
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [aiSettings, setAiSettings] = useState<Record<string, string>>({});
+  const [togglingDual, setTogglingDual] = useState(false);
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isAdmin = user?.role === 'admin' || isSuperAdmin;
@@ -160,7 +163,10 @@ export default function AiIntelligencePage() {
     try {
       const res = await fetch('/api/ai/health', { credentials: 'include' });
       const json = await res.json();
-      if (json.success) setHealth(json.data);
+      if (json.success) {
+        setHealth(json.data);
+        if (json.data.ai_settings) setAiSettings(json.data.ai_settings);
+      }
     } catch (e: any) {
       setError(`Health load failed: ${e?.message || e}`);
     }
@@ -198,6 +204,34 @@ export default function AiIntelligencePage() {
       /* best-effort */
     }
   }, []);
+
+  const toggleDualMode = useCallback(async () => {
+    const current = aiSettings['ai.dual_mode'];
+    const next = current === 'true' ? 'false' : 'true';
+    setTogglingDual(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch('/api/ai/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settings: { 'ai.dual_mode': next } }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setAiSettings((prev) => ({ ...prev, 'ai.dual_mode': next }));
+        setInfo(`Dual AI Mode is now ${next === 'true' ? 'ON — Gemini and OpenRouter will both investigate (full system / member verification), then be reconciled.' : 'OFF — only the primary AI provider will run.'} The next investigation picks this up automatically.`);
+        await loadHealth();
+      } else {
+        setError(json.error || 'Failed to toggle Dual AI Mode');
+      }
+    } catch (e: any) {
+      setError(`Failed to toggle Dual AI Mode: ${e?.message || e}`);
+    } finally {
+      setTogglingDual(false);
+    }
+  }, [aiSettings, loadHealth]);
 
   useEffect(() => {
     if (!isLoading && isAdmin) {
@@ -388,14 +422,44 @@ export default function AiIntelligencePage() {
               </select>
             </label>
             <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
-              AI Mode:
+              Per-run AI Mode:
               <select value={dualMode} onChange={(e) => setDualMode(e.target.value as any)} className="rounded-md border border-slate-300 px-2 py-1 text-xs">
-                <option value="auto">Auto (env)</option>
-                <option value="single">Single AI</option>
-                <option value="dual">Dual AI</option>
+                <option value="auto">Auto (use Dual Mode setting)</option>
+                <option value="single">Single AI (this run)</option>
+                <option value="dual">Dual AI (this run)</option>
               </select>
             </label>
           </div>
+
+          {/* Persistent Dual AI Mode toggle (req. #8). ON = both providers run
+              for full_system / member_verification and are reconciled. OFF =
+              only the primary provider runs. Persists via PUT /api/ai/settings. */}
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-violet-900">Dual AI Mode</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={aiSettings['ai.dual_mode'] === 'true'}
+                disabled={togglingDual || !isAdmin}
+                onClick={toggleDualMode}
+                title={isAdmin ? 'Turn Dual AI Mode ON or OFF' : 'Admin access required'}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${aiSettings['ai.dual_mode'] === 'true' ? 'bg-violet-600' : 'bg-slate-300'}`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${aiSettings['ai.dual_mode'] === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+              <span className={`text-xs font-bold ${aiSettings['ai.dual_mode'] === 'true' ? 'text-violet-700' : 'text-slate-500'}`}>
+                {aiSettings['ai.dual_mode'] === 'true' ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            <p className="text-xs text-violet-800/80">
+              {aiSettings['ai.dual_mode'] === 'true'
+                ? 'Gemini and OpenRouter investigate independently (blind) for full-system and member-verification scopes, then findings are reconciled via the comparison engine. Higher cost/latency, deeper coverage.'
+                : 'Only the primary AI provider runs. Turn ON to run both providers and reconcile their findings.'}
+              {' The per-run dropdown above still lets you force single/dual for one investigation.'}
+            </p>
+          </div>
+
           <h2 className="mb-2 text-sm font-semibold text-slate-700">Actions</h2>
           <div className="flex flex-wrap gap-2">
             <ActionButton label="Run Full Investigation" running={running} onClick={() => runInvestigation('full_system')} primary />
@@ -515,7 +579,7 @@ function OverviewSection({ health, investigations, moduleHealth, onRun, running,
         <StatCard label="Gemini" value={statusBadge(health?.providers.gemini.live.status)} color={STATUS_BADGE[health?.providers.gemini.live.status]?.color || '#6b7280'} />
         <StatCard label="OpenRouter" value={statusBadge(health?.providers.openrouter.live.status)} color={STATUS_BADGE[health?.providers.openrouter.live.status]?.color || '#6b7280'} />
         <StatCard label="Configured Primary" value={health?.configured.primary ?? 'gemini'} />
-        <StatCard label="Dual Mode" value={health?.configured.dual_mode ? 'ENABLED' : 'OFF'} />
+        <StatCard label="Dual Mode" value={health?.configured.dual_mode ? 'ENABLED' : 'OFF'} color={health?.configured.dual_mode ? '#7C3AED' : '#6b7280'} />
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">

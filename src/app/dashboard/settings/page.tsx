@@ -14,6 +14,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import ApiSettingsSection from '@/components/settings/ApiSettingsSection';
 import WorkflowsSettingsSection from '@/components/settings/WorkflowsSettingsSection';
+import AiSettingsSection from '@/components/settings/AiSettingsSection';
 
 interface Setting {
   id: string;
@@ -115,7 +116,7 @@ type ResetStep =
   | 'complete'
   | 'failed';
 
-type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'system' | 'membership' | 'workflow' | 'history' | 'api';
+type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'system' | 'membership' | 'workflow' | 'history' | 'api' | 'ai';
 
 export default function EnhancedSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -575,7 +576,8 @@ export default function EnhancedSettingsPage() {
                   {category.code === 'membership' && '👥'}
                   {category.code === 'workflow' && '🔧'}
                   {category.code === 'api' && '🔑'}
-                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'system', 'membership', 'workflow', 'api'].includes(category.code) && '⚙️'}
+                  {category.code === 'ai' && '🧠'}
+                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'system', 'membership', 'workflow', 'api', 'ai'].includes(category.code) && '⚙️'}
                 </span>
               </div>
               {getStatusBadge(category.configuration_status)}
@@ -1419,6 +1421,8 @@ export default function EnhancedSettingsPage() {
         )
       ) : activeSection === 'workflow' ? (
         <WorkflowsSettingsSection onBack={() => setActiveSection('overview')} />
+      ) : activeSection === 'ai' ? (
+        <AiSettingsSection onBack={() => setActiveSection('overview')} />
       ) : activeSection === 'system' ? (
         renderSystemSection()
       ) : activeSection === 'smtp' && currentCategory ? (
