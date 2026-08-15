@@ -101,6 +101,17 @@ async function bucketFor(ownerType: MediaOwnerType, assetType: MediaAssetType): 
   return v ?? 'yunite-profiles';
 }
 
+/** Does this owner+asset type resolve to a PUBLIC-read storage bucket? */
+async function isPublicBucket(ownerType: MediaOwnerType, assetType: MediaAssetType): Promise<boolean> {
+  if (ownerType === 'organization' || assetType === 'ORGANIZATION_LOGO' || assetType === 'ORGANIZATION_STAMP' || assetType === 'DOCUMENT_LOGO') {
+    return true;
+  }
+  return false;
+}
+
+/** Signed-URL lifetime (seconds) for private-bucket assets. */
+const SIGNED_URL_TTL_SECONDS = 3600;
+
 /** Storage path layout: {ownerType}/{ownerId}/{assetType}/{timestamp}_{file}. */
 function buildStoragePath(ownerType: MediaOwnerType, ownerId: string, assetType: MediaAssetType, filename: string): string {
   const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80) || 'asset';
@@ -224,8 +235,33 @@ export class MediaAssetService {
         .maybeSingle();
       if (!data) return { url: null, asset: null, source: 'none' };
       const asset = rowToAsset(data);
-      const raw = asset.source === 'external' ? asset.externalUrl : asset.publicUrl;
-      return { url: cacheBust(raw, asset.version), asset, source: asset.source };
+
+      // External URLs are already publicly reachable — return as-is.
+      if (asset.source === 'external') {
+        return { url: cacheBust(asset.externalUrl, asset.version), asset, source: asset.source };
+      }
+
+      // Uploaded assets: branding/system buckets are public, so a plain
+      // public URL works. But member/user profile photos live in the PRIVATE
+      // `yunite-profiles` bucket — a public URL returns 404 there, which makes
+      // the browser <img> error out and fall back to the initials avatar (the
+      // "photo not displayed" bug). For private buckets, mint a short-lived
+      // signed URL so the photo actually loads in the browser.
+      const isPublicAsset = await isPublicBucket(ownerType, assetType);
+      let raw = asset.publicUrl;
+      let usedSigned = false;
+      if (!isPublicAsset && asset.storageBucket && asset.storagePath) {
+        const { data: signed, error } = await supabase.storage
+          .from(asset.storageBucket)
+          .createSignedUrl(asset.storagePath, SIGNED_URL_TTL_SECONDS);
+        if (!error && signed?.signedUrl) {
+          raw = signed.signedUrl;
+          usedSigned = true;
+        }
+      }
+      // Cache-bust public URLs only; signed URLs already carry unique tokens
+      // and an extra ?v= param could interfere with signature validation.
+      return { url: usedSigned ? raw : cacheBust(raw, asset.version), asset, source: asset.source };
     } catch {
       return { url: null, asset: null, source: 'none' };
     }
