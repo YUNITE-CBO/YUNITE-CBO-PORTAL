@@ -28,6 +28,8 @@ export interface YuniteImageProps {
   alt?: string;
   /** Optional explicit URL to render instead of resolving (legacy passthrough). */
   explicitUrl?: string | null;
+  /** Bump to force a re-resolve from the media engine (e.g. after upload). */
+  refreshKey?: number;
 }
 
 export function YuniteImage({
@@ -39,6 +41,7 @@ export function YuniteImage({
   className = '',
   alt = '',
   explicitUrl,
+  refreshKey,
 }: YuniteImageProps) {
   const [url, setUrl] = useState<string | null>(explicitUrl ?? null);
   const [errored, setErrored] = useState(false);
@@ -58,7 +61,8 @@ export function YuniteImage({
       })
       .catch(() => { if (!cancelled) setUrl(null); });
     return () => { cancelled = true; };
-  }, [ownerType, ownerId, assetType, explicitUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerType, ownerId, assetType, explicitUrl, refreshKey]);
 
   const shape = variant === 'avatar' ? 'rounded-full' : 'rounded-lg';
   const base = variant === 'avatar' ? 'h-10 w-10' : 'h-16 w-16 object-contain';

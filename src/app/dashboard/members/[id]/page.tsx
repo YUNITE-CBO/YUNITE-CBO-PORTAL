@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { YuniteImageUploader } from '@/components/media/YuniteImageUploader';
+import { YuniteImage } from '@/components/media/YuniteImage';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -210,6 +211,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   
   // State
   const [member, setMember] = useState<Member | null>(null);
+  const [photoRefreshKey, setPhotoRefreshKey] = useState(0);
   const [balances, setBalances] = useState<CalculatedBalances | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -622,17 +624,16 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
             <div className="flex items-center gap-4">
               <Link href="/dashboard/members" className="text-gray-400 hover:text-gray-600 text-2xl">←</Link>
               <div className="flex items-center gap-4">
-                {member.profile_photo_url ? (
-                  <img
-                    src={member.profile_photo_url}
-                    alt={`${member.first_name} ${member.last_name}`}
-                    className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center text-2xl font-bold text-indigo-600">
-                    {member.first_name?.[0]}{member.last_name?.[0]}
-                  </div>
-                )}
+                <YuniteImage
+                  ownerType="member"
+                  ownerId={member.id}
+                  assetType="MEMBER_PROFILE_PHOTO"
+                  fallback={`${member.first_name} ${member.last_name}`}
+                  variant="avatar"
+                  refreshKey={photoRefreshKey}
+                  className="!h-16 !w-16 border-2 border-indigo-200"
+                  alt={`${member.first_name} ${member.last_name}`}
+                />
                 <div>
                   <div className="flex items-center gap-3">
                     <h1 className="text-2xl font-bold text-gray-900">{member.first_name} {member.last_name}</h1>
@@ -716,7 +717,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                   label="Member Profile Photo"
                   fallbackName={`${member.first_name} ${member.last_name}`}
                   variant="avatar"
-                  onChanged={fetchMember}
+                  onChanged={() => { fetchMember(); setPhotoRefreshKey((k) => k + 1); }}
                 />
               )}
               <div className="bg-white rounded-xl shadow-sm p-6">
