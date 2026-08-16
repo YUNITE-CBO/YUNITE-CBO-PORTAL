@@ -5,6 +5,15 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
+// Load .env so the script reads credentials the same way the app does.
+// dotenv is a project dependency; if it is unavailable, fall back to the
+// ambient process environment (e.g. when run through a process manager).
+try {
+  require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+} catch (e) {
+  // dotenv not installed — proceed with whatever process.env already holds.
+}
+
 // Read credentials from environment variables instead of hardcoding them.
 // Copy .env.example to .env and fill in the values before running.
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
