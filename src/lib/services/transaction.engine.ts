@@ -293,6 +293,35 @@ export class TransactionEngine {
           console.log('Loan updated:', { newAmountPaid, newAmountDue, newStatus });
         }
       }
+
+      // -----------------------------------------------------------------
+      // UNITY FUND — reverse the loan interest receipt linked to this
+      // repayment (spec §15, §42, RULE 23). A reversal must keep the
+      // member account, financial ledger, AND Unity Fund consistent. We
+      // mark the linked interest receipt reversed (preserving the original
+      // row) rather than deleting it, so the audit trail is intact.
+      // -----------------------------------------------------------------
+      try {
+        const { data: interestReceipt } = await supabase
+          .from('loan_interest_receipts')
+          .select('id')
+          .eq('repayment_transaction_id', original.id)
+          .eq('status', 'received')
+          .maybeSingle();
+        if (interestReceipt) {
+          await supabase
+            .from('loan_interest_receipts')
+            .update({
+              status: 'reversed',
+              reversed_at: new Date().toISOString(),
+              reversed_by: userId,
+              reversal_reason: `Reversed with loan repayment: ${reason}`,
+            })
+            .eq('id', interestReceipt.id);
+        }
+      } catch (interestRevErr) {
+        console.error('Error reversing loan interest receipt:', interestRevErr);
+      }
     }
 
     // SPECIAL HANDLING FOR FINE POSTINGS (issuing a fine)

@@ -102,6 +102,20 @@ export const ENDPOINTS: EndpointSpec[] = [
   // ----- Dashboard -----
   { id: 'dashboard.stats', method: 'GET', path: '/api/v1/dashboard', module: 'dashboard', action: 'read', summary: 'Organization dashboard stats', auth: 'required', minRole: 'viewer' },
 
+  // ----- Unity Fund (organization-level central financial engine) -----
+  { id: 'unity_fund.summary', method: 'GET', path: '/api/v1/unity-fund/summary', module: 'unity_fund', action: 'read', summary: 'Unity Fund financial position (actual vs pending, sources, liabilities)', auth: 'required', minRole: 'viewer' },
+  { id: 'unity_fund.balance', method: 'GET', path: '/api/v1/unity-fund/balance', module: 'unity_fund', action: 'read', summary: 'Actual Unity Fund cash balance', auth: 'required', minRole: 'viewer' },
+  { id: 'unity_fund.pending', method: 'GET', path: '/api/v1/unity-fund/pending', module: 'unity_fund', action: 'read', summary: 'Pending receivables (not cash)', auth: 'required', minRole: 'viewer' },
+  { id: 'unity_fund.transactions', method: 'GET', path: '/api/v1/unity-fund/transactions', module: 'unity_fund', action: 'read', summary: 'Unity Fund transaction history (all sources)', auth: 'required', minRole: 'viewer' },
+  { id: 'unity_fund.sources', method: 'GET', path: '/api/v1/unity-fund/sources', module: 'unity_fund', action: 'read', summary: 'Receipts breakdown by source', auth: 'required', minRole: 'viewer' },
+  { id: 'unity_fund.expenditures', method: 'GET', path: '/api/v1/unity-fund/expenditures', module: 'unity_fund', action: 'read', summary: 'Authorized Unity Fund expenditures', auth: 'required', minRole: 'viewer' },
+  { id: 'unity_fund.liabilities', method: 'GET', path: '/api/v1/unity-fund/liabilities', module: 'unity_fund', action: 'read', summary: 'Organization loan liabilities', auth: 'required', minRole: 'viewer' },
+  { id: 'unity_fund.reconciliation', method: 'GET', path: '/api/v1/unity-fund/reconciliation', module: 'unity_fund', action: 'read', summary: 'Reconcile ledger vs sources vs dashboard', auth: 'required', minRole: 'viewer' },
+  { id: 'unity_fund.expenditure.create', method: 'POST', path: '/api/v1/unity-fund/expenditures', module: 'unity_fund', action: 'create', summary: 'Record an authorized Unity Fund expenditure', auth: 'required', minRole: 'admin', financial: true },
+  { id: 'unity_fund.donation.create', method: 'POST', path: '/api/v1/unity-fund/donations', module: 'unity_fund', action: 'create', summary: 'Record a donation received into the Unity Fund', auth: 'required', minRole: 'staff', financial: true },
+  { id: 'unity_fund.grant.create', method: 'POST', path: '/api/v1/unity-fund/grants', module: 'unity_fund', action: 'create', summary: 'Record a grant received into the Unity Fund', auth: 'required', minRole: 'staff', financial: true },
+  { id: 'unity_fund.org_loan.create', method: 'POST', path: '/api/v1/unity-fund/organization-loans', module: 'unity_fund', action: 'create', summary: 'Record an organization loan received (cash + liability)', auth: 'required', minRole: 'admin', financial: true },
+
   // ----- API Management (super_admin only) -----
   { id: 'api.overview', method: 'GET', path: '/api/v1/management/overview', module: 'api', action: 'manage', summary: 'API health & activity overview', auth: 'required', minRole: 'super_admin' },
   { id: 'api.endpoints', method: 'GET', path: '/api/v1/management/endpoints', module: 'api', action: 'manage', summary: 'Endpoint registry', auth: 'required', minRole: 'super_admin' },

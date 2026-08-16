@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { name: 'Fines', href: '/dashboard/fines', icon: '⚠️' },
   { name: 'Welfare', href: '/dashboard/welfare', icon: '🛡️' },
   { name: 'Contributions', href: '/dashboard/contributions', icon: '🎯' },
+  { name: 'Unity Fund', href: '/dashboard/unity-fund', icon: '🏛️' },
   { name: 'Documents', href: '/dashboard/documents', icon: '📄' },
   { name: 'Compliance', href: '/dashboard/compliance', icon: '✅' },
   { name: 'Meetings', href: '/dashboard/meetings', icon: '📅' },

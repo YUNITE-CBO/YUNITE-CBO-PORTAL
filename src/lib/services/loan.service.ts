@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { transactionEngine } from './transaction.engine';
 import { settingsService } from './settings.service';
 import { notificationEventService, notificationService } from './notifications';
+import { unityFundEngine } from './unity-fund.engine';
 
 export interface LoanEligibility {
   savings_balance: number;
@@ -511,6 +512,20 @@ export class LoanService {
       metadata: { loan_id: loan.id, loan_number: loan.loan_number, is_full_repayment: newStatus === 'completed' },
     });
 
+    // -----------------------------------------------------------------
+    // LOAN INTEREST SEPARATION (Unity Fund rule §24, RULE 7-8):
+    //   Loan Principal → Member/loan account (the loan_repayment above).
+    //   Loan Interest  → Unity Fund (organization money).
+    // The repayment amount is split pro-rata: the interest portion of THIS
+    // payment is recorded as a Unity Fund actual inflow so it does NOT
+    // inflate the member's personal financial position. The principal
+    // portion stays on the member/loan account.
+    // Idempotent: linked to the source repayment transaction via
+    // repayment_transaction_id, so a reversal of the repayment can reverse
+    // the interest receipt too (no duplicate Unity Fund entries).
+    // -----------------------------------------------------------------
+    await this.recordLoanInterestReceipt(loan, amount, transactionRef, userId, supabase);
+
     // Audit
     await supabase.from('audit_logs').insert({
       id: uuidv4(),
@@ -564,6 +579,96 @@ export class LoanService {
     }
 
     return updatedLoan;
+  }
+
+  /**
+   * Split a loan repayment into principal vs interest and record the
+   * INTEREST portion as a Unity Fund actual inflow (organization money).
+   *
+   * The split is pro-rata against the loan's total interest/principal ratio,
+   * capped at the remaining un-received interest for the loan so cumulative
+   * interest receipts never exceed the loan's total interest_amount.
+   *
+   * Principal stays on the member/loan account (the loan_repayment
+   * transaction). Only the interest portion reaches the Unity Fund, so a
+   * member's personal financial position is never inflated by interest.
+   *
+   * Idempotent: linked to the source repayment transaction via
+   * repayment_transaction_id (looked up before insert).
+   */
+  private async recordLoanInterestReceipt(
+    loan: Record<string, unknown>,
+    repaymentAmount: number,
+    repaymentTransactionRef: string,
+    userId: string,
+    supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  ): Promise<void> {
+    try {
+      const principal = Number(loan.principal_amount) || 0;
+      const totalInterest = Number(loan.interest_amount) || 0;
+      const totalAmount = Number(loan.total_amount) || (principal + totalInterest);
+      if (totalInterest <= 0 || totalAmount <= 0) return; // no interest to separate
+
+      // Pro-rata interest portion of THIS payment.
+      const interestRatio = totalInterest / totalAmount;
+      let interestPortion = repaymentAmount * interestRatio;
+      const principalPortion = repaymentAmount - interestPortion;
+
+      // Cap at remaining un-received interest for the loan (cumulative guard).
+      const { data: priorReceipts } = await supabase
+        .from('loan_interest_receipts')
+        .select('interest_amount')
+        .eq('loan_id', String(loan.id))
+        .eq('status', 'received');
+      const alreadyReceived = (priorReceipts ?? []).reduce((s, r) => s + Number(r.interest_amount), 0);
+      const remainingInterest = Math.max(0, totalInterest - alreadyReceived);
+      interestPortion = Math.min(interestPortion, remainingInterest);
+      if (interestPortion <= 0) return;
+
+      // Look up the source repayment transaction id for the idempotency link.
+      const { data: repaymentTxn } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('transaction_ref', repaymentTransactionRef)
+        .maybeSingle();
+
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const receiptNumber = `LOAN-INT-${date}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+      await supabase.from('loan_interest_receipts').insert({
+        id: uuidv4(),
+        receipt_number: receiptNumber,
+        loan_id: String(loan.id),
+        loan_number: String(loan.loan_number),
+        member_id: String(loan.member_id),
+        interest_amount: interestPortion,
+        principal_portion: principalPortion,
+        repayment_transaction_id: repaymentTxn?.id ?? null,
+        received_date: new Date().toISOString(),
+        status: 'received',
+        recorded_by: userId,
+      });
+
+      // Audit the interest separation.
+      await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        action: 'unity_fund.loan_interest.receive',
+        record_id: String(loan.id),
+        user_id: userId,
+        after_value: {
+          loan_number: loan.loan_number,
+          repayment_amount: repaymentAmount,
+          interest_portion: interestPortion,
+          principal_portion: principalPortion,
+          receipt_number: receiptNumber,
+          note: 'Interest routed to Unity Fund (org money); principal stays on member/loan account.',
+        },
+        created_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      // Interest separation must never break the core repayment flow.
+      console.error('[loan-service] loan interest receipt failed:', err instanceof Error ? err.message : err);
+    }
   }
 
   /**

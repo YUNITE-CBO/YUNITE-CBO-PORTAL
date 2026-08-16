@@ -20,6 +20,7 @@ import {
   MemberStatementData,
   WelfareData,
   OrgSummaryData,
+  UnityFundReportData,
 } from './report-data.service';
 import { formatDate } from './brand';
 
@@ -46,6 +47,7 @@ export interface CsvPayload {
   memberStatement?: MemberStatementData;
   welfareReport?: WelfareData;
   orgSummary?: OrgSummaryData;
+  unityFundReport?: UnityFundReportData;
 }
 
 export function reportToCsv(ctx: ReportContext, payload: CsvPayload): string {
@@ -126,6 +128,20 @@ export function reportToCsv(ctx: ReportContext, payload: CsvPayload): string {
           ['Loans Outstanding', f.loans.outstanding],
         ],
       );
+    }
+    case 'unity_fund_report': {
+      const d = payload.unityFundReport!;
+      const p = d.position;
+      const header = `Metric,Value\r\nActual Balance,${p.actual_balance}\r\nPending Receivables,${p.pending_receivables}\r\nTotal Receipts,${p.total_receipts}\r\nTotal Expenditures,${p.total_expenditures}\r\nOrganization Liabilities,${p.organization_liabilities}\r\nNet Financial Position,${p.net_financial_position}\r\nReconciliation Status,${d.reconciliation.status}\r\nReconciliation Difference,${d.reconciliation.difference}\r\n`;
+      const srcRows = d.sources.map((s) => [s.label, s.actual, s.pending, s.transaction_count]);
+      const sources = csvRows(['Source', 'Actual', 'Pending', 'Transactions'], srcRows);
+      const expRows = d.expenditures.by_category.map((c) => [c.category, c.total, c.count]);
+      const expenditures = csvRows(['Expenditure Category', 'Total', 'Count'], expRows);
+      const loanRows = d.liabilities.loans.map((l) => [l.org_loan_number, l.lender_name, l.received_amount, l.repaid_amount, l.outstanding_liability, l.status]);
+      const liabilities = csvRows(['Loan No', 'Lender', 'Received', 'Repaid', 'Outstanding', 'Status'], loanRows);
+      const recRows = d.reconciliation.checks.map((c) => [c.label, c.expected, c.actual, c.difference, c.passed ? 'yes' : 'no']);
+      const reconciliation = csvRows(['Check', 'Expected', 'Actual', 'Difference', 'Passed'], recRows);
+      return header + sources + expenditures + liabilities + reconciliation;
     }
     default:
       return '';

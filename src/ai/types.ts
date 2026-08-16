@@ -18,6 +18,7 @@ export type InvestigationScope =
   | 'business_rules'
   | 'api'
   | 'financial'
+  | 'unity_fund'
   | 'member_verification'
   | 'full_system';
 

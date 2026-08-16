@@ -21,6 +21,7 @@ import type {
   MemberStatementData,
   WelfareData,
   OrgSummaryData,
+  UnityFundReportData,
   ReportPeriod,
 } from '@/lib/services/reports/report-data.service';
 import type { Finding, ProviderReport, ComparisonResult } from '@/ai/types';
@@ -85,6 +86,7 @@ export type DocumentKind =
   | 'loan_statement'
   | 'welfare_report'
   | 'organization_summary'
+  | 'unity_fund_report'
   | 'ai_investigation_report'
   | 'ai_member_verification_report'
   | 'ai_comparison_report'
@@ -112,6 +114,7 @@ export type DocumentData =
   | { kind: 'loan_statement'; loan: LoanStatementData }
   | { kind: 'welfare_report'; welfare: WelfareData }
   | { kind: 'organization_summary'; summary: OrgSummaryData }
+  | { kind: 'unity_fund_report'; unityFund: UnityFundReportData }
   | { kind: 'ai_investigation_report'; investigation: InvestigationReportData }
   | { kind: 'ai_member_verification_report'; verification: MemberVerificationReportData }
   | { kind: 'ai_comparison_report'; comparison: AIComparisonReportData }

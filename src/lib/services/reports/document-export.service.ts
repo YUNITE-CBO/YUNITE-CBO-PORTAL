@@ -224,6 +224,8 @@ export class DocumentExportService {
         return { welfareReport: await reportDataService.getWelfareReport() };
       case 'organization_summary':
         return { orgSummary: await reportDataService.getOrganizationSummary() };
+      case 'unity_fund_report':
+        return { unityFundReport: await reportDataService.getUnityFundReport() };
       default:
         throw new Error(`Unknown report type: ${ctx.type}`);
     }
@@ -315,6 +317,7 @@ function reportTypeToDocumentKind(type: ReportType): DocumentKind {
     member_statement: 'member_statement',
     welfare_report: 'welfare_report',
     organization_summary: 'organization_summary',
+    unity_fund_report: 'unity_fund_report',
   };
   return map[type];
 }
@@ -343,6 +346,8 @@ function payloadToDocumentData(kind: DocumentKind, type: ReportType, payload: Re
       return { kind, welfare: payload.welfareReport! };
     case 'organization_summary':
       return { kind, summary: payload.orgSummary! };
+    case 'unity_fund_report':
+      return { kind, unityFund: payload.unityFundReport! };
     default:
       throw new Error(`Unsupported report type for PDF: ${type}`);
   }

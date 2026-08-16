@@ -4,6 +4,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from './transaction.engine';
+import { unityFundEngine } from './unity-fund.engine';
 
 export interface DashboardStats {
   total_members: number;
@@ -20,6 +21,17 @@ export interface DashboardStats {
   total_loan_applications: number;
   pending_loan_applications: number;
   active_loans: number;
+  // Unity Fund (organization-level reserve) — actual cash, never pending
+  unity_fund?: {
+    actual_balance: number;
+    pending_receivables: number;
+    total_receipts: number;
+    total_expenditures: number;
+    organization_liabilities: number;
+    net_financial_position: number;
+    reconciliation_status: string;
+    currency: string;
+  };
 }
 
 export interface ActivityItem {
@@ -78,6 +90,28 @@ export class DashboardService {
     const shareValue = shareValueSetting ? parseFloat(shareValueSetting.value) : 100;
     const totalShares = Math.floor(savingsTxns.totalDeposits / shareValue);
 
+    // Unity Fund position (organization-level reserve). Single source of truth
+    // is the UnityFundEngine; reconciliation status is pulled cheaply.
+    let unityFund: DashboardStats['unity_fund'];
+    try {
+      const [ufPosition, ufReconciliation] = await Promise.all([
+        unityFundEngine.getFinancialPosition(),
+        unityFundEngine.getReconciliation(),
+      ]);
+      unityFund = {
+        actual_balance: ufPosition.actual_balance,
+        pending_receivables: ufPosition.pending_receivables,
+        total_receipts: ufPosition.total_receipts,
+        total_expenditures: ufPosition.total_expenditures,
+        organization_liabilities: ufPosition.organization_liabilities,
+        net_financial_position: ufPosition.net_financial_position,
+        reconciliation_status: ufReconciliation.status,
+        currency: ufPosition.currency,
+      };
+    } catch {
+      // Unity Fund tables may not exist yet (pre-migration); leave undefined.
+    }
+
     return {
       total_members: totalMembers,
       active_members: activeMembers,
@@ -93,6 +127,7 @@ export class DashboardService {
       total_loan_applications: totalLoans,
       pending_loan_applications: pendingLoans,
       active_loans: activeLoansCount,
+      unity_fund: unityFund,
     };
   }
 

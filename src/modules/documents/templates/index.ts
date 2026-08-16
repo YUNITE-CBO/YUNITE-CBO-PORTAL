@@ -4,7 +4,7 @@
  */
 
 import type { Content } from 'pdfmake';
-import { financialSummaryTemplate, organizationSummaryTemplate, welfareReportTemplate } from './financial-reports';
+import { financialSummaryTemplate, organizationSummaryTemplate, welfareReportTemplate, unityFundReportTemplate } from './financial-reports';
 import {
   memberListTemplate,
   loanReportTemplate,
@@ -40,6 +40,8 @@ export async function renderTemplate(envelope: DocumentEnvelope, data: DocumentD
       return financialSummaryTemplate(envelope, data.summary);
     case 'organization_summary':
       return organizationSummaryTemplate(envelope, data.summary);
+    case 'unity_fund_report':
+      return unityFundReportTemplate(envelope, data.unityFund);
     case 'welfare_report':
       return welfareReportTemplate(envelope, data.welfare);
     case 'member_list':

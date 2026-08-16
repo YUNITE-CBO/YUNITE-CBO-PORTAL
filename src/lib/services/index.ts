@@ -38,6 +38,14 @@ export type { SuperAdminConfig, BootstrapResult } from './super-admin-bootstrap.
 export { applicationStartupService, getOrCreateInitialization } from './application-startup.service';
 export type { StartupResult } from './application-startup.service';
 
+// Unity Fund — organization-level central financial engine
+export { unityFundEngine } from './unity-fund.engine';
+export type {
+  UnityFundSource, Direction, PaymentStatus, UnityFundTransaction,
+  SourceBreakdown, ExpenditureSummary, LiabilitySummary, UnityFundPosition,
+  ReconciliationResult, ReconciliationCheck, PeriodSummary, PeriodFilter,
+} from './unity-fund.engine';
+
 // Notification Services
 export { notificationService, emailService, notificationEventService, templateService, scheduleService, statementService } from './notifications';
 export type { 

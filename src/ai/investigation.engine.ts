@@ -34,6 +34,7 @@ import {
   runBusinessRuleConsistency,
   runApiConsistency,
   runFinancialConsistency,
+  runUnityFundConsistency,
   runMemberVerification,
   runMemberForensic,
 } from './engines';
@@ -92,23 +93,25 @@ function pickDeterministic(scope: InvestigationScope): { run: () => Promise<{ fi
     case 'business_rules': return { run: runBusinessRuleConsistency };
     case 'api': return { run: runApiConsistency };
     case 'financial': return { run: runFinancialConsistency };
+    case 'unity_fund': return { run: runUnityFundConsistency };
     case 'member_verification': return { run: async () => ({ findings: [], records_checked: 0, checks_performed: 0 }) }; // member-specific below
     case 'full_system': return { run: runFullSystemDeterministic };
   }
 }
 
 async function runFullSystemDeterministic(): Promise<{ findings: Finding[]; records_checked: number; checks_performed: number }> {
-  const [db, xm, br, api, fin] = await Promise.all([
+  const [db, xm, br, api, fin, uf] = await Promise.all([
     runDatabaseConsistency(),
     runCrossModuleConsistency(),
     runBusinessRuleConsistency(),
     runApiConsistency(),
     runFinancialConsistency(),
+    runUnityFundConsistency(),
   ]);
   return {
-    findings: [...db.findings, ...xm.findings, ...br.findings, ...api.findings, ...fin.findings],
-    records_checked: db.records_checked + xm.records_checked + br.records_checked + api.records_checked + fin.records_checked,
-    checks_performed: db.checks_performed + xm.checks_performed + br.checks_performed + api.checks_performed + fin.checks_performed,
+    findings: [...db.findings, ...xm.findings, ...br.findings, ...api.findings, ...fin.findings, ...uf.findings],
+    records_checked: db.records_checked + xm.records_checked + br.records_checked + api.records_checked + fin.records_checked + uf.records_checked,
+    checks_performed: db.checks_performed + xm.checks_performed + br.checks_performed + api.checks_performed + fin.checks_performed + uf.checks_performed,
   };
 }
 

@@ -11,7 +11,7 @@ import { kpiRow, sectionHeader, preamble, closing } from './shared';
 import { resolveOrgIdentity } from '../styles/yunite-document.styles';
 import { buildTable } from '../utils/tables';
 import { money, signedMoney, text, titleCase } from '../utils/formatting';
-import type { FinancialSummaryData, OrgSummaryData, WelfareData } from '@/lib/services/reports/report-data.service';
+import type { FinancialSummaryData, OrgSummaryData, WelfareData, UnityFundReportData } from '@/lib/services/reports/report-data.service';
 import type { DocumentEnvelope } from '../types/document.types';
 
 /** Build the financial-summary KPI grid + fund tables. */
@@ -144,3 +144,89 @@ export async function welfareReportTemplate(env: DocumentEnvelope, data: Welfare
   content.push(...closing(env));
   return content;
 }
+
+/** Unity Fund report — actual vs pending, sources, expenditures, liabilities, reconciliation (spec §39). */
+export async function unityFundReportTemplate(env: DocumentEnvelope, data: UnityFundReportData): Promise<Content[]> {
+  const cur = data.position.currency;
+  const content: Content[] = await preamble(env, 'Organization-level Unity Fund: actual cash, pending receivables, sources, expenditures, liabilities, and reconciliation');
+
+  const p = data.position;
+  content.push(
+    kpiRow([
+      { label: 'Actual Balance', value: money(p.actual_balance, cur), accent: '#16A34A' },
+      { label: 'Pending Receivables', value: money(p.pending_receivables, cur), accent: '#D97706' },
+      { label: 'Total Receipts', value: money(p.total_receipts, cur) },
+      { label: 'Total Expenditures', value: money(p.total_expenditures, cur), accent: '#DC2626' },
+    ]),
+    kpiRow([
+      { label: 'Organization Liabilities', value: money(p.organization_liabilities, cur) },
+      { label: 'Net Financial Position', value: signedMoney(p.net_financial_position, cur), accent: p.net_financial_position >= 0 ? '#16A34A' : '#DC2626' },
+    ]),
+  );
+
+  content.push(...sectionHeader('Actual vs Pending by Source'));
+  content.push('Pending amounts are receivables (due but unpaid). They are NEVER added to the actual balance.');
+  content.push(
+    buildTable(
+      [
+        { header: 'Source' },
+        { header: 'Actual', numeric: true },
+        { header: 'Pending', numeric: true },
+        { header: 'Transactions', numeric: true },
+      ],
+      data.sources.map((s) => [text(s.label), money(s.actual, cur), money(s.pending, cur), String(s.transaction_count)]),
+    ),
+  );
+
+  content.push(...sectionHeader('Expenditures by Category'));
+  const expRows = data.expenditures.by_category.length
+    ? data.expenditures.by_category.map((c) => [text(c.category), money(c.total, cur), String(c.count)])
+    : [['No posted expenditures', '', '']];
+  content.push(
+    buildTable(
+      [{ header: 'Category' }, { header: 'Total', numeric: true }, { header: 'Count', numeric: true }],
+      expRows,
+      ['Total', money(data.expenditures.total_expenditures, cur), ''],
+    ),
+  );
+
+  content.push(...sectionHeader('Organization Loan Liabilities'));
+  content.push('A received organization loan is cash AND a liability. It is NEVER income or profit.');
+  const loanRows = data.liabilities.loans.length
+    ? data.liabilities.loans.map((l) => [text(l.org_loan_number), text(l.lender_name), money(l.received_amount, cur), money(l.repaid_amount, cur), money(l.outstanding_liability, cur), text(l.status)])
+    : [['No organization loans', '', '', '', '', '']];
+  content.push(
+    buildTable(
+      [
+        { header: 'Loan No.' },
+        { header: 'Lender' },
+        { header: 'Received', numeric: true },
+        { header: 'Repaid', numeric: true },
+        { header: 'Outstanding', numeric: true },
+        { header: 'Status' },
+      ],
+      loanRows,
+    ),
+  );
+
+  content.push(...sectionHeader('Reconciliation'));
+  const statusLabel = data.reconciliation.status === 'consistent' ? 'CONSISTENT'
+    : data.reconciliation.status === 'discrepancy' ? 'DISCREPANCY' : 'ERROR';
+  content.push(`Status: ${statusLabel}  ·  Difference: ${cur} ${data.reconciliation.difference}`);
+  content.push(
+    buildTable(
+      [
+        { header: 'Check' },
+        { header: 'Expected', numeric: true },
+        { header: 'Actual', numeric: true },
+        { header: 'Difference', numeric: true },
+        { header: 'Passed' },
+      ],
+      data.reconciliation.checks.map((c) => [text(c.label), money(c.expected, cur), money(c.actual, cur), money(c.difference, cur), c.passed ? '✓' : '✕']),
+    ),
+  );
+
+  content.push(...closing(env));
+  return content;
+}
+

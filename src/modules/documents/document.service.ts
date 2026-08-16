@@ -107,6 +107,7 @@ const DOC_NUMBER_PREFIXES: Record<DocumentData['kind'], string> = {
   loan_statement: 'LOAN-STM',
   welfare_report: 'WLF',
   organization_summary: 'ORG',
+  unity_fund_report: 'UF',
   ai_investigation_report: 'AI-INV',
   ai_member_verification_report: 'AI-MV',
   ai_comparison_report: 'AI-CMP',

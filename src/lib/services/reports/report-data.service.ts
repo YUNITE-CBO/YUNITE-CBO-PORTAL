@@ -10,6 +10,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '../transaction.engine';
 import { settingsService } from '../settings.service';
+import { unityFundEngine } from '../unity-fund.engine';
 import { ORG_IDENTITY } from './brand';
 
 export type ReportType =
@@ -21,7 +22,8 @@ export type ReportType =
   | 'fine_report'
   | 'member_statement'
   | 'welfare_report'
-  | 'organization_summary';
+  | 'organization_summary'
+  | 'unity_fund_report';
 
 export const REPORT_TYPES: ReportType[] = [
   'financial_summary',
@@ -33,6 +35,7 @@ export const REPORT_TYPES: ReportType[] = [
   'member_statement',
   'welfare_report',
   'organization_summary',
+  'unity_fund_report',
 ];
 
 export const REPORT_META: Record<
@@ -82,6 +85,11 @@ export const REPORT_META: Record<
   organization_summary: {
     title: 'Organization Summary',
     description: 'Snapshot of the CBO: membership, financial position, and obligations.',
+    supportsMemberScope: false,
+  },
+  unity_fund_report: {
+    title: 'Unity Fund Report',
+    description: 'Organization-level reserve: actual vs pending, sources, expenditures, liabilities, and reconciliation.',
     supportsMemberScope: false,
   },
 };
@@ -211,6 +219,38 @@ export interface OrgSummaryData {
   pendingLoans: number;
   pendingFines: number;
   currency: string;
+}
+
+/** Unity Fund report data (spec §39). Actual vs pending, sources, expenditures, liabilities, reconciliation. */
+export interface UnityFundReportData {
+  position: {
+    actual_balance: number;
+    pending_receivables: number;
+    total_receipts: number;
+    total_expenditures: number;
+    organization_liabilities: number;
+    net_financial_position: number;
+    currency: string;
+  };
+  sources: Array<{ source: string; label: string; actual: number; pending: number; transaction_count: number }>;
+  expenditures: {
+    total_expenditures: number;
+    by_category: Array<{ category: string; total: number; count: number }>;
+  };
+  liabilities: {
+    total_organization_loans_received: number;
+    total_organization_loans_repaid: number;
+    outstanding_liabilities: number;
+    loans: Array<{ org_loan_number: string; lender_name: string; received_amount: number; repaid_amount: number; outstanding_liability: number; status: string }>;
+  };
+  reconciliation: {
+    status: string;
+    ledger_balance: number;
+    source_balance: number;
+    difference: number;
+    checks: Array<{ label: string; expected: number; actual: number; difference: number; passed: boolean }>;
+  };
+  generated_at: string;
 }
 
 /**
@@ -600,6 +640,50 @@ export class ReportDataService {
       .eq('id', memberId)
       .maybeSingle();
     return data;
+  }
+
+  /**
+   * Unity Fund report data. Delegates to the UnityFundEngine — the single
+   * source of truth — so the report's figures always match the dashboard
+   * and the AI investigation payload (spec §39, §43).
+   */
+  async getUnityFundReport(): Promise<UnityFundReportData> {
+    const [position, expenditures, liabilities, reconciliation] = await Promise.all([
+      unityFundEngine.getFinancialPosition(),
+      unityFundEngine.getExpenditures(),
+      unityFundEngine.getLiabilities(),
+      unityFundEngine.getReconciliation(),
+    ]);
+    return {
+      position: {
+        actual_balance: position.actual_balance,
+        pending_receivables: position.pending_receivables,
+        total_receipts: position.total_receipts,
+        total_expenditures: position.total_expenditures,
+        organization_liabilities: position.organization_liabilities,
+        net_financial_position: position.net_financial_position,
+        currency: position.currency,
+      },
+      sources: position.sources,
+      expenditures: {
+        total_expenditures: expenditures.total_expenditures,
+        by_category: expenditures.by_category,
+      },
+      liabilities: {
+        total_organization_loans_received: liabilities.total_organization_loans_received,
+        total_organization_loans_repaid: liabilities.total_organization_loans_repaid,
+        outstanding_liabilities: liabilities.outstanding_liabilities,
+        loans: liabilities.loans,
+      },
+      reconciliation: {
+        status: reconciliation.status,
+        ledger_balance: reconciliation.ledger_balance,
+        source_balance: reconciliation.source_balance,
+        difference: reconciliation.difference,
+        checks: reconciliation.checks,
+      },
+      generated_at: position.generated_at,
+    };
   }
 }
 

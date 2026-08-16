@@ -24,6 +24,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { transactionEngine } from '@/lib/services/transaction.engine';
 import { settingsService } from '@/lib/services/settings.service';
+import { unityFundEngine } from '@/lib/services/unity-fund.engine';
 import type { AccountType } from '@/lib/services/transaction.engine';
 
 /** List of tables YUNITE knows about (controlled surface). */
@@ -31,6 +32,8 @@ export const KNOWN_TABLES = [
   'members', 'accounts', 'transactions', 'loans', 'fines', 'documents',
   'compliance_records', 'settings', 'audit_logs', 'users', 'organizations',
   'meetings', 'contribution_campaigns',
+  'donations', 'grants', 'organization_loans', 'unity_fund_expenditures',
+  'loan_interest_receipts', 'unity_fund_reconciliation_runs',
 ] as const;
 
 /** Stable schema description the AI can reason about (no credentials). */
@@ -194,6 +197,8 @@ export async function getBusinessRules() {
     'loan.default_interest_rate', 'loan.max_amount', 'fees.registration',
     'fees.annual', 'organization.currency', 'welfare.monthly_amount',
     'contributions.monthly_default',
+    'unity_fund.enabled', 'unity_fund.project_profit_org_share',
+    'unity_fund.require_withdrawal_authorization',
   ];
   return settingsService.getMany(keys);
 }
@@ -302,4 +307,39 @@ export async function getMembersSampleRaw(limit = 5) {
 /** Compute the ledger-derived savings for a member (deterministic). */
 export async function computeLedgerSavings(memberId: string): Promise<number> {
   return transactionEngine.calculateBalance(memberId, 'savings' as AccountType);
+}
+
+/**
+ * UNITY FUND data for AI investigation (read-only, PII-sanitized later).
+ * Gives the AI the authoritative Unity Fund position so it can investigate
+ * with real figures rather than inventing them (spec §32-§33, RULE 38).
+ * Uses the UnityFundEngine — the single source of truth — so the AI's view
+ * always matches the dashboard/reports.
+ */
+export async function getUnityFundData(): Promise<Record<string, unknown>> {
+  const [position, expenditures, liabilities, reconciliation, history] = await Promise.all([
+    unityFundEngine.getFinancialPosition(),
+    unityFundEngine.getExpenditures(),
+    unityFundEngine.getLiabilities(),
+    unityFundEngine.getReconciliation(),
+    unityFundEngine.getTransactionHistory({ limit: 100 }),
+  ]);
+  return {
+    position,
+    expenditures: {
+      total_expenditures: expenditures.total_expenditures,
+      by_category: expenditures.by_category,
+    },
+    liabilities,
+    reconciliation: {
+      status: reconciliation.status,
+      ledger_balance: reconciliation.ledger_balance,
+      source_balance: reconciliation.source_balance,
+      difference: reconciliation.difference,
+      checks: reconciliation.checks,
+      discrepancies: reconciliation.discrepancies,
+    },
+    recent_transactions: history.transactions,
+    note: 'Actual balance is real org cash. Pending receivables are NOT cash. Organization loans are cash AND liabilities (never income). Loan interest is org money separated from principal.',
+  };
 }

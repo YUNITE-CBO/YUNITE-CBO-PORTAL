@@ -18,7 +18,7 @@ export {
   getMemberFinancialsRaw, getSavingsTransactionsRaw, getSharesRaw, getLoansRaw,
   getLoanRepaymentsRaw, getContributionsRaw, getFinesRaw, getWelfareRaw,
   getOrganizationSettings, getBusinessRules, getAuditLogs, getModuleHealth,
-  getDataAvailability, getMembersSampleRaw, computeLedgerSavings,
+  getDataAvailability, getMembersSampleRaw, computeLedgerSavings, getUnityFundData,
 } from './database-tools';
 export {
   getApiRoutes, inspectApiSurface, getApiResponseSchema, getApiDefinition,
@@ -75,6 +75,13 @@ export async function buildToolsPayload(
         fines: await db.getFinesRaw(),
         contributions: await db.getContributionsRaw(),
         welfare: await db.getWelfareRaw(),
+        unity_fund: await db.getUnityFundData(),
+      }));
+    case 'unity_fund':
+      return sanitizeForAi(mergeAvailability({
+        unity_fund: await db.getUnityFundData(),
+        business_rules: await db.getBusinessRules(),
+        db_stats: await db.queryReadOnlyDatabase(),
       }));
     case 'cross_module': {
       // Cross-module needs a member sample to compare relationships. If a
@@ -137,6 +144,7 @@ export async function buildToolsPayload(
         members_sample: await db.getMembersSampleRaw(5),
         audit_logs_sample: await db.getAuditLogs(30),
         module_health: await db.getModuleHealth(),
+        unity_fund: await db.getUnityFundData(),
       }));
     default:
       return mergeAvailability({});

@@ -35,6 +35,7 @@ import {
   MemberStatementData,
   WelfareData,
   OrgSummaryData,
+  UnityFundReportData,
 } from './report-data.service';
 
 export interface RenderedDocument {
@@ -578,6 +579,64 @@ export interface ReportPayload {
   memberStatement?: MemberStatementData;
   welfareReport?: WelfareData;
   orgSummary?: OrgSummaryData;
+  unityFundReport?: UnityFundReportData;
+}
+
+function renderUnityFundReport(data: UnityFundReportData): string {
+  const p = data.position;
+  const cur = p.currency;
+  const statusBadge = data.reconciliation.status === 'consistent'
+    ? '<span style="color:#16A34A;font-weight:600">CONSISTENT</span>'
+    : data.reconciliation.status === 'discrepancy'
+    ? '<span style="color:#DC2626;font-weight:600">DISCREPANCY</span>'
+    : '<span style="color:#D97706;font-weight:600">ERROR</span>';
+  return `
+  ${kpi('Actual Balance', formatMoney(p.actual_balance), 'Real org cash', true)}
+  ${kpi('Pending Receivables', formatMoney(p.pending_receivables), 'Not cash — due but unpaid')}
+  ${kpi('Total Receipts', formatMoney(p.total_receipts), 'Actual inflows')}
+  ${kpi('Total Expenditures', formatMoney(p.total_expenditures), 'Authorized outflows')}
+  ${kpi('Organization Liabilities', formatMoney(p.organization_liabilities), 'Outstanding org loans')}
+  ${kpi('Net Financial Position', formatMoney(p.net_financial_position), 'Actual cash − liabilities', true)}
+
+  <h3 class="section-title">Actual vs Pending by Source</h3>
+  <p style="font-size:11px;color:#6B7280;margin:0 0 8px">Pending amounts are receivables, NOT cash. They are never added to the actual balance.</p>
+  <table class="data">
+    <thead><tr><th>Source</th><th class="num">Actual</th><th class="num">Pending</th><th class="num">Transactions</th></tr></thead>
+    <tbody>
+      ${data.sources.map((s) => `<tr><td>${esc(s.label)}</td><td class="num">${formatMoney(s.actual)}</td><td class="num">${formatMoney(s.pending)}</td><td class="num">${s.transaction_count}</td></tr>`).join('')}
+    </tbody>
+  </table>
+
+  <h3 class="section-title">Expenditures by Category</h3>
+  <table class="data">
+    <thead><tr><th>Category</th><th class="num">Total</th><th class="num">Count</th></tr></thead>
+    <tbody>
+      ${data.expenditures.by_category.length
+        ? data.expenditures.by_category.map((c) => `<tr><td>${esc(c.category)}</td><td class="num">${formatMoney(c.total)}</td><td class="num">${c.count}</td></tr>`).join('')
+        : '<tr><td colspan="3" style="text-align:center;color:#6B7280">No posted expenditures</td></tr>'}
+    </tbody>
+    <tfoot><tr><td>Total</td><td class="num">${formatMoney(data.expenditures.total_expenditures)}</td><td></td></tr></tfoot>
+  </table>
+
+  <h3 class="section-title">Organization Loan Liabilities</h3>
+  <p style="font-size:11px;color:#6B7280;margin:0 0 8px">A received organization loan is cash AND a liability. It is NEVER income/profit.</p>
+  <table class="data">
+    <thead><tr><th>Loan No.</th><th>Lender</th><th class="num">Received</th><th class="num">Repaid</th><th class="num">Outstanding</th><th>Status</th></tr></thead>
+    <tbody>
+      ${data.liabilities.loans.length
+        ? data.liabilities.loans.map((l) => `<tr><td>${esc(l.org_loan_number)}</td><td>${esc(l.lender_name)}</td><td class="num">${formatMoney(l.received_amount)}</td><td class="num">${formatMoney(l.repaid_amount)}</td><td class="num">${formatMoney(l.outstanding_liability)}</td><td>${esc(l.status)}</td></tr>`).join('')
+        : '<tr><td colspan="6" style="text-align:center;color:#6B7280">No organization loans</td></tr>'}
+    </tbody>
+  </table>
+
+  <h3 class="section-title">Reconciliation</h3>
+  <p style="font-size:11px;color:#6B7280;margin:0 0 8px">Status: ${statusBadge} · Difference: ${cur} ${esc(String(data.reconciliation.difference))}</p>
+  <table class="data">
+    <thead><tr><th>Check</th><th class="num">Expected</th><th class="num">Actual</th><th class="num">Difference</th><th>Passed</th></tr></thead>
+    <tbody>
+      ${data.reconciliation.checks.map((c) => `<tr><td>${esc(c.label)}</td><td class="num">${formatMoney(c.expected)}</td><td class="num">${formatMoney(c.actual)}</td><td class="num">${formatMoney(c.difference)}</td><td>${c.passed ? '✓' : '✕'}</td></tr>`).join('')}
+    </tbody>
+  </table>`;
 }
 
 export function renderDocument(ctx: ReportContext, payload: ReportPayload): RenderedDocument {
@@ -616,6 +675,9 @@ export function renderDocument(ctx: ReportContext, payload: ReportPayload): Rend
       break;
     case 'organization_summary':
       body = payload.orgSummary ? renderOrgSummary(payload.orgSummary) : '';
+      break;
+    case 'unity_fund_report':
+      body = payload.unityFundReport ? renderUnityFundReport(payload.unityFundReport) : '';
       break;
   }
 
@@ -660,4 +722,5 @@ export const REPORT_TITLES: Record<string, { title: string; description: string 
   member_statement: { title: 'Member Statement of Account', description: 'Per-member account statement.' },
   welfare_report: { title: 'Welfare Fund Report', description: 'Welfare contributions and disbursements.' },
   organization_summary: { title: 'Organization Summary', description: 'CBO snapshot: membership and financial position.' },
+  unity_fund_report: { title: 'Unity Fund Report', description: 'Organization-level reserve: actual vs pending, sources, expenditures, liabilities, and reconciliation.' },
 };

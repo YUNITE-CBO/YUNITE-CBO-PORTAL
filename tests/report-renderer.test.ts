@@ -223,4 +223,56 @@ describe('renderDocument — per-type bodies', () => {
     const r = renderDocument(ctx, { memberList: { members: [], total: 0 } });
     expect(r.html).toContain('No members on record');
   });
+
+  test('unity_fund_report renders position, sources, expenditures, liabilities, reconciliation', () => {
+    const ctx: ReportContext = {
+      type: 'unity_fund_report',
+      period: { start: new Date('2025-01-01'), end: new Date(), label: 'All time' },
+    };
+    const payload: ReportPayload = {
+      unityFundReport: {
+        position: {
+          actual_balance: 250000,
+          pending_receivables: 30000,
+          total_receipts: 300000,
+          total_expenditures: 50000,
+          organization_liabilities: 100000,
+          net_financial_position: 150000,
+          currency: 'KES',
+        },
+        sources: [
+          { source: 'loan_interest', label: 'Loan Interest', actual: 120000, pending: 10000, transaction_count: 42 },
+          { source: 'fines', label: 'Fines', actual: 80000, pending: 20000, transaction_count: 18 },
+        ],
+        expenditures: {
+          total_expenditures: 50000,
+          by_category: [{ category: 'Office Operations', total: 30000, count: 5 }, { category: 'Community Project', total: 20000, count: 2 }],
+        },
+        liabilities: {
+          total_organization_loans_received: 100000,
+          total_organization_loans_repaid: 0,
+          outstanding_liabilities: 100000,
+          loans: [{ org_loan_number: 'YP-ORG-LOAN-001', lender_name: 'Sacco A', received_amount: 100000, repaid_amount: 0, outstanding_liability: 100000, status: 'received' }],
+        },
+        reconciliation: {
+          status: 'consistent',
+          ledger_balance: 250000,
+          source_balance: 250000,
+          difference: 0,
+          checks: [{ label: 'Engine ledger = source recomputation', expected: 250000, actual: 250000, difference: 0, passed: true }],
+        },
+        generated_at: '2025-08-16T00:00:00.000Z',
+      },
+    };
+    const r = renderDocument(ctx, payload);
+    expect(r.ref).toMatch(/YP-DOC\/UNITY-FUND/);
+    expect(r.html).toContain('Unity Fund Report');
+    expect(r.html).toContain('250,000');
+    expect(r.html).toContain('Loan Interest');
+    expect(r.html).toContain('Office Operations');
+    expect(r.html).toContain('YP-ORG-LOAN-001');
+    expect(r.html).toContain('CONSISTENT');
+    // Pending receivables must be shown and never conflated with actual cash.
+    expect(r.html).toContain('30,000');
+  });
 });
