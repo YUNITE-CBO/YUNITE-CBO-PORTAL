@@ -891,6 +891,38 @@ centrally → remove safely → keep the entire system consistent.
   NOT an error. Never gate an insert fallback on `if (error)` after an update
   by a foreign key; resolve existence first (select id `.maybeSingle()`) then
   branch on the result.
+- **Compliance score root causes (the '0% with all docs pending' bug)**: five
+  separate defects combined to show "Overall Compliance 0%" with every document
+  stuck at "pending" even after verifying / Mark All Complete:
+  (a) `enterpriseDocumentService.verify()` (`core.service.ts`) updated
+  `is_verified`/`verified_by`/`verified_at`/`verification_notes` but NEVER set
+  `documents.status` — so the row stayed `status='pending'` and the frontend
+  (which checks `status==='verified'|'approved'`) counted it as pending → 0%.
+  verify() now sets `status='verified'` (with a minimal fallback update if the
+  enhanced verification columns are missing on a not-yet-migrated DB).
+  (b) `MemberDocumentHandler.calculateComplianceScore()` counted ONLY
+  `status='approved'`, never `'verified'` — so even a successful verify left the
+  score 0%. Now `.in('status', ['approved','verified'])`.
+  (c) `approve()` was rejected by the narrow migration-021 status CHECK
+  constraint (only `pending/verified/expired/deleted`) on a not-yet-migrated DB
+  and the old code returned a hard error → doc stuck pending. Now falls back to
+  `status='verified'`.
+  (d) `manual_complete`'s document approval could fail on missing columns / the
+  narrow constraint and never fell back; now retries a minimal `status='verified'`
+  update. The compliance_records + `member_approval_workflow`
+  (`required_documents_complete=true`) are ALWAYS set regardless, so physical
+  hardcopy submissions can be approved.
+  (e) The frontend `getComplianceStatus()` computed the score only from per-doc
+  + per-record status, IGNORING the workflow-backed summary
+  (`compliance_score`/`required_documents_complete`) returned by
+  `GET /api/compliance`. When `manual_complete` set the workflow flag but the
+  per-doc update failed, the UI still showed 0%. The workflow summary is now
+  authoritative: `required_documents_complete===true` → 100%, each requirement
+  row renders complete (green ✓ + 'Manual ✓' badge) regardless of underlying
+  doc status. Captured via `workflowCompliance` state in
+  `src/app/dashboard/members/[id]/page.tsx`. Migration 037 also updates the SQL
+  `calculate_member_compliance_score()` fn to count both 'approved'+'verified'.
+
 
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export
   `export const dynamic = 'force-dynamic';` (after the imports). Without it,
