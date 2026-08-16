@@ -1117,3 +1117,20 @@ the single source of truth for all data/calculations.
   `/api/v1/meetings` (only session-auth `/api/meetings`), statement endpoint
   500s on live DB, contributions list not member-filterable (use
   transactions), no support-ticket endpoint.
+
+
+- **Unity Fund posting/withdrawal UI** (2026-08-16): `src/app/dashboard/unity-fund/page.tsx`
+  is now writable, not just read-only. It exposes the Unity Fund's authoritative
+  write surface via role-gated action buttons + a modal form:
+  - Record Donation / Record Grant (staff+) -> `POST /api/v1/unity-fund/{donations,grants}`
+  - Record Organization Loan / Record Expenditure (admin+) -> `POST /api/v1/unity-fund/{organization-loans,expenditures}`
+  These delegate to `UnityFundEngine.record{Donation,Grant,OrganizationLoan,Expenditure}`
+  -- the engine is the source of truth; the UI never computes balances. The expenditure
+  path enforces the available-cash guard (pending receivables are not spendable) and
+  surfaces the engine's error message to the user. Role gating mirrors the manifest
+  minRole; server-side `createHandler` authorization remains authoritative.
+- **AI `unity_fund` scope reachable** (2026-08-16, migration 039): the `ai_investigations`
+  scope CHECK now includes `'unity_fund'`, and `POST /api/ai/investigations` +
+  `/api/ai/schedules` + the dashboard `SCOPE_LABELS` accept it. A Super Admin can now
+  launch and schedule Unity Fund investigations (previously blocked despite the engine
+  existing). Run migration 039 in Supabase SQL Editor on deploy.

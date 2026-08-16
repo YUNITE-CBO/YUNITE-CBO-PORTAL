@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth';
 
 /**
  * Unity Fund dashboard page (spec §39, §43).
@@ -12,7 +13,27 @@ import { useEffect, useState } from 'react';
  *   - Pending receivables (due but unpaid — NOT cash)
  *   - Organization liabilities (received org loans — cash AND a liability)
  *   - Reconciliation status (engine ledger vs DB view vs source sum)
+ *
+ * Posting / withdrawal actions (spec §40): the page also exposes the Unity
+ * Fund's authoritative write surface — record a donation, grant, or
+ * organization loan received (org inflows) and record an authorized
+ * expenditure (org outflow / withdrawal). Each action hits the existing
+ * POST /api/v1/unity-fund/* endpoint, which delegates to UnityFundEngine
+ * (the authoritative calculator). The UI never computes balances; it only
+ * submits and re-reads. Role gating mirrors the manifest minRole:
+ *   - donations / grants   → staff+ (admin / super_admin)
+ *   - expenditures / org loans → admin+ (admin / super_admin)
+ * Server-side authorization remains the source of truth.
  */
+
+type PostAction = 'donation' | 'grant' | 'organization_loan' | 'expenditure';
+
+const ACTION_META: Record<PostAction, { label: string; endpoint: string; inflow: boolean; minRole: 'staff' | 'admin' }> = {
+  donation: { label: 'Record Donation', endpoint: '/api/v1/unity-fund/donations', inflow: true, minRole: 'staff' },
+  grant: { label: 'Record Grant', endpoint: '/api/v1/unity-fund/grants', inflow: true, minRole: 'staff' },
+  organization_loan: { label: 'Record Organization Loan', endpoint: '/api/v1/unity-fund/organization-loans', inflow: true, minRole: 'admin' },
+  expenditure: { label: 'Record Expenditure', endpoint: '/api/v1/unity-fund/expenditures', inflow: false, minRole: 'admin' },
+};
 
 interface UnityFundSource {
   source: string;
@@ -79,12 +100,23 @@ interface ReconciliationResponse {
 }
 
 export default function UnityFundPage() {
+  const { user } = useAuth();
+  const canStaff = user?.role === 'staff' || user?.role === 'admin' || user?.role === 'super_admin';
+  const canAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
   const [position, setPosition] = useState<UnityFundPosition | null>(null);
   const [expenditures, setExpenditures] = useState<ExpendituresResponse | null>(null);
   const [liabilities, setLiabilities] = useState<LiabilitiesResponse | null>(null);
   const [reconciliation, setReconciliation] = useState<ReconciliationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Posting / withdrawal action state.
+  const [activeAction, setActiveAction] = useState<PostAction | null>(null);
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -125,6 +157,113 @@ export default function UnityFundPage() {
   const fmt = (amount: number, currency = position?.currency || 'KES') =>
     new Intl.NumberFormat('en-KE', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount || 0);
 
+  // --- Posting / withdrawal actions -------------------------------------
+  // Field schema per action: name, label, input type, required, numeric flag.
+  interface FieldDef { name: string; label: string; type?: string; required?: boolean; numeric?: boolean; placeholder?: string }
+  const FIELDS: Record<PostAction, FieldDef[]> = {
+    donation: [
+      { name: 'donor_name', label: 'Donor name', required: true, placeholder: 'e.g. Acme Foundation' },
+      { name: 'received_amount', label: 'Amount received (KES)', required: true, numeric: true, type: 'number', placeholder: '0.00' },
+      { name: 'pledged_amount', label: 'Pledged amount (KES, optional)', numeric: true, type: 'number', placeholder: '0.00' },
+      { name: 'donor_contact', label: 'Donor contact (optional)', placeholder: 'phone / email' },
+      { name: 'purpose', label: 'Purpose (optional)' },
+      { name: 'reference', label: 'Reference (optional)' },
+      { name: 'notes', label: 'Notes (optional)', type: 'textarea' },
+    ],
+    grant: [
+      { name: 'grantor_name', label: 'Grantor name', required: true, placeholder: 'e.g. County Government' },
+      { name: 'received_amount', label: 'Amount received (KES)', required: true, numeric: true, type: 'number', placeholder: '0.00' },
+      { name: 'approved_amount', label: 'Approved amount (KES, optional)', numeric: true, type: 'number', placeholder: '0.00' },
+      { name: 'purpose', label: 'Purpose (optional)' },
+      { name: 'reference', label: 'Reference (optional)' },
+      { name: 'notes', label: 'Notes (optional)', type: 'textarea' },
+    ],
+    organization_loan: [
+      { name: 'lender_name', label: 'Lender name', required: true, placeholder: 'e.g. SACCO / Bank' },
+      { name: 'principal_amount', label: 'Principal amount (KES)', required: true, numeric: true, type: 'number', placeholder: '0.00' },
+      { name: 'interest_rate', label: 'Interest rate % (optional)', numeric: true, type: 'number', placeholder: '0' },
+      { name: 'purpose', label: 'Purpose (optional)' },
+      { name: 'reference', label: 'Reference (optional)' },
+      { name: 'notes', label: 'Notes (optional)', type: 'textarea' },
+    ],
+    expenditure: [
+      { name: 'amount', label: 'Amount (KES)', required: true, numeric: true, type: 'number', placeholder: '0.00' },
+      { name: 'reason', label: 'Reason', required: true, type: 'textarea', placeholder: 'What the expenditure is for' },
+      { name: 'category', label: 'Category (optional)', placeholder: 'e.g. operations, welfare, construction' },
+      { name: 'reference', label: 'Reference (optional)' },
+      { name: 'transaction_date', label: 'Transaction date (optional)', type: 'date' },
+      { name: 'notes', label: 'Notes (optional)', type: 'textarea' },
+    ],
+  };
+
+  const openAction = (a: PostAction) => {
+    setActiveAction(a);
+    setFormValues({});
+    setFormError(null);
+    setSuccessMsg(null);
+  };
+
+  const closeAction = () => {
+    setActiveAction(null);
+    setFormValues({});
+    setFormError(null);
+  };
+
+  const submitAction = async () => {
+    if (!activeAction) return;
+    const meta = ACTION_META[activeAction];
+    const fields = FIELDS[activeAction];
+    setFormError(null);
+    setSuccessMsg(null);
+
+    // Client-side validation mirrors requireFields + positiveAmount.
+    const missing = fields.filter((f) => f.required && !String(formValues[f.name] || '').trim());
+    if (missing.length) {
+      setFormError(`Required: ${missing.map((m) => m.label).join(', ')}`);
+      return;
+    }
+    for (const f of fields) {
+      if (f.numeric && formValues[f.name]) {
+        const n = Number(formValues[f.name]);
+        if (!Number.isFinite(n) || n <= 0) {
+          setFormError(`${f.label} must be a positive number.`);
+          return;
+        }
+      }
+    }
+
+    // Build the request body — omit empty/optional fields.
+    const body: Record<string, unknown> = {};
+    for (const f of fields) {
+      const raw = formValues[f.name];
+      if (raw === undefined || raw === null || String(raw).trim() === '') continue;
+      body[f.name] = f.numeric ? Number(raw) : String(raw).trim();
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(meta.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        // Surface the engine/business-rule message (e.g. available-cash guard).
+        setFormError(data?.error?.message || data?.error || `Failed (${res.status})`);
+        return;
+      }
+      setSuccessMsg(`${meta.label} recorded successfully.`);
+      closeAction();
+      await fetchData();
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Network error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const statusColor = (status: string) =>
     status === 'consistent' ? 'bg-green-100 text-green-800 border-green-300'
     : status === 'discrepancy' ? 'bg-red-100 text-red-800 border-red-300'
@@ -155,6 +294,39 @@ export default function UnityFundPage() {
           <strong> NOT cash</strong> — they are amounts due but unpaid. A received organization loan is cash <strong>and</strong> a liability, never income.
         </p>
       </div>
+
+      {/* Posting / withdrawal actions */}
+      {(canStaff || canAdmin) && (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-gray-600 mr-1">Record:</span>
+          {canStaff && (
+            <button onClick={() => openAction('donation')} className="px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 shadow-sm">
+              + Donation
+            </button>
+          )}
+          {canStaff && (
+            <button onClick={() => openAction('grant')} className="px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm">
+              + Grant
+            </button>
+          )}
+          {canAdmin && (
+            <button onClick={() => openAction('organization_loan')} className="px-3 py-1.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm">
+              + Organization Loan
+            </button>
+          )}
+          {canAdmin && (
+            <button onClick={() => openAction('expenditure')} className="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-sm">
+              − Expenditure (Withdrawal)
+            </button>
+          )}
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="mb-6 bg-green-50 border border-green-300 text-green-800 rounded-lg p-3 text-sm">
+          ✓ {successMsg}
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 bg-red-50 border border-red-300 text-red-800 rounded-lg p-4">
@@ -360,6 +532,74 @@ export default function UnityFundPage() {
       <div className="mt-8 text-xs text-gray-400">
         {position?.generated_at && <span>Generated at {new Date(position.generated_at).toLocaleString()}</span>}
       </div>
+
+      {/* Posting / withdrawal modal */}
+      {activeAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {ACTION_META[activeAction].label}
+              </h2>
+              <button onClick={closeAction} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div className="px-6 py-4">
+              <p className="text-xs text-gray-500 mb-4">
+                {ACTION_META[activeAction].inflow
+                  ? 'Records received funds into the Unity Fund. The amount becomes actual cash.'
+                  : 'Records an authorized expenditure (withdrawal). The engine verifies it does not exceed available actual cash — pending receivables are not spendable.'}
+              </p>
+
+              <div className="space-y-4">
+                {FIELDS[activeAction].map((f) => (
+                  <div key={f.name}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {f.label}{f.required && <span className="text-red-500"> *</span>}
+                    </label>
+                    {f.type === 'textarea' ? (
+                      <textarea
+                        value={formValues[f.name] || ''}
+                        onChange={(e) => setFormValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                        placeholder={f.placeholder}
+                        rows={3}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      />
+                    ) : (
+                      <input
+                        type={f.type || 'text'}
+                        value={formValues[f.name] || ''}
+                        onChange={(e) => setFormValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                        placeholder={f.placeholder}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {formError && (
+                <div className="mt-4 bg-red-50 border border-red-300 text-red-800 rounded-lg p-3 text-sm">
+                  {formError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button onClick={closeAction} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={submitAction}
+                disabled={submitting}
+                className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Recording…' : 'Record'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
