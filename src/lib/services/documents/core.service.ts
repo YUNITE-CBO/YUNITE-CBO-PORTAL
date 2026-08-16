@@ -980,7 +980,7 @@ export class EnterpriseDocumentService {
       return { success: false, error: 'Document not found' };
     }
 
-    await supabase
+    const { error: approveError } = await supabase
       .from('documents')
       .update({
         status: 'approved',
@@ -990,6 +990,10 @@ export class EnterpriseDocumentService {
         verification_notes: notes,
       })
       .eq('id', documentId);
+
+    if (approveError) {
+      return { success: false, error: approveError.message };
+    }
 
     const updated = await this.getById(documentId);
 
@@ -1031,13 +1035,17 @@ export class EnterpriseDocumentService {
       return { success: false, error: 'Document not found' };
     }
 
-    await supabase
+    const { error: rejectError } = await supabase
       .from('documents')
       .update({
         status: 'rejected',
         verification_notes: reason,
       })
       .eq('id', documentId);
+
+    if (rejectError) {
+      return { success: false, error: rejectError.message };
+    }
 
     const updated = await this.getById(documentId);
 

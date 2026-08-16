@@ -1415,6 +1415,59 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
         </Modal>
       )}
 
+      {actionModal === 'edit_employment' && (
+        <Modal title="Edit Employment Information" onClose={() => setActionModal(null)}>
+          <div className="space-y-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label><input type="text" value={profileForm.occupation} onChange={(e) => setProfileForm({ ...profileForm, occupation: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Employer</label><input type="text" value={profileForm.employer} onChange={(e) => setProfileForm({ ...profileForm, employer: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Employer Address</label><textarea value={profileForm.employer_address} onChange={(e) => setProfileForm({ ...profileForm, employer_address: e.target.value })} rows={2} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+          </div>
+          <ModalActions><button onClick={() => setActionModal(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button onClick={handleUpdateProfile} disabled={submitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">{submitting ? 'Saving...' : 'Save Changes'}</button></ModalActions>
+        </Modal>
+      )}
+
+      {actionModal === 'edit_next_of_kin' && (
+        <Modal title="Edit Next of Kin" onClose={() => setActionModal(null)}>
+          <div className="space-y-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Name</label><input type="text" value={profileForm.next_of_kin_name} onChange={(e) => setProfileForm({ ...profileForm, next_of_kin_name: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label><input type="tel" value={profileForm.next_of_kin_phone} onChange={(e) => setProfileForm({ ...profileForm, next_of_kin_phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label><input type="text" value={profileForm.next_of_kin_relationship} onChange={(e) => setProfileForm({ ...profileForm, next_of_kin_relationship: e.target.value })} placeholder="e.g. Spouse, Parent, Sibling" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+            </div>
+          </div>
+          <ModalActions><button onClick={() => setActionModal(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button onClick={handleUpdateProfile} disabled={submitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">{submitting ? 'Saving...' : 'Save Changes'}</button></ModalActions>
+        </Modal>
+      )}
+
+      {actionModal === 'edit_emergency' && (
+        <Modal title="Edit Emergency Contact" onClose={() => setActionModal(null)}>
+          <div className="space-y-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Name</label><input type="text" value={profileForm.emergency_contact_name} onChange={(e) => setProfileForm({ ...profileForm, emergency_contact_name: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label><input type="tel" value={profileForm.emergency_contact_phone} onChange={(e) => setProfileForm({ ...profileForm, emergency_contact_phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label><input type="text" value={profileForm.emergency_contact_relationship} onChange={(e) => setProfileForm({ ...profileForm, emergency_contact_relationship: e.target.value })} placeholder="e.g. Spouse, Parent, Sibling" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
+            </div>
+          </div>
+          <ModalActions><button onClick={() => setActionModal(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button onClick={handleUpdateProfile} disabled={submitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">{submitting ? 'Saving...' : 'Save Changes'}</button></ModalActions>
+        </Modal>
+      )}
+
+      {actionModal === 'edit_preferences' && (
+        <Modal title="Edit Communication Preferences" onClose={() => setActionModal(null)}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Preferred Language</label><select value={profileForm.preferred_language} onChange={(e) => setProfileForm({ ...profileForm, preferred_language: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"><option value="en">English</option><option value="sw">Swahili</option></select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Preferred Contact Method</label><select value={profileForm.preferred_contact_method} onChange={(e) => setProfileForm({ ...profileForm, preferred_contact_method: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"><option value="phone">Phone</option><option value="email">Email</option><option value="sms">SMS</option></select></div>
+            </div>
+            <div className="space-y-3">
+              <label className="flex items-center justify-between p-4 border rounded-lg"><div><p className="font-medium text-gray-900">Email Notifications</p><p className="text-sm text-gray-500">Receive updates via email</p></div><input type="checkbox" checked={profileForm.email_notifications} onChange={(e) => setProfileForm({ ...profileForm, email_notifications: e.target.checked })} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500" /></label>
+              <label className="flex items-center justify-between p-4 border rounded-lg"><div><p className="font-medium text-gray-900">SMS Notifications</p><p className="text-sm text-gray-500">Receive updates via SMS</p></div><input type="checkbox" checked={profileForm.sms_notifications} onChange={(e) => setProfileForm({ ...profileForm, sms_notifications: e.target.checked })} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500" /></label>
+            </div>
+          </div>
+          <ModalActions><button onClick={() => setActionModal(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button onClick={handleUpdateProfile} disabled={submitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">{submitting ? 'Saving...' : 'Save Changes'}</button></ModalActions>
+        </Modal>
+      )}
+
       {actionModal === 'approve' && (
         <Modal title="Approve Member" onClose={() => setActionModal(null)}>
           <div className="space-y-4">

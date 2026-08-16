@@ -377,33 +377,42 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 3. Update workflow compliance score
-      const { error: wfError } = await supabase
+      // 3. Upsert member_approval_workflow so the compliance score persists.
+      // A Supabase UPDATE that matches ZERO rows returns error: null (NOT an
+      // error), so the previous "if (wfError) insert" fallback never ran when
+      // no workflow row existed — the score silently never persisted and the
+      // button appeared to do nothing. Resolve existence explicitly, then
+      // update-or-insert accordingly.
+      const { data: existingWf } = await supabase
         .from('member_approval_workflow')
-        .update({
-          compliance_score: 100,
-          required_documents_complete: true,
-          updated_at: now,
-        })
-        .eq('member_id', memberId);
+        .select('id')
+        .eq('member_id', memberId)
+        .maybeSingle();
 
-      if (wfError) {
-        // Workflow row may not exist; create it so the score is persisted.
-        await supabase
+      if (existingWf) {
+        const { error: wfUpdateError } = await supabase
+          .from('member_approval_workflow')
+          .update({
+            compliance_score: 100,
+            required_documents_complete: true,
+            updated_at: now,
+          })
+          .eq('id', existingWf.id);
+        if (wfUpdateError) console.warn('Failed to update workflow compliance score:', wfUpdateError);
+      } else {
+        const { error: wfInsertError } = await supabase
           .from('member_approval_workflow')
           .insert({
             id: uuidv4(),
             member_id: memberId,
             current_stage: 'compliance_review',
-            compliance_score: 100,
             required_documents_complete: true,
+            compliance_score: 100,
             notes: notes || 'Manually marked complete by admin',
             created_at: now,
             updated_at: now,
-          })
-          .select()
-          .single()
-          .then(() => {});
+          });
+        if (wfInsertError) console.warn('Failed to create workflow compliance row:', wfInsertError);
       }
 
       // Audit log

@@ -65,7 +65,7 @@ export interface DocumentWithCategory {
 
 export interface MemberComplianceStatus {
   member_id: string;
-  workflow_id: string;
+  workflow_id: string | null;
   current_stage: string;
   compliance_score: number;
   required_documents_complete: boolean;
@@ -442,14 +442,17 @@ export class DocumentService {
   async getMemberComplianceStatus(memberId: string): Promise<MemberComplianceStatus | null> {
     const supabase = await createServiceClient();
 
-    // Get workflow status
+    // Get workflow status. Use maybeSingle() — a member may not yet have a
+    // workflow row (e.g. registered before the workflow table existed, or the
+    // row was never created). `.single()` returns an error object (data:null)
+    // in that case, which previously made this return null and caused
+    // `approve_member` to 404 with "Compliance not found" even after a
+    // successful manual_complete.
     const { data: workflow } = await supabase
       .from('member_approval_workflow')
       .select('*')
       .eq('member_id', memberId)
-      .single();
-
-    if (!workflow) return null;
+      .maybeSingle();
 
     // Get compliance requirements
     const { data: compliance } = await supabase
@@ -457,6 +460,14 @@ export class DocumentService {
       .select('*, document_categories:document_category_id(*), documents:document_id(*)')
       .eq('member_id', memberId)
       .order('document_category_id');
+
+    // Also read the legacy compliance_records so a manually-marked-complete
+    // record (written by manual_complete) counts even when member_compliance
+    // has no row for that category.
+    const { data: legacyCompliance } = await supabase
+      .from('compliance_records')
+      .select('compliance_type, status')
+      .eq('member_id', memberId);
 
     // Get document categories for missing requirements
     const { data: categories } = await supabase
@@ -469,11 +480,15 @@ export class DocumentService {
     // Build requirements list
     const requirements = (categories || []).map(cat => {
       const comp = compliance?.find(c => c.document_category_code === cat.code);
+      const legacy = legacyCompliance?.find(c => c.compliance_type === cat.code);
+      // Prefer member_compliance status; fall back to legacy compliance_records.
+      const status = comp?.status
+        || (legacy && (legacy.status === 'complete' || legacy.status === 'approved') ? 'approved' : 'pending');
       return {
         category_code: cat.code,
         category_name: cat.name,
         is_required: cat.is_required,
-        status: comp?.status || 'pending',
+        status,
         document_id: comp?.document_id || null,
         document_name: comp?.documents?.file_name || null,
         submitted_at: comp?.submitted_at || null,
@@ -487,12 +502,22 @@ export class DocumentService {
     const pending_count = requirements.filter(r => ['pending', 'submitted', 'under_review'].includes(r.status)).length;
     const missing_count = requirements.filter(r => r.is_required && r.status === 'pending').length;
 
+    // When a workflow row exists, honor its stored compliance score. When it
+    // does NOT exist, derive the score from the requirements so the member can
+    // still be approved after a manual_complete (which may have created the
+    // compliance records but failed to create the workflow row). This keeps
+    // approve_member from 404-ing.
+    const derivedComplete = total_required > 0 && approved_count >= total_required;
+    const derivedScore = total_required > 0
+      ? Math.round((approved_count / total_required) * 100)
+      : 100;
+
     return {
       member_id: memberId,
-      workflow_id: workflow.id,
-      current_stage: workflow.current_stage,
-      compliance_score: workflow.compliance_score,
-      required_documents_complete: workflow.required_documents_complete,
+      workflow_id: workflow?.id || null,
+      current_stage: workflow?.current_stage || 'compliance_review',
+      compliance_score: workflow?.compliance_score ?? derivedScore,
+      required_documents_complete: workflow?.required_documents_complete ?? derivedComplete,
       total_required,
       approved_count,
       pending_count,
