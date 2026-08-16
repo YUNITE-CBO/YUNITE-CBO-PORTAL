@@ -97,11 +97,11 @@ Cache:           Redis (ioredis 5.4.1)
 
 **Evidence from `.env`:**
 ```
-Line 7:  DATABASE_URL="postgresql://postgres.sprlwlxjhhmazxpflhnb:Yuniteke2026.@aws-0-us-east-2.pooler.supabase.com:6543/postgres?pgbouncer=true"
-Line 11: REDIS_URL=redis://default:TtO8PKoOPadVAMJnCaUiAxk0zot8W1Z0@playground-carob-talk-92024.db.redis.io:19389
-Line 17: SMTP_PASS=yuxh yrfi drsj prcg
-Line 22: SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Line 24: SUPABASE_ACCESS_TOKEN=sbp_d4e6df28cc7914f9e96735874f3904474298a477
+Line 7:  DATABASE_URL="postgresql://postgres.sprlwlxjhhmazxpflhnb:********@aws-0-us-east-2.pooler.supabase.com:6543/postgres?pgbouncer=true"
+Line 11: REDIS_URL=redis://default:********@playground-carob-talk-92024.db.redis.io:19389
+Line 17: SMTP_PASS=********
+Line 22: SUPABASE_SERVICE_ROLE_KEY=********...
+Line 24: SUPABASE_ACCESS_TOKEN=sbp_********
 ```
 
 **Risk Assessment:**

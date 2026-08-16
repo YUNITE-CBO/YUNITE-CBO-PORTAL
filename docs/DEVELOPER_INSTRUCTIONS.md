@@ -21,8 +21,8 @@ YUNITE is a comprehensive enterprise portal for managing CBO (Community-Based Or
 
 ### 1.2 Database Connection
 ```env
-DATABASE_URL="postgresql://postgres.sprlwlxjhhmazxpflhnb:Yuniteke2026.@aws-0-us-east-2.pooler.supabase.com:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://postgres.sprlwlxjhhmazxpflhnb:Yuniteke2026.@aws-0-us-east-2.pooler.supabase.com:5432/postgres"
+DATABASE_URL="postgresql://postgres.sprlwlxjhhmazxpflhnb:********@aws-0-us-east-2.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.sprlwlxjhhmazxpflhnb:********@aws-0-us-east-2.pooler.supabase.com:5432/postgres"
 ```
 
 ### 1.3 Database Tables (32 Total)
@@ -111,7 +111,7 @@ users (
 ### 1.5 Default Admin Credentials
 ```env
 Email: info.yunite.ke@gmail.com
-Password: Yuniteke2026.
+Password: ********
 Role: super_admin (full access)
 ```
 
@@ -318,7 +318,7 @@ SUPABASE_ACCESS_TOKEN=sbp_your_token_here
 
 ### 8.2 Connection
 ```env
-REDIS_URL=redis://default:TtO8PKoOPadVAMJnCaUiAxk0zot8W1Z0@playground-carob-talk-92024.db.redis.io:19389
+REDIS_URL=redis://default:********@playground-carob-talk-92024.db.redis.io:19389
 ```
 
 ---

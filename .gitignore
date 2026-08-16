@@ -10,3 +10,7 @@ tsconfig.tsbuildinfo
 .env
 .env.local
 .env.production
+
+# Runtime logs
+*.log
+server.log
