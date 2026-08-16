@@ -948,6 +948,28 @@ centrally → remove safely → keep the entire system consistent.
   routes (no new backend needed).
 
 
+- **Member-lookup statement 0 balances + 'temporarily unavailable' (FIXED,
+  commit 37ca005)**: the member-lookup portal Statement of Account page showed
+  'KES 0.00' for every balance + 'No transactions to show' behind a
+  'temporarily unavailable' banner. Two root causes:
+  (1) `statementService.generate()` (`statement.service.ts`) did an INSERT into
+  `notification_statements` BEFORE generating content and threw on any insert
+  error. The 005/012 schema conflict means required columns (`generated_data`,
+  `title`, `recipient_email`, ...) can be absent on a not-yet-migrated DB, so
+  the insert threw and 500'd the entire `GET /api/v1/members/{id}/statement`
+  endpoint. FIX: generation runs FIRST (live ledger = source of truth) and
+  persistence is best-effort (try/catch + console.warn). A missing audit row
+  never blocks statement generation.
+  (2) The member-lookup `statement/route.ts` fallback only ran for status>=500
+  and re-fetched balances + transactions INSIDE the catch; if either of those
+  also failed the whole route 500'd. FIX: balances + transactions are fetched
+  UP FRONT (with per-call .catch fallbacks) so the member ALWAYS sees real
+  data. The backend statement endpoint is still tried first (now that it no
+  longer 500s, available=true with no banner); on any failure we return
+  available=false with the real balances + transactions already in hand.
+  The frontend StatementPage already read balances + transactions from
+  data.data, so no UI change was needed.
+
 - **Supabase UPDATE-matches-zero-rows pattern**: a PostgREST UPDATE that
   matches zero rows returns `{ data: null, error: null, count: 0 }` — it is
   NOT an error. Never gate an insert fallback on `if (error)` after an update
