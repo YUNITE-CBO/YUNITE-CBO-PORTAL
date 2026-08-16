@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 
 const VALID_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>([
   'database', 'cross_module', 'business_rules', 'api', 'financial',
-  'member_verification', 'full_system',
+  'unity_fund', 'member_verification', 'full_system',
 ]);
 
 export async function GET(request: NextRequest) {

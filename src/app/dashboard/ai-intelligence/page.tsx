@@ -113,6 +113,7 @@ const SCOPE_LABELS: Record<string, string> = {
   business_rules: 'Business Rules',
   api: 'API Consistency',
   financial: 'Financial Reconciliation',
+  unity_fund: 'Unity Fund Reconciliation',
   member_verification: 'Member Verification',
   full_system: 'Full System Investigation',
 };

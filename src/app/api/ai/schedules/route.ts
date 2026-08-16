@@ -13,7 +13,8 @@ import { listSchedules, upsertSchedule } from '@/ai/persistence';
 import type { InvestigationScope } from '@/ai/types';
 
 const VALID_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>([
-  'database', 'cross_module', 'business_rules', 'api', 'financial', 'full_system',
+  'database', 'cross_module', 'business_rules', 'api', 'financial',
+  'unity_fund', 'full_system',
 ]);
 
 export async function GET() {
