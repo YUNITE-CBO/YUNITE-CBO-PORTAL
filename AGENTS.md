@@ -844,6 +844,54 @@ centrally → remove safely → keep the entire system consistent.
   no-stack + param preservation). Run: `npx jest tests/media-engine`.
 
 ## Conventions
+- **Member compliance + document verification gotchas (migration 037)**: the
+  `documents` table's enhanced columns (`verification_notes`, `is_verified`,
+  `verified_by`/`verified_at`, `category_code`, `module`, `entity_type`/
+  `entity_id`, `file_size`, `mime_type`, `storage_bucket`/`storage_path`,
+  `checksum`, `metadata`, `version`, `is_archived`, `archived_at`/`archived_by`,
+  `visibility`, `access_roles`, `tags`, `reminder_sent`/`reminder_count`,
+  `uploaded_by_name`, `ip_address`, `original_file_name`, `expiry_date`,
+  `is_expired`, soft-delete cols) come from migrations 008/017/021 which were
+  NOT reliably applied on the live DB. PostgREST returns "Could not find the
+  column <name> in the schema cache" for any select/write referencing a missing
+  column (this was the "verification_note" document-verify error). Migration
+  037 (`037_reconcile_documents_schema.sql`) re-applies ALL of them
+  idempotently + backfills `document_ref`/`category_code`/`module`/`entity_id`
+  + reconciles the two CONFLICTING status CHECK constraints: migration 019
+  made broad `document_status_check` (draft/pending/under_review/approved/
+  rejected/verified/expired/archived/deleted) but migration 021 made a SECOND
+  narrow `documents_status_check` (only pending/verified/expired/deleted) that
+  silently REJECTED the 'approved'/'rejected' statuses the document service
+  writes. 037 drops the narrow one + recreates the broad one. Deploy: run 037.
+- **`manual_complete` "Mark All Complete" button (compliance)**: the bug was
+  that `member_approval_workflow` UPDATE matched zero rows (no workflow row
+  exists for newly registered members) → Supabase returns `error: null` (NOT
+  an error) → the `if (wfError) insert` fallback NEVER ran → compliance score
+  never persisted, button appeared to do nothing. Fixed in
+  `src/app/api/compliance/route.ts` by resolving existence explicitly (select
+  id, then update-or-insert). Also `documentService.getMemberComplianceStatus`
+  (`src/lib/services/document.service.ts`) used `.single()` which returns null
+  when no workflow row exists → `approve_member` 404'd with "Compliance not
+  found" even after a successful manual_complete. Now uses `.maybeSingle()` +
+  DERIVES the compliance score from `member_compliance` + legacy
+  `compliance_records` rows when no workflow row exists, so physically-submitted
+  hardcopy documents (manually marked complete) can be approved. The
+  `MemberComplianceStatus.workflow_id` type is now `string | null`.
+- **Member profile edit modals**: `src/app/dashboard/members/[id]/page.tsx`
+  `ActionModal` type includes `edit_employment`/`edit_next_of_kin`/
+  `edit_emergency`/`edit_preferences`, and the section Edit buttons
+  `setActionModal(...)` to those values, but the modal RENDER BLOCKS were
+  missing (only `edit_profile`/`edit_contact` existed) → clicking did nothing.
+  All four modals now exist, bound to `profileForm` and calling
+  `handleUpdateProfile` (which PUTs to `/api/members/[id]`). The backend
+  `allowedFields` whitelist already accepted employment/next-of-kin/emergency/
+  preferences fields; the DB columns exist (migration 001 + 011).
+- **Supabase UPDATE-matches-zero-rows pattern**: a PostgREST UPDATE that
+  matches zero rows returns `{ data: null, error: null, count: 0 }` — it is
+  NOT an error. Never gate an insert fallback on `if (error)` after an update
+  by a foreign key; resolve existence first (select id `.maybeSingle()`) then
+  branch on the result.
+
 - **API route segment config**: every `src/app/api/**/route.ts` MUST export
   `export const dynamic = 'force-dynamic';` (after the imports). Without it,
   Next.js tries to statically render the route at build time and any access to
