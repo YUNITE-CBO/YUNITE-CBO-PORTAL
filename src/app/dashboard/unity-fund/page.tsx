@@ -75,7 +75,7 @@ interface ReconciliationResponse {
   source_balance: number;
   difference: number;
   checks: ReconciliationCheck[];
-  discrepancies: number;
+  discrepancies: Array<{ label: string; difference: number }>;
 }
 
 export default function UnityFundPage() {
