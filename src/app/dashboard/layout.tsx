@@ -33,9 +33,13 @@ const navItems: NavItem[] = [
   { name: 'Contributions', href: '/dashboard/contributions', icon: '🎯' },
   { name: 'Documents', href: '/dashboard/documents', icon: '📄' },
   { name: 'Compliance', href: '/dashboard/compliance', icon: '✅' },
+  { name: 'Meetings', href: '/dashboard/meetings', icon: '📅' },
   { name: 'Reports', href: '/dashboard/reports', icon: '📈' },
-  { name: 'AI Intelligence', href: '/dashboard/ai-intelligence', icon: '🧠' },
   { name: 'Notifications', href: '/dashboard/notifications', icon: '🔔' },
+  { name: 'Email Queue', href: '/dashboard/email-queue', icon: '📧' },
+  { name: 'Automation', href: '/dashboard/automation', icon: '⚙️' },
+  { name: 'Media & Assets', href: '/dashboard/media', icon: '🖼️' },
+  { name: 'AI Intelligence', href: '/dashboard/ai-intelligence', icon: '🧠' },
   { name: 'Audit Logs', href: '/dashboard/audit-logs', icon: '📋' },
   { name: 'Settings', href: '/dashboard/settings', icon: '⚙️' },
 ];
@@ -238,6 +242,32 @@ export default function DashboardLayout({
                   >
                     <span className="text-xl">📖</span>
                     {sidebarOpen && <span>API Documentation</span>}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/dashboard/system-status"
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      pathname === '/dashboard/system-status'
+                        ? 'bg-red-700 text-white'
+                        : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-xl">💚</span>
+                    {sidebarOpen && <span>System Status</span>}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/dashboard/admin/login-activity"
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      pathname === '/dashboard/admin/login-activity'
+                        ? 'bg-red-700 text-white'
+                        : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-xl">🔐</span>
+                    {sidebarOpen && <span>Login Activity</span>}
                   </Link>
                 </li>
               </>
