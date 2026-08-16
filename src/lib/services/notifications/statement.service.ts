@@ -76,67 +76,61 @@ export class StatementService {
       }
     }
 
-    // Create statement record
-    const { data: statement, error } = await supabase
-      .from('notification_statements')
-      .insert({
-        id: uuidv4(),
-        statement_ref: statementRef,
-        statement_type: data.statement_type,
-        period_start: data.period_start.toISOString().split('T')[0],
-        period_end: data.period_end.toISOString().split('T')[0],
-        recipient_type: data.recipient_type,
-        recipient_id: data.recipient_id,
-        recipient_email: data.recipient_email,
-        recipient_name: data.recipient_name,
-        title: this.getStatementTitle(data.statement_type, data.period_start, data.period_end),
-        status: 'generating',
-        schedule_id: data.schedule_id,
-        schedule_run_id: data.schedule_run_id,
-        created_by: data.created_by,
-      })
-      .select()
-      .single();
+    // Generate statement content from the live ledger FIRST (source of truth).
+    // Persistence to notification_statements is best-effort: the 005/012
+    // schema conflict means some required columns (generated_data, title,
+    // recipient_email, …) may be absent on a not-yet-migrated DB, which used
+    // to throw here and 500 the entire statement endpoint. Generation must
+    // never be blocked by an audit-row insert.
+    const statementData = await this.buildStatementContent(data);
 
-    if (error) {
-      throw new Error(`Failed to create statement record: ${error.message}`);
-    }
-
+    let statementId: string | undefined;
     try {
-      // Generate statement content based on type
-      const statementData = await this.buildStatementContent(data);
-
-      // Update statement with generated data
-      await supabase
+      const inserted = await supabase
         .from('notification_statements')
-        .update({
+        .insert({
+          id: uuidv4(),
+          statement_ref: statementRef,
+          statement_type: data.statement_type,
+          period_start: data.period_start.toISOString().split('T')[0],
+          period_end: data.period_end.toISOString().split('T')[0],
+          recipient_type: data.recipient_type,
+          recipient_id: data.recipient_id,
+          recipient_email: data.recipient_email,
+          recipient_name: data.recipient_name,
+          title: this.getStatementTitle(data.statement_type, data.period_start, data.period_end),
           status: 'ready',
-          generated_data: statementData as any,
-          summary: statementData.summary,
+          schedule_id: data.schedule_id,
+          schedule_run_id: data.schedule_run_id,
+          created_by: data.created_by,
         })
-        .eq('id', statement.id);
+        .select('id')
+        .single();
+      statementId = inserted.data?.id;
 
-      return {
-        id: statement.id,
-        statement_ref: statementRef,
-        title: statementData.title,
-        period: statementData.period,
-        summary: statementData.summary,
-        transactions: statementData.transactions,
-        metadata: statementData.metadata,
-      };
-    } catch (genError: any) {
-      // Mark as failed
-      await supabase
-        .from('notification_statements')
-        .update({
-          status: 'failed',
-          error_message: genError.message,
-        })
-        .eq('id', statement.id);
-
-      throw genError;
+      // Best-effort: store the generated content + summary if the columns exist.
+      if (statementId) {
+        await supabase
+          .from('notification_statements')
+          .update({
+            generated_data: statementData as any,
+            summary: statementData.summary,
+          })
+          .eq('id', statementId);
+      }
+    } catch (persistError: any) {
+      console.warn('[statement] persistence failed (non-fatal):', persistError?.message);
     }
+
+    return {
+      id: statementId || statementRef,
+      statement_ref: statementRef,
+      title: statementData.title,
+      period: statementData.period,
+      summary: statementData.summary,
+      transactions: statementData.transactions,
+      metadata: statementData.metadata,
+    };
   }
 
   /**
