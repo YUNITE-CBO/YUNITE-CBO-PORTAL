@@ -280,7 +280,14 @@ export async function POST(request: NextRequest) {
       const now = new Date().toISOString();
       let approvedDocs = 0;
 
-      // 1. Approve any existing uploaded documents for required categories
+      // 1. Approve any existing uploaded documents for required categories.
+      // Wrapped defensively: the documents table may be missing enhanced
+      // columns (verification_notes, is_verified, ...) or carry a narrow
+      // status CHECK constraint (migration 021) that rejects 'approved' on a
+      // not-yet-migrated DB. We try the full update first, then fall back to
+      // a minimal 'verified' status update, then give up — but NEVER abort the
+      // rest of manual_complete (compliance records + workflow must still be
+      // set so the member can be approved for physical hardcopy submissions).
       const { data: existingDocs } = await supabase
         .from('documents')
         .select('id, category_code')
@@ -301,7 +308,16 @@ export async function POST(request: NextRequest) {
             verification_notes: notes || 'Manually marked complete by admin',
           })
           .in('id', docIds);
-        if (docErr) console.warn('Failed to approve documents during manual_complete:', docErr);
+        if (docErr) {
+          console.warn('Full document approval failed during manual_complete, retrying minimal update:', docErr.message);
+          // Fallback: set just the status to 'verified' (allowed by the narrow
+          // migration-021 constraint) without the enhanced verification cols.
+          const { error: minimalErr } = await supabase
+            .from('documents')
+            .update({ status: 'verified' })
+            .in('id', docIds);
+          if (minimalErr) console.warn('Minimal document status update also failed:', minimalErr.message);
+        }
         approvedDocs = existingDocs.length;
       }
 

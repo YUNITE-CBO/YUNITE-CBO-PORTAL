@@ -992,7 +992,17 @@ export class EnterpriseDocumentService {
       .eq('id', documentId);
 
     if (approveError) {
-      return { success: false, error: approveError.message };
+      // Fallback for a not-yet-migrated DB: a narrow status CHECK constraint
+      // (migration 021) rejects 'approved', or enhanced columns are missing.
+      // Fall back to 'verified' (allowed by the narrow constraint) so the
+      // document is still reflected as verified and compliance can count it.
+      const { error: minimalErr } = await supabase
+        .from('documents')
+        .update({ status: 'verified' })
+        .eq('id', documentId);
+      if (minimalErr) {
+        return { success: false, error: minimalErr.message };
+      }
     }
 
     const updated = await this.getById(documentId);
@@ -1081,19 +1091,34 @@ export class EnterpriseDocumentService {
     notes?: string
   ): Promise<DocumentOperationResult> {
     const supabase = await createServiceClient();
+    const now = new Date().toISOString();
 
+    // Set the status to 'verified' AND the verification metadata. Previously
+    // this only set is_verified/verified_by/verified_at/verification_notes but
+    // left `status` as 'pending', so the document still displayed as "pending"
+    // and compliance (which checks status === 'verified'|'approved') stayed 0%.
     const { error } = await supabase
       .from('documents')
       .update({
+        status: 'verified',
         is_verified: true,
         verified_by: userId,
-        verified_at: new Date().toISOString(),
+        verified_at: now,
         verification_notes: notes,
       })
       .eq('id', documentId);
 
     if (error) {
-      return { success: false, error: error.message };
+      // Fallback for a not-yet-migrated DB missing the enhanced verification
+      // columns: set just the status so the document at least reflects
+      // "verified" and compliance can count it.
+      const { error: minimalErr } = await supabase
+        .from('documents')
+        .update({ status: 'verified' })
+        .eq('id', documentId);
+      if (minimalErr) {
+        return { success: false, error: minimalErr.message };
+      }
     }
 
     const updated = await this.getById(documentId);
@@ -1105,7 +1130,7 @@ export class EnterpriseDocumentService {
       module: updated?.module || 'members' as ModuleType,
       entityId: updated?.entityId || '',
       actorId: userId,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
       metadata: { notes },
     });
 

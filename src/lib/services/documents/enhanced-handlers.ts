@@ -119,13 +119,16 @@ export class MemberDocumentHandler implements ModuleDocumentHandler {
 
     if (requiredCategories.length === 0) return 100;
 
-    // Get approved documents
+    // Get approved/verified documents. Both 'approved' and 'verified' statuses
+    // count toward compliance — verify() sets 'verified', approve() sets
+    // 'approved'. Previously only 'approved' was counted, so a verified
+    // document left the score at 0%.
     const { data: approvedDocs } = await supabase
       .from('documents')
-      .select('category_code')
+      .select('category_code, status')
       .eq('module', 'members')
       .eq('entity_id', entityId)
-      .eq('status', 'approved')
+      .in('status', ['approved', 'verified'])
       .eq('is_archived', false);
 
     const approvedSet = new Set(approvedDocs?.map(d => d.category_code) || []);

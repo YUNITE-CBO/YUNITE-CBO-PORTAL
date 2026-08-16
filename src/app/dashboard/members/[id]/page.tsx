@@ -220,6 +220,12 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [documentCategories, setDocumentCategories] = useState<DocumentCategory[]>([]);
   const [complianceRecordsByCode, setComplianceRecordsByCode] = useState<Record<string, any>>({});
+  // Workflow-backed compliance summary (compliance_score + required_documents_complete)
+  // returned by GET /api/compliance. When manual_complete sets this, it is the
+  // source of truth for the displayed score — even if individual document
+  // statuses are still "pending" (e.g. the documents table is missing the
+  // verification columns on a not-yet-migrated DB, so the doc UPDATE fails).
+  const [workflowCompliance, setWorkflowCompliance] = useState<{ compliance_score?: number; required_documents_complete?: boolean } | null>(null);
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
@@ -378,8 +384,16 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       const data = await res.json();
       if (data.success && data.data?.recordsByCode) {
         setComplianceRecordsByCode(data.data.recordsByCode);
+        // Capture the workflow-backed summary (compliance_score /
+        // required_documents_complete) so the UI can reflect a manual_complete
+        // even when per-document verification couldn't persist.
+        setWorkflowCompliance({
+          compliance_score: data.data.compliance_score,
+          required_documents_complete: data.data.required_documents_complete,
+        });
       } else {
         setComplianceRecordsByCode({});
+        setWorkflowCompliance(null);
       }
     } catch (err) { console.error('Failed to fetch compliance records:', err); }
   };
@@ -443,7 +457,24 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       const rec = complianceRecordsByCode[c.code];
       return !doc && !rec;
     });
-    return { total: required.length, complete, pending: pending.length, missing: missing.length, score: required.length > 0 ? Math.round((complete / required.length) * 100) : 0 };
+    const derivedScore = required.length > 0 ? Math.round((complete / required.length) * 100) : 0;
+
+    // The workflow-backed summary (set by manual_complete via the compliance
+    // API / member_approval_workflow) is authoritative. If it says all required
+    // documents are complete (e.g. physical hardcopies were verified), show
+    // 100% — even if the documents table couldn't persist the 'approved'
+    // status on a not-yet-migrated DB. Fall back to the per-record score when
+    // the workflow flag is absent or explicitly false.
+    const workflowAllComplete = workflowCompliance?.required_documents_complete === true;
+    const workflowScore = typeof workflowCompliance?.compliance_score === 'number'
+      ? workflowCompliance.compliance_score
+      : undefined;
+
+    const score = workflowAllComplete
+      ? 100
+      : (typeof workflowScore === 'number' ? Math.max(workflowScore, derivedScore) : derivedScore);
+
+    return { total: required.length, complete: workflowAllComplete ? required.length : complete, pending: pending.length, missing: workflowAllComplete ? 0 : missing.length, score };
   };
 
   // Action handlers
@@ -1029,7 +1060,10 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                 {documentCategories.filter(c => c.is_required).map(category => {
                   const doc = documents.find(d => docCategoryCode(d) === category.code);
                   const rec = complianceRecordsByCode[category.code];
-                  const isComplete = (doc?.status === 'verified' || doc?.status === 'approved') || (rec && (rec.status === 'complete' || rec.status === 'approved'));
+                  // A workflow-level manual_complete (required_documents_complete)
+                  // marks every requirement complete regardless of per-doc status.
+                  const workflowAllComplete = workflowCompliance?.required_documents_complete === true;
+                  const isComplete = workflowAllComplete || (doc?.status === 'verified' || doc?.status === 'approved') || (rec && (rec.status === 'complete' || rec.status === 'approved'));
                   const hasDoc = !!doc;
                   return (
                     <div key={category.id} className="flex items-center justify-between p-4 border rounded-lg">
@@ -1043,12 +1077,16 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                         )}
                         <div>
                           <h3 className="font-medium text-gray-900">{category.name}</h3>
-                          <p className="text-xs text-gray-500">{doc ? `${doc.fileName || doc.document_name || 'Document'} • Uploaded ${formatDate(doc.uploadedAt || doc.created_at)}` : (rec ? 'Manually marked complete' : 'Not uploaded')}</p>
+                          <p className="text-xs text-gray-500">{doc ? `${doc.fileName || doc.document_name || 'Document'} • Uploaded ${formatDate(doc.uploadedAt || doc.created_at)}` : (rec || workflowAllComplete ? 'Manually marked complete' : 'Not uploaded')}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         {doc && <span className={`px-3 py-1 text-xs rounded-full ${getDocumentStatusColor(doc.status)}`}>{doc.status}</span>}
-                        {!hasDoc && rec && (rec.status === 'complete' || rec.status === 'approved') && <span className="px-3 py-1 text-xs rounded-full bg-green-100 text-green-700">Manual ✓</span>}
+                        {workflowAllComplete ? (
+                          <span className="px-3 py-1 text-xs rounded-full bg-green-100 text-green-700">Manual ✓</span>
+                        ) : (
+                          !hasDoc && rec && (rec.status === 'complete' || rec.status === 'approved') && <span className="px-3 py-1 text-xs rounded-full bg-green-100 text-green-700">Manual ✓</span>
+                        )}
                         {isAdmin && (
                           <button
                             onClick={() => {

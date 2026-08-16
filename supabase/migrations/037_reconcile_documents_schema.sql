@@ -151,6 +151,42 @@ CREATE INDEX IF NOT EXISTS idx_documents_verified ON documents(is_verified);
 CREATE INDEX IF NOT EXISTS idx_documents_expired ON documents(is_expired);
 CREATE INDEX IF NOT EXISTS idx_documents_archived ON documents(is_archived);
 
+-- ----------------------------------------------------------------------
+-- PART 5: Update calculate_member_compliance_score() to count BOTH
+-- 'approved' and 'verified' documents. The verify() path sets status to
+-- 'verified' (approve() sets 'approved'); the old function only counted
+-- 'approved', so a verified document left the compliance score at 0%.
+-- ----------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION calculate_member_compliance_score(member_uuid UUID)
+RETURNS INTEGER AS $$
+DECLARE
+    required_count INTEGER;
+    approved_count INTEGER;
+    score INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO required_count
+    FROM document_categories
+    WHERE module = 'members'
+    AND is_required = TRUE
+    AND is_active = TRUE;
+
+    SELECT COUNT(DISTINCT category_code) INTO approved_count
+    FROM documents
+    WHERE module = 'members'
+    AND entity_id = member_uuid
+    AND status IN ('approved', 'verified')
+    AND is_archived = FALSE;
+
+    IF required_count = 0 OR required_count IS NULL THEN
+        score := 100;
+    ELSE
+        score := ROUND((approved_count::NUMERIC / required_count::NUMERIC) * 100);
+    END IF;
+
+    RETURN COALESCE(score, 0);
+END;
+$$ LANGUAGE plpgsql;
+
 -- ===================================================================
 -- MIGRATION COMPLETE
 -- ===================================================================
