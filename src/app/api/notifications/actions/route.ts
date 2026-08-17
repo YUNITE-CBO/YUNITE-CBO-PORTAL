@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { notificationService } from '@/lib/services/notifications';
+import { getAuthUser, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
+
+export const dynamic = 'force-dynamic';
 
 const actionSchema = z.object({
   action: z.enum(['mark_read', 'mark_all_read', 'cancel', 'retry', 'get_unread_count']),
@@ -11,37 +14,59 @@ const actionSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Every notification action requires an authenticated session. Previously
+    // this route had NO auth, so anyone could mark/cancel/retry any user's
+    // notifications. The recipient is now derived from the session for
+    // self-scoped actions (mark_all_read / get_unread_count) so a buggy or
+    // missing client-supplied recipient_id can't silently match zero rows
+    // (which was why "Mark all as read" appeared to do nothing).
+    const authResult = await getAuthUser(request);
+    if (!authResult.success || !authResult.user) {
+      return unauthorizedResponse(authResult.error);
+    }
+    const currentUser = authResult.user;
+
     const body = await request.json();
     const validated = actionSchema.parse(body);
 
     switch (validated.action) {
-      case 'mark_read':
+      case 'mark_read': {
         if (!validated.notification_id) {
           return NextResponse.json(
             { success: false, error: 'notification_id is required' },
             { status: 400 }
           );
         }
+        // A user may only mark their OWN notifications read; super_admin may
+        // mark any. This stops one user clearing another's unread state.
+        if (!currentUser.isSuperAdmin) {
+          const notification = await notificationService.getById(validated.notification_id);
+          const isRecipient =
+            !!notification &&
+            notification.recipient_id === currentUser.user_id;
+          if (!isRecipient) {
+            return forbiddenResponse('You are not authorized to modify this notification');
+          }
+        }
         await notificationService.markAsRead(validated.notification_id);
         return NextResponse.json({
           success: true,
           message: 'Notification marked as read',
         });
+      }
 
-      case 'mark_all_read':
-        if (!validated.recipient_id || !validated.recipient_type) {
-          return NextResponse.json(
-            { success: false, error: 'recipient_id and recipient_type are required' },
-            { status: 400 }
-          );
-        }
-        await notificationService.markAllAsRead(validated.recipient_id, validated.recipient_type);
+      case 'mark_all_read': {
+        // Derive the recipient from the session — ignore any client-supplied
+        // recipient_id (which was previously the literal string 'admin' and
+        // matched zero rows, so "Mark all as read" did nothing).
+        await notificationService.markAllAsRead(currentUser.user_id, 'user');
         return NextResponse.json({
           success: true,
           message: 'All notifications marked as read',
         });
+      }
 
-      case 'cancel':
+      case 'cancel': {
         if (!validated.notification_id) {
           return NextResponse.json(
             { success: false, error: 'notification_id is required' },
@@ -53,8 +78,9 @@ export async function POST(request: NextRequest) {
           success: true,
           message: 'Notification cancelled',
         });
+      }
 
-      case 'retry':
+      case 'retry': {
         if (!validated.notification_id) {
           return NextResponse.json(
             { success: false, error: 'notification_id is required' },
@@ -66,19 +92,17 @@ export async function POST(request: NextRequest) {
           success: true,
           message: 'Notification retry initiated',
         });
+      }
 
-      case 'get_unread_count':
-        if (!validated.recipient_id || !validated.recipient_type) {
-          return NextResponse.json(
-            { success: false, error: 'recipient_id and recipient_type are required' },
-            { status: 400 }
-          );
-        }
-        const count = await notificationService.getUnreadCount(validated.recipient_id, validated.recipient_type);
+      case 'get_unread_count': {
+        // Session-scoped: returns the caller's own unread count, ignoring the
+        // client-supplied recipient_id (which was previously 'admin').
+        const count = await notificationService.getUnreadCount(currentUser.user_id, 'user');
         return NextResponse.json({
           success: true,
           data: { unread_count: count },
         });
+      }
 
       default:
         return NextResponse.json(

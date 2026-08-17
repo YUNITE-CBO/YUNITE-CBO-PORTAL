@@ -67,12 +67,28 @@ export default function DashboardLayout({
 
     const fetchNotifications = async () => {
       try {
+        // Fetch the recent list for the dropdown (max 10 shown).
         const res = await fetch(`/api/notifications?recipient_id=${user.id}&recipient_type=user&limit=10`);
         const data = await res.json();
         if (data.success) {
           setNotifications(data.data || []);
-          const unread = (data.data || []).filter((n: Notification) => n.status !== 'read').length;
-          setUnreadCount(unread);
+        }
+
+        // Fetch the TRUE unread count (session-scoped) instead of deriving it
+        // from only the 10 most-recent rows — otherwise the badge undercounts
+        // when there are more unread notifications than the dropdown shows.
+        try {
+          const countRes = await fetch('/api/notifications/actions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get_unread_count' }),
+          });
+          const countData = await countRes.json();
+          if (countData.success) {
+            setUnreadCount(countData.data?.unread_count ?? 0);
+          }
+        } catch {
+          // Count fetch is best-effort; the list still loads above.
         }
       } catch (err) {
         console.error('Failed to fetch notifications:', err);

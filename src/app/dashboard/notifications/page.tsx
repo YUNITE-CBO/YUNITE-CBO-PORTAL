@@ -142,9 +142,23 @@ export default function NotificationsPage() {
         const notificationsData = await notificationsRes.json();
         if (notificationsData.success) {
           setNotifications(notificationsData.data || []);
-          // Calculate actual unread count
-          const unread = (notificationsData.data || []).filter((n: Notification) => n.status !== 'read').length;
-          setUnreadCount(unread);
+        }
+
+        // Fetch the TRUE unread count (session-scoped) instead of deriving it
+        // from the fetched page (which is capped at 50 and undercounts when
+        // there are more unread notifications than the page size).
+        try {
+          const countRes = await fetch('/api/notifications/actions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get_unread_count' }),
+          });
+          const countData = await countRes.json();
+          if (countData.success) {
+            setUnreadCount(countData.data?.unread_count ?? 0);
+          }
+        } catch {
+          // best-effort
         }
       }
 
@@ -365,19 +379,20 @@ export default function NotificationsPage() {
 
   const handleMarkAllRead = async () => {
     try {
+      // The server derives the recipient from the session, so no recipient_id
+      // is needed here. (Previously this sent recipient_id: 'admin' — a
+      // literal string that matched zero rows, so nothing got marked read.)
       await fetch('/api/notifications/actions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'mark_all_read',
-          recipient_id: 'admin',
-          recipient_type: 'user',
         }),
       });
       setUnreadCount(0);
-      fetchData();
+      setNotifications(prev => prev.map(n => ({ ...n, status: 'read', read_at: new Date().toISOString() })));
     } catch (error) {
-      console.error('Failed to mark all as read');
+      console.error('Failed to mark all as read:', error);
     }
   };
 
