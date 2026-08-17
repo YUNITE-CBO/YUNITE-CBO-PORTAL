@@ -16,6 +16,7 @@ import ApiSettingsSection from '@/components/settings/ApiSettingsSection';
 import WorkflowsSettingsSection from '@/components/settings/WorkflowsSettingsSection';
 import AiSettingsSection from '@/components/settings/AiSettingsSection';
 import { MediaSettingsSection } from '@/components/settings/MediaSettingsSection';
+import RegistrationSettingsSection from '@/components/settings/RegistrationSettingsSection';
 import { YuniteImageUploader } from '@/components/media/YuniteImageUploader';
 
 interface Setting {
@@ -118,7 +119,7 @@ type ResetStep =
   | 'complete'
   | 'failed';
 
-type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'system' | 'membership' | 'workflow' | 'history' | 'api' | 'ai' | 'media';
+type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'system' | 'membership' | 'workflow' | 'history' | 'api' | 'ai' | 'media' | 'registration';
 
 export default function EnhancedSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -580,7 +581,8 @@ export default function EnhancedSettingsPage() {
                   {category.code === 'api' && '🔑'}
                   {category.code === 'ai' && '🧠'}
                   {category.code === 'media' && '🖼️'}
-                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'system', 'membership', 'workflow', 'api', 'ai', 'media'].includes(category.code) && '⚙️'}
+                  {category.code === 'registration' && '📝'}
+                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'system', 'membership', 'workflow', 'api', 'ai', 'media', 'registration'].includes(category.code) && '⚙️'}
                 </span>
               </div>
               {getStatusBadge(category.configuration_status)}
@@ -1463,6 +1465,38 @@ export default function EnhancedSettingsPage() {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ settings: { [key]: value }, reason: 'Media Engine configuration update' }),
+                });
+                const data = await res.json();
+                if (data.success) { setSuccess('Setting updated'); setTimeout(() => setSuccess(null), 3000); await fetchConfiguration(); }
+                else { setError(Array.isArray(data.details) ? data.details.join('; ') : (data.error || 'Update failed')); }
+              }}
+            />
+          );
+        })()
+      ) : activeSection === 'registration' ? (
+        (() => {
+          const regCategory = categories.find((c) => c.code === 'registration');
+          const regRows = (regCategory?.settings || []).map((s) => ({
+            key: s.key, value: s.value, help_text: s.help_text, data_type: s.data_type,
+          }));
+          // Derive the public URL from the current origin so it is always
+          // correct per deployment.
+          const publicUrl =
+            typeof window !== 'undefined'
+              ? `${window.location.origin}/register/member`
+              : '/register/member';
+          return (
+            <RegistrationSettingsSection
+              onBack={() => setActiveSection('overview')}
+              isAdmin={isAdmin}
+              configRows={regRows}
+              publicUrl={publicUrl}
+              onSaveConfig={async (key, value) => {
+                if (!isAdmin) { setError('You do not have permission to modify settings'); return; }
+                const res = await fetch('/api/configuration', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ settings: { [key]: value }, reason: 'Member Registration configuration update' }),
                 });
                 const data = await res.json();
                 if (data.success) { setSuccess('Setting updated'); setTimeout(() => setSuccess(null), 3000); await fetchConfiguration(); }

@@ -17,6 +17,10 @@ const publicReadPaths = [
   '/api/contributions',
   '/api/settings',
   '/api/audit',
+  // Public member pre-registration: prospective members submit their info
+  // through /register/member. POST creates a pending submission (NO member);
+  // admin list/read is gated by requirePermission inside the route handler.
+  '/api/member-registration-submissions',
   // The automation cron route authenticates via CRON_SECRET (header/query),
   // not a session cookie (Render cron cannot carry one). Listed here so the
   // cookie-based auth check below does not 401 it before it can verify the

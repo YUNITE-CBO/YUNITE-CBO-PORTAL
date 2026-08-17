@@ -42,6 +42,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+
+    // Optional: if an admin is registering FROM a pre-registration submission
+    // (auto-fill flow), the client sends `_submission_id`. After the existing
+    // registration engine succeeds we mark that submission REGISTERED and link
+    // it to the new member — this is what prevents double-registration from
+    // the same submission. The field is stripped before validation so it never
+    // reaches the registration schema.
+    const submissionId = typeof body._submission_id === 'string' ? body._submission_id : undefined;
+    delete body._submission_id;
+
     // Strip empty strings from optional fields so `.email().optional()` etc.
     // don't reject blank inputs from the registration form (which always sends
     // every field as a string, including '').
@@ -57,6 +67,28 @@ export async function POST(request: NextRequest) {
 
     try {
       const result = await memberRegistrationService.register(validated, userId);
+
+      // If this registration came from a pre-registration submission, link it.
+      // Best-effort: a failure to link must NOT undo the successful member
+      // registration. The submission can be linked later if this fails.
+      if (submissionId) {
+        try {
+          const { memberRegistrationSubmissionService } = await import(
+            '@/lib/services/member-registration-submission.service'
+          );
+          const linkResult = await memberRegistrationSubmissionService.markRegistered(
+            submissionId,
+            result.member.id,
+            result.member.member_number,
+            userId
+          );
+          if (!linkResult.success) {
+            console.warn(`Member registered (${result.member.member_number}) but submission ${submissionId} link failed: ${linkResult.error}`);
+          }
+        } catch (linkError) {
+          console.warn('Failed to link submission after registration:', linkError);
+        }
+      }
 
       return NextResponse.json({
         success: true,

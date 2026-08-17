@@ -1156,3 +1156,76 @@ the single source of truth for all data/calculations.
   `/api/ai/schedules` + the dashboard `SCOPE_LABELS` accept it. A Super Admin can now
   launch and schedule Unity Fund investigations (previously blocked despite the engine
   existing). Run migration 039 in Supabase SQL Editor on deploy.
+
+## Member Pre-Registration & Smart Auto-Fill (`/register/member`)
+A **public** pre-registration layer that collects prospective-member information
+through a branded form mirroring the EXACT field set of the existing admin
+registration form, **without registering the person as a member**. Submissions
+are stored for admin review and linked back to the eventual member. The
+existing registration engine remains the source of truth — this layer feeds it.
+- **Migration 040** (`040_member_registration_submissions.sql`): the
+  `member_registration_submissions` table (status `submitted`→`reviewing`→
+  `registered`/`rejected`/`archived`, terminal-state guards via CHECK, unique
+  on `submission_reference`), a `registration` config category + 3 settings
+  (`registration.public_enabled` default true, `registration.notify_admins`
+  default true, `registration.submission_reference_prefix`), and 4 notification
+  templates (`member.submission.received`, `member.submission.reviewing`,
+  `member.submission.registered`, `member.submission.rejected`). Run in
+  Supabase SQL Editor on deploy.
+- **Service** (`src/lib/services/member-registration-submission.service.ts`):
+  `create(data, opts)` — validates against the SAME Zod schema shape as
+  `registrationSchema`, normalizes phone/email, detects duplicates against
+  EXISTING members by `id_number`/`phone`/`email` (read-only, never blocks
+  submission), persists the row with `submitted_data` (verbatim original) +
+  `duplicate_match`, inserts an `audit_logs` row, and notifies admins in-app +
+  queues an applicant confirmation email (the applicant is NOT a user/member,
+  so the confirmation goes directly to `email_queue` with a rendered template
+  body — admins get `sendFromTemplate`). `markRegistered(id, memberId,
+  memberNumber, adminId)` links a submission to a new member (terminal-state
+  guard: refuses double-registration). `reject()` / `archive()` / `refreshDuplicate()`.
+  `resolvePublicUrl(origin)` derives `${origin}/register/member`.
+- **API routes**: `POST /api/member-registration-submissions` (PUBLIC — no
+  session; gated by `registration.public_enabled` setting), `GET /api/member-registration-submissions`
+  (admin list with search/filter), `GET|PATCH /api/member-registration-submissions/[id]`
+  (admin get + status transitions: `mark_reviewing`/`reject`/`archive`/`refresh_duplicate`).
+  All routes export `dynamic = 'force-dynamic'`.
+- **Public form**: `/register/member` (`PublicMemberRegistrationForm.tsx`) —
+  branded (navy `#0B2A4A` + green `#22C55E` from `ORG_IDENTITY` in
+  `reports/brand.ts`, NOT the `reports` barrel which pulls server-only modules
+  into client bundles), the same Personal/Contact/Employment/Next of Kin/
+  Emergency Contact sections + fields as the admin form, success screen with
+  the submission reference + a clear "this does NOT make you a member" notice.
+- **Smart Auto-Fill (admin)**: the existing Members page registration form gained
+  an "Auto-fill from Submitted Registrations" button + modal
+  (`AutofillFromSubmissionsModal.tsx`). An admin searches, selects an applicant,
+  and the EXISTING registration form is populated (editable). Clicking the
+  EXISTING "Register Member" button runs the existing registration engine; the
+  client sends `_submission_id` so the backend links the submission to the new
+  member AFTER registration succeeds (best-effort, never undoes registration).
+  Duplicate matches are shown with a "View member →" link so the admin can
+  reconcile before registering.
+- **Post-registration linking**: `POST /api/members` (`src/app/api/members/route.ts`)
+  now strips `_submission_id` before validation and, after the existing
+  `memberRegistrationService.register()` succeeds, calls
+  `memberRegistrationSubmissionService.markRegistered()` — this is what prevents
+  double-registration from the same submission. Failure to link is logged but
+  never fails the registration.
+- **Settings UI**: `RegistrationSettingsSection.tsx` (Settings → Member
+  Registration) shows the public URL (derived from `window.location.origin`),
+  a copy button, a QR code (via the public `api.qrserver.com` endpoint — no QR
+  library dependency), toggle switches for `public_enabled` + `notify_admins`,
+  and a "how bulk registration works" explainer. Saved via `PUT /api/configuration`.
+- **Middleware**: `/api/member-registration-submissions` added to
+  `publicReadPaths` in `src/middleware.ts` so the public POST is reachable
+  without a session (admin verbs are gated inside the route handler).
+- **Tests**: `tests/member-registration-submissions.test.ts` (9: create stores
+  pending + no member; duplicate detection by id_number; markRegistered links
+  + refuses double-registration; reject refuses registered; resolvePublicUrl;
+  POST /api/members strips `_submission_id` + links; registers normally when
+  no submission; public POST 201; public POST 400 on invalid). Run:
+  `npx jest tests/member-registration-submissions --forceExit`.
+- **Gotcha — `ORG_IDENTITY` client import**: the public form is a client
+  component ('use client'). Importing from `@/lib/services/reports` (the
+  barrel) pulls `document-export.service.ts` → `@/lib/supabase/server` →
+  `next/headers`, which breaks client compilation. Import `ORG_IDENTITY`
+  directly from `@/lib/services/reports/brand` (pure module, no server imports).

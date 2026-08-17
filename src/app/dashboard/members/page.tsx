@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import AutofillFromSubmissionsModal, { AutofillData } from '@/components/members/AutofillFromSubmissionsModal';
 
 interface Member {
   id: string;
@@ -49,6 +50,9 @@ export default function MembersPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [autofillOpen, setAutofillOpen] = useState(false);
+  const [activeSubmission, setActiveSubmission] = useState<{ id: string; reference: string } | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<AutofillData['duplicate_match']>(null);
 
   const [formData, setFormData] = useState<RegistrationForm>({
     first_name: '',
@@ -99,21 +103,44 @@ export default function MembersPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleAutofill = (data: AutofillData) => {
+    // Populate the EXISTING registration form with the submitted information.
+    // The admin can still review and edit every field before clicking Register.
+    setFormData((prev) => ({ ...prev, ...data.fields }));
+    setActiveSubmission({ id: data.submission_id, reference: data.submission_reference });
+    setDuplicateWarning(data.duplicate_match);
+    setAutofillOpen(false);
+    setMessage({
+      type: 'success',
+      text: `Auto-filled from submission ${data.submission_reference}. Review the information and click Register Member to complete registration.`,
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setMessage(null);
 
     try {
+      // If auto-filled from a submission, send its id so the backend links it
+      // (marks REGISTERED + member id) AFTER the existing registration engine
+      // succeeds — preventing double-registration from the same submission.
+      const payload: Record<string, unknown> = { ...formData };
+      if (activeSubmission) {
+        payload._submission_id = activeSubmission.id;
+      }
       const res = await fetch('/api/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
       if (data.success) {
-        setMessage({ type: 'success', text: 'Member registered successfully!' });
+        const linkedNote = activeSubmission
+          ? ` Submission ${activeSubmission.reference} marked as registered and linked.`
+          : '';
+        setMessage({ type: 'success', text: `Member registered successfully!${linkedNote}` });
         setFormData({
           first_name: '',
           last_name: '',
@@ -139,6 +166,8 @@ export default function MembersPage() {
           emergency_contact_phone: '',
           emergency_contact_relationship: '',
         });
+        setActiveSubmission(null);
+        setDuplicateWarning(null);
         setShowForm(false);
         fetchMembers();
       } else {
@@ -210,6 +239,64 @@ export default function MembersPage() {
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">New Member Registration</h2>
+
+          {/* Auto-fill helper — populates THIS form from a public pre-registration submission. */}
+          <div className="mb-6 p-4 rounded-lg border border-indigo-200 bg-indigo-50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-indigo-900">
+                  Pre-Registration Submissions
+                </div>
+                <div className="text-xs text-indigo-700">
+                  Auto-fill this form from information prospective members submitted through the public registration link.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAutofillOpen(true)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium whitespace-nowrap"
+              >
+                Auto-fill from Submitted Registrations
+              </button>
+            </div>
+            {activeSubmission && (
+              <div className="mt-3 text-xs text-indigo-800 bg-white border border-indigo-200 rounded p-2">
+                <strong>Auto-filled from:</strong> {activeSubmission.reference}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSubmission(null);
+                    setDuplicateWarning(null);
+                  }}
+                  className="ml-3 text-indigo-500 hover:text-indigo-700 underline"
+                >
+                  clear link
+                </button>
+                <span className="block mt-1 text-indigo-600">
+                  The existing registration engine will run when you click Register Member; this submission will then be marked registered.
+                </span>
+              </div>
+            )}
+            {duplicateWarning && Object.keys(duplicateWarning).length > 0 && (
+              <div className="mt-3 p-3 rounded-lg border border-orange-300 bg-orange-50">
+                <div className="text-sm font-semibold text-orange-900">⚠ Possible Existing Member</div>
+                <div className="text-xs text-orange-800 mt-1">
+                  An existing member may already share this applicant&apos;s information. Review before registering:
+                </div>
+                <ul className="mt-2 space-y-1">
+                  {Object.entries(duplicateWarning).map(([field, m]) => (
+                    <li key={field} className="text-xs text-orange-900">
+                      <span className="capitalize">{field.replace('_', ' ')}:</span> {m.name} ({m.member_number}){' '}
+                      <Link href={`/dashboard/members/${m.member_id}`} className="text-indigo-600 hover:underline">
+                        View member →
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Personal Information */}
             <div>
@@ -446,6 +533,13 @@ export default function MembersPage() {
           </div>
         )}
       </div>
+
+      {/* Auto-fill from public pre-registration submissions */}
+      <AutofillFromSubmissionsModal
+        open={autofillOpen}
+        onClose={() => setAutofillOpen(false)}
+        onAutofill={handleAutofill}
+      />
     </div>
   );
 }
