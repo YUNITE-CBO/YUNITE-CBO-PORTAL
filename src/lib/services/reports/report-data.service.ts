@@ -274,6 +274,16 @@ const NET_DEBIT_TYPES = new Set<string>([
   'fine_posting', 'loan_disbursement',
 ]);
 
+// Transaction types excluded from a member's NET POSITION. Business rule:
+// contributions and welfare are member contributions INTO the Unity Fund
+// (organization money), not the member's own net worth. They are tracked in
+// their own account balances but must NOT inflate the member's net position.
+const NET_POSITION_EXCLUDED_TYPES = new Set<string>([
+  'contribution_monthly', 'contribution_special', 'contribution_development',
+  'contribution_withdrawal', 'contribution_disbursement',
+  'welfare_deposit', 'welfare_withdrawal', 'welfare_disbursement',
+]);
+
 export class ReportDataService {
   async getFinancialSummary(period?: ReportPeriod): Promise<FinancialSummaryData> {
     const supabase = await createServiceClient();
@@ -492,19 +502,24 @@ export class ReportDataService {
     let running = opening;
     let totalCredits = 0;
     let totalDebits = 0;
-    const rows = (txns || []).map((t: any) => {
+    // Only net-worth-affecting transactions appear in the running net-position
+    // ledger. Contributions and welfare are Unity Fund contributions, not the
+    // member's net worth, so they are excluded from the running balance and
+    // totals (their account balances are shown separately in accountBreakdown).
+    const rows = (txns || [])
+      .filter((t: any) => !NET_POSITION_EXCLUDED_TYPES.has(t.transaction_type))
+      .map((t: any) => {
       const amt = Number(t.amount);
       // A transaction is a NET DEBIT (reduces the member's net worth) when it
-      // either draws down an asset account (savings/contributions/welfare
-      // withdrawals & disbursements, registration/annual fees charged against
-      // savings) OR increases a liability account (a posted fine, a disbursed
-      // loan). Conversely it is a NET CREDIT when it grows an asset (deposits,
-      // contributions, welfare deposits) or reduces a liability (fine
-      // payment, loan repayment). This mirrors the sign logic in
-      // TransactionEngine.isDebitTransaction while accounting for the fact
-      // that, in this system's model, loan_disbursement/fine_posting only add
-      // to a LIABILITY account (they are not offset by a cash asset) and so
-      // reduce the member's net position.
+      // either draws down an asset account (savings withdrawals &
+      // disbursements, registration/annual fees charged against savings) OR
+      // increases a liability account (a posted fine, a disbursed loan).
+      // Conversely it is a NET CREDIT when it grows an asset (deposits) or
+      // reduces a liability (fine payment, loan repayment). This mirrors the
+      // sign logic in TransactionEngine.isDebitTransaction while accounting for
+      // the fact that, in this system's model, loan_disbursement/fine_posting
+      // only add to a LIABILITY account (they are not offset by a cash asset)
+      // and so reduce the member's net position.
       const isNetDebit = NET_DEBIT_TYPES.has(t.transaction_type);
       if (isNetDebit) {
         totalDebits += amt;
@@ -563,8 +578,11 @@ export class ReportDataService {
   private deriveMemberBalance(priorByType: Record<string, number>): number {
     // Opening (net) position = assets − liabilities before the period.
     // Net-debit transaction types reduce net worth (see getMemberStatement).
+    // Contributions and welfare are excluded — they are Unity Fund
+    // contributions, not the member's net worth (see NET_POSITION_EXCLUDED_TYPES).
     let bal = 0;
     for (const [k, v] of Object.entries(priorByType)) {
+      if (NET_POSITION_EXCLUDED_TYPES.has(k)) continue;
       bal += NET_DEBIT_TYPES.has(k) ? -v : v;
     }
     return bal;

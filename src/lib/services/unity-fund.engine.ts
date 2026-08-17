@@ -417,9 +417,24 @@ export class UnityFundEngine {
   /** Pending receivables grouped by source (never cash). */
   private async getPendingBreakdown(period?: PeriodFilter): Promise<Array<{ source: UnityFundSource; pending: number }>> {
     const supabase = await createServiceClient();
-    // Pending member obligations (contributions, welfare, fines) come from the
+    // Pending member obligations (contributions, fines) come from the
     // authoritative member_financial_obligations view — same source the
     // obligations engine uses. We do NOT recompute them independently.
+    //
+    // WELFARE IS EXCLUDED FROM PENDING RECEIVABLES. Business rule: a welfare
+    // deposit is instantly posted/received (it is actual Unity Fund cash the
+    // moment it is recorded), so it is never a pending receivable. The
+    // obligations view auto-generates a notional monthly "welfare owed" row
+    // for every active member who has not deposited this month (default
+    // welfare.monthly_amount = 500), which previously inflated the Unity Fund
+    // pending receivables with a fictitious 500-per-member welfare amount
+    // even though no welfare payment was actually outstanding. Welfare
+    // actuals are already counted in getActualReceipts/getSourceBreakdown
+    // from the posted welfare_deposit transactions, so dropping the pending
+    // welfare obligation here is correct and keeps actual vs pending
+    // consistent. Welfare is only a receivable if an admin posts a welfare
+    // obligation that is explicitly unpaid — there is no such record type
+    // today, so welfare pending is always 0.
     const { data: obligations } = await supabase
       .from('member_financial_obligations')
       .select('obligation_type, remaining');
@@ -428,8 +443,8 @@ export class UnityFundEngine {
     for (const o of obligations ?? []) {
       if (num(o.remaining) <= 0) continue;
       if (o.obligation_type === 'contribution') pending['CONTRIBUTION'] = (pending['CONTRIBUTION'] ?? 0) + num(o.remaining);
-      else if (o.obligation_type === 'welfare') pending['WELFARE'] = (pending['WELFARE'] ?? 0) + num(o.remaining);
       else if (o.obligation_type === 'fine') pending['FINE'] = (pending['FINE'] ?? 0) + num(o.remaining);
+      // 'welfare' obligations are intentionally NOT counted as pending (see note above).
     }
 
     // Pending loan interest = accrued interest - received interest, per loan.
@@ -662,6 +677,8 @@ export class UnityFundEngine {
     rows: UnityFundTransaction[],
   ): Promise<void> {
     // Pending member obligations.
+    // Welfare obligations are excluded (see getPendingBreakdown): a welfare
+    // deposit is instantly posted cash, never a pending receivable.
     if (!filter.source || ['CONTRIBUTION', 'WELFARE', 'FINE'].includes(filter.source)) {
       const { data: obligations } = await supabase
         .from('member_financial_obligations')
@@ -669,9 +686,10 @@ export class UnityFundEngine {
         .limit(500);
       for (const o of obligations ?? []) {
         if (num(o.remaining) <= 0) continue;
+        // Welfare is never a pending receivable — skip notional welfare obligations.
+        if (o.obligation_type === 'welfare') continue;
         const src: UnityFundSource | null =
           o.obligation_type === 'contribution' ? 'CONTRIBUTION'
-          : o.obligation_type === 'welfare' ? 'WELFARE'
           : o.obligation_type === 'fine' ? 'FINE'
           : null;
         if (!src || (filter.source && filter.source !== src)) continue;

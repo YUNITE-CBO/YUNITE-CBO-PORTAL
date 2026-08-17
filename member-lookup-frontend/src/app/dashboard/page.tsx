@@ -25,7 +25,11 @@ export default function OverviewPage() {
   const savings = b.savings || 0;
   const shares = b.shares || 0;
   const loans = b.loans || 0;
-  const netWorth = savings + (b.contributions || 0) + (b.welfare || 0) - loans;
+  // Member NET POSITION excludes contributions AND welfare. Business rule:
+  // contributions and welfare are member contributions INTO the Unity Fund
+  // (organization money), not the member's own net worth. Only savings
+  // (member's money) minus outstanding loans is the member's net position.
+  const netWorth = savings - loans;
 
   return (
     <>
@@ -39,7 +43,7 @@ export default function OverviewPage() {
         <StatCard label="Total savings" value={formatMoney(savings)} sub="From your deposits" accent="green" />
         <StatCard label="Shares" value={String(shares)} sub="Derived from savings" accent="navy" />
         <StatCard label="Loan balance" value={formatMoney(loans)} sub="Outstanding" accent="red" />
-        <StatCard label="Net position" value={formatMoney(netWorth)} sub="Savings+contrib+welfare−loans" accent="gold" />
+        <StatCard label="Net position" value={formatMoney(netWorth)} sub="Savings − loans" accent="gold" />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
