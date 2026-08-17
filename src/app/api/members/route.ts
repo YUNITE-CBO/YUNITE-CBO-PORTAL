@@ -9,9 +9,14 @@ const registrationSchema = z.object({
   last_name: z.string().min(1),
   email: z.string().email().optional(),
   phone: z.string().min(1),
+  alt_phone: z.string().optional(),
+  alt_email: z.string().email().optional(),
   id_number: z.string().optional(),
+  kra_pin: z.string().optional(),
   date_of_birth: z.string().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
+  marital_status: z.enum(['single', 'married', 'divorced', 'widowed']).optional(),
+  nationality: z.string().optional(),
   physical_address: z.string().optional(),
   postal_address: z.string().optional(),
   occupation: z.string().optional(),
@@ -20,6 +25,9 @@ const registrationSchema = z.object({
   next_of_kin_name: z.string().optional(),
   next_of_kin_phone: z.string().optional(),
   next_of_kin_relationship: z.string().optional(),
+  emergency_contact_name: z.string().optional(),
+  emergency_contact_phone: z.string().optional(),
+  emergency_contact_relationship: z.string().optional(),
 });
 
 // POST /api/members - Register new member
@@ -34,7 +42,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validated = registrationSchema.parse(body);
+    // Strip empty strings from optional fields so `.email().optional()` etc.
+    // don't reject blank inputs from the registration form (which always sends
+    // every field as a string, including '').
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(body)) {
+      if (value === '' || value === null) continue;
+      cleaned[key] = value;
+    }
+    const validated = registrationSchema.parse(cleaned);
 
     // Use authenticated user's ID
     const userId = authResult.user!.user_id;

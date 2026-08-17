@@ -13,9 +13,14 @@ export interface MemberRegistrationData {
   last_name: string;
   email?: string;
   phone: string;
+  alt_phone?: string;
+  alt_email?: string;
   id_number?: string;
+  kra_pin?: string;
   date_of_birth?: string;
   gender?: 'male' | 'female' | 'other';
+  marital_status?: string;
+  nationality?: string;
   physical_address?: string;
   postal_address?: string;
   occupation?: string;
@@ -24,6 +29,9 @@ export interface MemberRegistrationData {
   next_of_kin_name?: string;
   next_of_kin_phone?: string;
   next_of_kin_relationship?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
 }
 
 export class MemberRegistrationService {
@@ -44,9 +52,14 @@ export class MemberRegistrationService {
         last_name: data.last_name,
         email: data.email,
         phone: data.phone,
+        alt_phone: data.alt_phone,
+        alt_email: data.alt_email,
         id_number: data.id_number,
+        kra_pin: data.kra_pin,
         date_of_birth: data.date_of_birth,
         gender: data.gender,
+        marital_status: data.marital_status,
+        nationality: data.nationality,
         physical_address: data.physical_address,
         postal_address: data.postal_address,
         occupation: data.occupation,
@@ -55,6 +68,9 @@ export class MemberRegistrationService {
         next_of_kin_name: data.next_of_kin_name,
         next_of_kin_phone: data.next_of_kin_phone,
         next_of_kin_relationship: data.next_of_kin_relationship,
+        emergency_contact_name: data.emergency_contact_name,
+        emergency_contact_phone: data.emergency_contact_phone,
+        emergency_contact_relationship: data.emergency_contact_relationship,
         status: 'pending',
         registration_date: new Date().toISOString().split('T')[0],
       })

@@ -20,15 +20,25 @@ interface RegistrationForm {
   last_name: string;
   email: string;
   phone: string;
+  alt_phone: string;
+  alt_email: string;
   id_number: string;
+  kra_pin: string;
   date_of_birth: string;
   gender: 'male' | 'female' | 'other';
+  marital_status: string;
+  nationality: string;
   physical_address: string;
+  postal_address: string;
   occupation: string;
   employer: string;
+  employer_address: string;
   next_of_kin_name: string;
   next_of_kin_phone: string;
   next_of_kin_relationship: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  emergency_contact_relationship: string;
 }
 
 export default function MembersPage() {
@@ -45,15 +55,25 @@ export default function MembersPage() {
     last_name: '',
     email: '',
     phone: '',
+    alt_phone: '',
+    alt_email: '',
     id_number: '',
+    kra_pin: '',
     date_of_birth: '',
     gender: 'male',
+    marital_status: '',
+    nationality: '',
     physical_address: '',
+    postal_address: '',
     occupation: '',
     employer: '',
+    employer_address: '',
     next_of_kin_name: '',
     next_of_kin_phone: '',
     next_of_kin_relationship: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    emergency_contact_relationship: '',
   });
 
   useEffect(() => {
@@ -99,15 +119,25 @@ export default function MembersPage() {
           last_name: '',
           email: '',
           phone: '',
+          alt_phone: '',
+          alt_email: '',
           id_number: '',
+          kra_pin: '',
           date_of_birth: '',
           gender: 'male',
+          marital_status: '',
+          nationality: '',
           physical_address: '',
+          postal_address: '',
           occupation: '',
           employer: '',
+          employer_address: '',
           next_of_kin_name: '',
           next_of_kin_phone: '',
           next_of_kin_relationship: '',
+          emergency_contact_name: '',
+          emergency_contact_phone: '',
+          emergency_contact_relationship: '',
         });
         setShowForm(false);
         fetchMembers();
@@ -181,69 +211,123 @@ export default function MembersPage() {
         <div className="bg-white rounded-xl shadow-sm border p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">New Member Registration</h2>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                <input type="text" name="first_name" value={formData.first_name} onChange={handleInputChange} required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                <input type="text" name="last_name" value={formData.last_name} onChange={handleInputChange} required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" name="email" value={formData.email} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
-                <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} required placeholder="0712345678"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
-                <input type="text" name="id_number" value={formData.id_number} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                <select name="gender" value={formData.gender} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Physical Address</label>
-                <input type="text" name="physical_address" value={formData.physical_address} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+            {/* Personal Information */}
+            <div>
+              <h3 className="text-md font-medium text-gray-900 mb-4">Personal Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                  <input type="text" name="first_name" value={formData.first_name} onChange={handleInputChange} required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                  <input type="text" name="last_name" value={formData.last_name} onChange={handleInputChange} required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" name="email" value={formData.email} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                  <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} required placeholder="0712345678"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
+                  <input type="text" name="id_number" value={formData.id_number} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">KRA PIN</label>
+                  <input type="text" name="kra_pin" value={formData.kra_pin} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                  <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <select name="gender" value={formData.gender} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Marital Status</label>
+                  <select name="marital_status" value={formData.marital_status} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Select</option>
+                    <option value="single">Single</option>
+                    <option value="married">Married</option>
+                    <option value="divorced">Divorced</option>
+                    <option value="widowed">Widowed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
+                  <input type="text" name="nationality" value={formData.nationality} onChange={handleInputChange} placeholder="e.g. Kenyan"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
               </div>
             </div>
 
+            {/* Contact Information */}
+            <div className="border-t pt-6">
+              <h3 className="text-md font-medium text-gray-900 mb-4">Contact Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Physical Address</label>
+                  <input type="text" name="physical_address" value={formData.physical_address} onChange={handleInputChange} placeholder="e.g. Nairobi, Kariobangi"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Postal Address</label>
+                  <input type="text" name="postal_address" value={formData.postal_address} onChange={handleInputChange} placeholder="e.g. 00100"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Alt. Phone</label>
+                  <input type="tel" name="alt_phone" value={formData.alt_phone} onChange={handleInputChange} placeholder="0712345678"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Alt. Email</label>
+                  <input type="email" name="alt_email" value={formData.alt_email} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* Employment Information */}
             <div className="border-t pt-6">
               <h3 className="text-md font-medium text-gray-900 mb-4">Employment Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
-                  <input type="text" name="occupation" value={formData.occupation} onChange={handleInputChange}
+                  <input type="text" name="occupation" value={formData.occupation} onChange={handleInputChange} placeholder="e.g. Barista"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Employer</label>
-                  <input type="text" name="employer" value={formData.employer} onChange={handleInputChange}
+                  <input type="text" name="employer" value={formData.employer} onChange={handleInputChange} placeholder="e.g. Self Employed"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Employer Address</label>
+                  <input type="text" name="employer_address" value={formData.employer_address} onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
             </div>
 
+            {/* Next of Kin */}
             <div className="border-t pt-6">
               <h3 className="text-md font-medium text-gray-900 mb-4">Next of Kin</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -260,6 +344,28 @@ export default function MembersPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Relationship *</label>
                   <input type="text" name="next_of_kin_relationship" value={formData.next_of_kin_relationship} onChange={handleInputChange} required placeholder="Spouse, Parent..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* Emergency Contact */}
+            <div className="border-t pt-6">
+              <h3 className="text-md font-medium text-gray-900 mb-4">Emergency Contact</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input type="text" name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input type="tel" name="emergency_contact_phone" value={formData.emergency_contact_phone} onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
+                  <input type="text" name="emergency_contact_relationship" value={formData.emergency_contact_relationship} onChange={handleInputChange} placeholder="e.g. Spouse, Parent, Sibling"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>

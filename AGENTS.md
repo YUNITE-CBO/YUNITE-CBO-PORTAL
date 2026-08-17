@@ -194,6 +194,28 @@ A substantial notification/automation stack already exists in
   category. Note: there is no meetings dashboard page yet â”œÐ²Ñ‚Ð’Ð¼Ñ‚ÐÐ­ only the API +
   service + reminders. A full meetings UI page is a follow-on.
 
+## Member Registration (full-profile capture)
+`POST /api/members` -> `MemberRegistrationService.register()` creates a member
+at `status='pending'`, generates `member_number` `YUN-YYYYMMDD-####`, then
+creates 5 accounts (savings/shares/contributions/welfare/fines), legacy
+`compliance_records`, an `audit_logs` row, and emits `member.registered` via
+`notificationEventService`. A DB trigger (`on_member_created_compliance`) also
+auto-creates `member_compliance` rows for every required `document_categories`
+row (module='members') + a `member_approval_workflow` row at 'documentation'.
+The registration form (`src/app/dashboard/members/page.tsx`) captures the
+**full editable profile in one flow**: Personal (name, email, phone, ID, KRA
+PIN, DOB, gender, marital_status, nationality), Contact (physical/postal
+address, alt phone/email), Employment (occupation, employer, employer
+address), Next of Kin, and Emergency Contact. The Zod schema in
+`src/app/api/members/route.ts` strips empty strings before validation so
+optional `.email()` fields left blank by the form don't 400. `MemberRegistrationData`
+and the member INSERT carry all these fields so a member can be fully onboarded
+without later edits. Note: the membership.* settings (min age, max members,
+require_approval, allow_self_registration) and member.categories/groups are
+seeded (migrations 010/011) but NOT yet enforced by registration. Approval is a
+manual admin action on `/dashboard/members/[id]` (PUT status->active upserts
+`member_approval_workflow` to 'completed').
+
 ## Document Generation & Export Engine (`src/lib/services/reports/`)
 A full bank-style document generation engine produces branded, certified,
 downloadable PDF/CSV documents for every reportable surface: financial
@@ -889,28 +911,28 @@ centrally â†’ remove safely â†’ keep the entire system consistent.
 - **Dashboard module UI coverage (all backend modules now have a page)**:
   Every module that had a backend (API + service) but no dedicated, sidebar-
   accessible admin console page now has one (commit 356c0d2):
-  - **Meetings** `/dashboard/meetings` Ñ schedule/edit/cancel + create modal,
+  - **Meetings** `/dashboard/meetings` ï¿½ schedule/edit/cancel + create modal,
     upcoming/all filter. Uses GET/POST `/api/meetings` + GET/PUT
-    `/api/meetings/[id]`. (No DELETE handler exists on the route Ñ cancel via
+    `/api/meetings/[id]`. (No DELETE handler exists on the route ï¿½ cancel via
     PUT status='cancelled'.) Admin only.
-  - **Automation** `/dashboard/automation` Ñ run history table (GET
+  - **Automation** `/dashboard/automation` ï¿½ run history table (GET
     `/api/automation/runs?limit=30`), 'Run Now' button (POST
     `/api/automation/trigger` returns `AutomationTickResult` with `steps[]` +
     `totals`), run-detail modal showing the `details` JSON. Admin only.
-  - **Media & Assets** `/dashboard/media` Ñ org logo upload/remove
+  - **Media & Assets** `/dashboard/media` ï¿½ org logo upload/remove
     (POST/DELETE `/api/media/organization/org/ORGANIZATION_LOGO`), integrity
     check (GET `/api/media/integrity`), asset-type reference. Admin only.
     Member/user profile photos remain on their detail pages (this page
     centralizes org-level assets only).
-  - **System Status** `/dashboard/system-status` Ñ polls GET `/api/health`
+  - **System Status** `/dashboard/system-status` ï¿½ polls GET `/api/health`
     every 30s; overall/database/application status cards. Super-admin only.
-  - **Email Queue** `/dashboard/email-queue` Ñ queue stats (GET
+  - **Email Queue** `/dashboard/email-queue` ï¿½ queue stats (GET
     `/api/notifications/email?action=stats` returns `{pending,processing,
     sent,failed}`), Process Now (POST `?action=process`), Retry Failed (POST
     `?action=retry`), Test SMTP (GET `?action=test`), delivery progress bar.
     Admin only. NOTE: there is no list endpoint for individual email_queue
-    rows Ñ only stats; the page shows stats + controls, not a row table.
-  - **Login Activity** `/dashboard/admin/login-activity` Ñ pre-existing orphan
+    rows ï¿½ only stats; the page shows stats + controls, not a row table.
+  - **Login Activity** `/dashboard/admin/login-activity` ï¿½ pre-existing orphan
     page now linked in the super-admin Administration nav block.
   Sidebar nav (`layout.tsx`) main nav now includes: Meetings, Email Queue,
   Automation, Media & Assets. Super-admin Administration block now includes:
