@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ORG_IDENTITY } from '@/lib/services/reports/brand';
 
 /**
@@ -325,13 +325,42 @@ const buttonStyle: React.CSSProperties = {
 };
 
 function BrandHeader() {
+  // Resolve the active organization logo from the Media Engine
+  // (GET /api/media/organization/org/ORGANIZATION_LOGO is public for org
+  // branding). When the org has a logo set, it renders here and updates
+  // automatically whenever the logo changes — no code change needed. Falls
+  // back to the "YP" monogram only when no logo is configured.
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoErrored, setLogoErrored] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/media/organization/org/ORGANIZATION_LOGO')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (!cancelled) setLogoUrl(data?.url ?? null); })
+      .catch(() => { if (!cancelled) setLogoUrl(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const showLogo = logoUrl && !logoErrored;
+
   return (
     <div style={{ maxWidth: 880, margin: '0 auto', padding: '16px 0 0' }}>
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
         <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 8, background: 'linear-gradient(135deg,#0B2A4A,#22C55E)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800 }}>
-            YP
-          </div>
+          {showLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl ?? undefined}
+              alt={`${ORG_IDENTITY.name} logo`}
+              onError={() => setLogoErrored(true)}
+              style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'contain', border: '1px solid #E5E7EB' }}
+            />
+          ) : (
+            <div style={{ width: 48, height: 48, borderRadius: 8, background: 'linear-gradient(135deg,#0B2A4A,#22C55E)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800 }}>
+              YP
+            </div>
+          )}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#0B2A4A' }}>{ORG_IDENTITY.name}</div>
             <div style={{ fontSize: 11, color: '#6B7280' }}>{ORG_IDENTITY.tagline} · {ORG_IDENTITY.city}, {ORG_IDENTITY.country}</div>
