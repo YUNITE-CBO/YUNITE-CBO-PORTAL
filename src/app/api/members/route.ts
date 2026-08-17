@@ -85,7 +85,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     const result = await memberRegistrationService.search({
-      query: searchParams.get('query') || undefined,
+      // The dashboard member search sends `search`; the service expects `query`.
+      // Accept either so the search term is actually applied instead of being
+      // silently dropped (which caused the wrong member to be returned).
+      query: searchParams.get('query') || searchParams.get('search') || undefined,
       status: searchParams.get('status') || undefined,
       page: parseInt(searchParams.get('page') || '1'),
       limit: parseInt(searchParams.get('limit') || '20'),
