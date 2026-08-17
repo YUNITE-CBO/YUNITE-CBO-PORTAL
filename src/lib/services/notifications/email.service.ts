@@ -333,7 +333,10 @@ export class EmailService {
             })
             .eq('id', email.id);
 
-          // Update notification status
+          // Update notification status — but only escalate forward, never
+          // regress a terminal state. A notification already read by the user
+          // (or already delivered) must not be overwritten by a later email
+          // delivery, since the in-app channel is the primary surface.
           if (email.notification_id) {
             await supabase
               .from('notifications')
@@ -341,7 +344,8 @@ export class EmailService {
                 status: 'delivered',
                 delivered_at: new Date().toISOString(),
               })
-              .eq('id', email.notification_id);
+              .eq('id', email.notification_id)
+              .in('status', ['queued', 'pending', 'sent']);
           }
 
           // Log delivery
@@ -390,7 +394,15 @@ export class EmailService {
         })
         .eq('id', email.id);
 
-      // Update notification status
+      // An email-channel failure must NOT flip the notification to 'failed'
+      // when the in-app notification has already been delivered/read. The
+      // notification is multi-channel: in_app (primary) + email (secondary).
+      // Only mark the notification failed if it is still in a pre-delivery
+      // state (queued/pending) AND has no other working channel — otherwise
+      // a broken SMTP/OAuth config would retroactively "fail" notifications
+      // the user has already seen, which is what surfaced as "notifications
+      // failing" in the dashboard. The email failure itself is tracked on
+      // the email_queue row + delivery history above.
       if (email.notification_id) {
         await supabase
           .from('notifications')
@@ -399,7 +411,8 @@ export class EmailService {
             error_message: errorMessage,
             retry_count: newRetryCount,
           })
-          .eq('id', email.notification_id);
+          .eq('id', email.notification_id)
+          .in('status', ['queued', 'pending']);
       }
     } else {
       // Schedule retry

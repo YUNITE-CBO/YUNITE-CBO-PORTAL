@@ -184,6 +184,7 @@ export class NotificationService {
 
     // Queue for delivery
     const channels = data.channels || ['in_app'];
+    const hasInApp = channels.includes('in_app');
     
     if (channels.includes('email') && recipientEmail) {
       await this.queueEmail(notification);
@@ -192,11 +193,17 @@ export class NotificationService {
     // Log event
     await this.logDelivery(notification, 'in_app', 'queued');
 
-    // Update status
-    await supabase
-      .from('notifications')
-      .update({ status: 'sent' })
-      .eq('id', notification.id);
+    // Final status: the in-app channel is delivered synchronously (the row is
+    // now readable by the recipient), so mark 'sent' when in_app is active.
+    // For email-only notifications, do NOT override the status here — the
+    // email queue processing above already set 'delivered' (success) or
+    // 'failed' (failure), and overriding would mask a real email failure.
+    if (hasInApp) {
+      await supabase
+        .from('notifications')
+        .update({ status: 'sent' })
+        .eq('id', notification.id);
+    }
 
     return { id: notification.id, ref: notification.notification_ref };
   }
