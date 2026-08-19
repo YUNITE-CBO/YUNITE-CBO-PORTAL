@@ -24,6 +24,8 @@ export interface SubmissionRow {
   phone: string;
   id_number: string | null;
   status: string;
+  intent?: 'register' | 'update';
+  existing_member_id?: string | null;
   duplicate_flagged: boolean;
   duplicate_match: Record<string, { member_id: string; member_number: string; name: string }> | null;
   created_at: string;
@@ -41,14 +43,46 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onAutofill: (data: AutofillData) => void;
+  /** Called after an update-intent submission was applied to its member. */
+  onUpdateApplied?: (info: { member_number: string; submission_reference: string }) => void;
 }
 
-export default function AutofillFromSubmissionsModal({ open, onClose, onAutofill }: Props) {
+export default function AutofillFromSubmissionsModal({ open, onClose, onAutofill, onUpdateApplied }: Props) {
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+
+  /** Apply an update-intent submission to its linked existing member. */
+  const handleApplyUpdate = async () => {
+    const sub = submissions.find((s) => s.id === selectedId);
+    if (!sub) return;
+    setApplying(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/member-registration-submissions/${sub.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'applied' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        onClose();
+        onUpdateApplied?.({
+          member_number: data.data?.member_number || '',
+          submission_reference: sub.submission_reference,
+        });
+      } else {
+        setError(data.error || 'Failed to apply update');
+      }
+    } catch {
+      setError('Failed to apply update');
+    } finally {
+      setApplying(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -230,17 +264,40 @@ export default function AutofillFromSubmissionsModal({ open, onClose, onAutofill
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            Waiting
-                          </span>
-                          {dupeEntries.length > 0 && (
+                          {s.intent === 'update' ? (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Update request
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              Waiting
+                            </span>
+                          )}
+                          {dupeEntries.length > 0 && s.intent !== 'update' && (
                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                               Possible duplicate
                             </span>
                           )}
                         </div>
                       </div>
-                      {dupeEntries.length > 0 && (
+                      {s.intent === 'update' && (
+                        <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
+                          ✎ This applicant identified an EXISTING record — applying this submission
+                          updates member
+                          {' '}<strong>{dupeEntries[0]?.[1]?.member_number || ''}</strong>
+                          {s.existing_member_id && (
+                            <a
+                              href={`/dashboard/members/${s.existing_member_id}`}
+                              className="ml-2 underline font-medium"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              View member →
+                            </a>
+                          )}
+                          {' '}with the submitted changes (no new profile is created).
+                        </div>
+                      )}
+                      {dupeEntries.length > 0 && s.intent !== 'update' && (
                         <div className="mt-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
                           ⚠ An existing member may match:
                           {dupeEntries.map(([field, m]) => (
@@ -266,14 +323,25 @@ export default function AutofillFromSubmissionsModal({ open, onClose, onAutofill
           >
             Cancel
           </button>
-          <button
-            type="button"
-            disabled={!selectedId}
-            onClick={handleAutofill}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-          >
-            Auto-fill
-          </button>
+          {selectedId && submissions.find((s) => s.id === selectedId)?.intent === 'update' ? (
+            <button
+              type="button"
+              disabled={applying}
+              onClick={handleApplyUpdate}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {applying ? 'Applying…' : 'Apply Update to Member'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!selectedId}
+              onClick={handleAutofill}
+              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            >
+              Auto-fill
+            </button>
+          )}
         </div>
       </div>
     </div>

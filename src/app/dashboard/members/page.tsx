@@ -539,6 +539,13 @@ export default function MembersPage() {
         open={autofillOpen}
         onClose={() => setAutofillOpen(false)}
         onAutofill={handleAutofill}
+        onUpdateApplied={(info) => {
+          setMessage({
+            type: 'success',
+            text: `Update from submission ${info.submission_reference} applied to member ${info.member_number}. The existing record was updated — no new profile was created.`,
+          });
+          fetchMembers();
+        }}
       />
     </div>
   );

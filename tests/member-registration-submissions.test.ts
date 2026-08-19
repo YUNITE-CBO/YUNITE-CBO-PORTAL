@@ -70,9 +70,11 @@ jest.mock('@/lib/supabase/server', () => ({
           return { data: builder._last ?? null, error: null };
         },
         maybeSingle: () => {
-          // getById: select * from member_registration_submissions where id=_
+          // getById-style single-row fetch; pick the store by table name so
+          // member lookups and submission lookups both resolve.
           const id = builder._id;
-          const row = id ? insertedSubmissions.find((s) => s.id === id) : builder._maybe ?? null;
+          const store = table === 'members' ? membersTable : insertedSubmissions;
+          const row = id ? store.find((s) => s.id === id) : builder._maybe ?? null;
           return { data: row ?? null, error: null };
         },
       };
@@ -82,13 +84,15 @@ jest.mock('@/lib/supabase/server', () => ({
             return (resolve?: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
               if (prop === 'catch' || prop === 'finally') return undefined as unknown;
               // Apply a pending update/delete patch to the matching row(s) now
-              // (the real query executes only when awaited, after .eq).
+              // (the real query executes only when awaited, after .eq). Pick
+              // the store by table name so member updates land in membersTable.
               const patch = builder._pendingPatch;
               if (patch) {
                 const id = builder._id;
                 if (id) {
-                  const idx = insertedSubmissions.findIndex((s) => s.id === id);
-                  if (idx >= 0) insertedSubmissions[idx] = { ...insertedSubmissions[idx], ...patch };
+                  const store = table === 'members' ? membersTable : insertedSubmissions;
+                  const idx = store.findIndex((s) => s.id === id);
+                  if (idx >= 0) store[idx] = { ...store[idx], ...patch };
                 }
               }
               // If a terminal was set (insert), use it.
@@ -164,14 +168,102 @@ describe('Member pre-registration submission service', () => {
     expect(submission.submitted_data).toMatchObject({ first_name: 'John', id_number: 'ID123' });
   });
 
-  it('create() flags a duplicate when an existing member shares id_number', async () => {
+  it('create() rejects a register submission when the id_number already exists (DuplicateMemberError)', async () => {
     membersTable.push({
       id: 'm-1', member_number: 'YUN-0001', first_name: 'Jane', last_name: 'D',
       id_number: 'ID123', phone: '0700000000', email: 'other@x.com',
     });
-    const { duplicates } = await memberRegistrationSubmissionService.create(baseData);
+    await expect(memberRegistrationSubmissionService.create(baseData)).rejects.toThrow(/already exists/);
+    // No submission row must have been created.
+    expect(insertedSubmissions).toHaveLength(0);
+  });
+
+  it('create() rejects a register submission when the phone already exists', async () => {
+    membersTable.push({
+      id: 'm-1', member_number: 'YUN-0001', first_name: 'Jane', last_name: 'D',
+      id_number: 'OTHER-ID', phone: '0712345678', email: 'other@x.com',
+    });
+    await expect(memberRegistrationSubmissionService.create(baseData)).rejects.toThrow(/phone/);
+    expect(insertedSubmissions).toHaveLength(0);
+  });
+
+  it('create() only FLAGS an email-only match without rejecting', async () => {
+    membersTable.push({
+      id: 'm-1', member_number: 'YUN-0001', first_name: 'Jane', last_name: 'D',
+      id_number: 'OTHER-ID', phone: '0700000000', email: 'john@example.com',
+    });
+    const { submission, duplicates } = await memberRegistrationSubmissionService.create(baseData);
+    expect(submission.intent).toBe('register');
     expect(duplicates.flagged).toBe(true);
-    expect(duplicates.match.id_number).toMatchObject({ member_number: 'YUN-0001' });
+    expect(duplicates.match.email).toMatchObject({ member_number: 'YUN-0001' });
+    expect(insertedSubmissions).toHaveLength(1);
+  });
+
+  it('create() with intent=update links the submission to the existing member', async () => {
+    membersTable.push({
+      id: 'm-1', member_number: 'YUN-0001', first_name: 'Jane', last_name: 'D',
+      id_number: 'ID123', phone: '0700000000', email: 'other@x.com',
+    });
+    const { submission } = await memberRegistrationSubmissionService.create(baseData, {
+      intent: 'update',
+    });
+    expect(submission.intent).toBe('update');
+    expect(submission.existing_member_id).toBe('m-1');
+    expect(submission.status).toBe('submitted');
+  });
+
+  it('create() with intent=update refuses when no member matches', async () => {
+    await expect(
+      memberRegistrationSubmissionService.create(baseData, { intent: 'update' })
+    ).rejects.toThrow(/No existing member/);
+    expect(insertedSubmissions).toHaveLength(0);
+  });
+
+  it('lookupExistingMember() finds by id_number, falls back to phone, else null', async () => {
+    membersTable.push({
+      id: 'm-1', member_number: 'YUN-0001', first_name: 'Jane', last_name: 'D',
+      id_number: 'ID123', phone: '0712345678', email: 'other@x.com',
+    });
+    const byId = await memberRegistrationSubmissionService.lookupExistingMember({ id_number: 'id123' });
+    expect(byId).not.toBeNull();
+    const byPhone = await memberRegistrationSubmissionService.lookupExistingMember({ phone: '0712345678' });
+    expect(byPhone).not.toBeNull();
+    const none = await memberRegistrationSubmissionService.lookupExistingMember({ id_number: 'NOPE' });
+    expect(none).toBeNull();
+  });
+
+  it('applyUpdate() writes submitted fields onto the linked member and closes the submission', async () => {
+    membersTable.push({
+      id: 'm-1', member_number: 'YUN-0001', first_name: 'John', last_name: 'Doe',
+      id_number: 'ID123', phone: '0712345678', email: 'old@x.com',
+    });
+    // create an update submission that changes the email
+    const { submission } = await memberRegistrationSubmissionService.create(
+      { ...baseData, email: 'new@x.com' },
+      { intent: 'update', existingMemberId: 'm-1' }
+    );
+
+    const result = await memberRegistrationSubmissionService.applyUpdate(submission.id, 'admin-1');
+    expect(result.success).toBe(true);
+    expect(result.member?.member_number).toBe('YUN-0001');
+
+    // member row updated, other fields untouched
+    expect(membersTable[0].email).toBe('new@x.com');
+    expect(membersTable[0].phone).toBe('0712345678');
+
+    // submission closed + linked; applying twice is refused
+    const closed = insertedSubmissions.find((s) => s.id === submission.id)!;
+    expect(closed.status).toBe('registered');
+    expect(closed.registered_member_id).toBe('m-1');
+    const again = await memberRegistrationSubmissionService.applyUpdate(submission.id, 'admin-1');
+    expect(again.success).toBe(false);
+  });
+
+  it('applyUpdate() refuses a register-intent submission', async () => {
+    const { submission } = await memberRegistrationSubmissionService.create(baseData);
+    const result = await memberRegistrationSubmissionService.applyUpdate(submission.id, 'admin-1');
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/update submissions/);
   });
 
   it('markRegistered() links the submission and refuses double-registration', async () => {
@@ -337,5 +429,47 @@ describe('POST /api/member-registration-submissions (public)', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
+  });
+
+  it('returns 409 + matches payload when the ID/phone already exists', async () => {
+    membersTable.push({
+      id: 'm-1', member_number: 'YUN-0001', first_name: 'Jane', last_name: 'D',
+      id_number: 'ID123', phone: '0712345678', email: 'other@x.com',
+    });
+    const { POST } = await import('@/app/api/member-registration-submissions/route');
+    const req = new NextRequest('http://localhost/api/member-registration-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(baseData),
+    });
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(409);
+    expect(json.success).toBe(false);
+    expect(json.code).toBe('DUPLICATE_MEMBER');
+    expect(json.matches.id_number.member_id).toBe('m-1');
+    expect(insertedSubmissions).toHaveLength(0);
+  });
+
+  it('accepts an update submission linked to the existing member (201)', async () => {
+    const memberId = '11111111-1111-4111-8111-111111111111';
+    membersTable.push({
+      id: memberId, member_number: 'YUN-0001', first_name: 'John', last_name: 'Doe',
+      id_number: 'ID123', phone: '0712345678', email: 'other@x.com',
+    });
+    const { POST } = await import('@/app/api/member-registration-submissions/route');
+    const req = new NextRequest('http://localhost/api/member-registration-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...baseData, intent: 'update', existing_member_id: memberId }),
+    });
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(201);
+    expect(json.success).toBe(true);
+    expect(json.data.intent).toBe('update');
+    const row = insertedSubmissions[0];
+    expect(row.intent).toBe('update');
+    expect(row.existing_member_id).toBe(memberId);
   });
 });

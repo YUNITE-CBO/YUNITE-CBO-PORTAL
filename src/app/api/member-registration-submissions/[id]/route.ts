@@ -72,7 +72,22 @@ export async function PATCH(
     const adminUserId = authResult.user!.user_id;
 
     let result;
-    if (status === 'reviewing') {
+    if (status === 'applied') {
+      // Apply an update-intent submission to its linked existing member.
+      // Mutates a member record, so require members.update on top of the
+      // general create permission checked above.
+      const updAuth = await requirePermission(request, 'members', 'update');
+      if (!updAuth.success) {
+        return updAuth.status === 401
+          ? unauthorizedResponse(updAuth.error)
+          : forbiddenResponse(updAuth.error);
+      }
+      result = await memberRegistrationSubmissionService.applyUpdate(params.id, updAuth.user!.user_id);
+      if (!result.success) {
+        return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, data: result.member });
+    } else if (status === 'reviewing') {
       await memberRegistrationSubmissionService.markReviewing(params.id, adminUserId);
       result = { success: true };
     } else if (status === 'rejected') {

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { memberRegistrationSubmissionService } from '@/lib/services/member-registration-submission.service';
+import {
+  memberRegistrationSubmissionService,
+  DuplicateMemberError,
+} from '@/lib/services/member-registration-submission.service';
 import { getClientIP, getUserAgent, requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +35,11 @@ const submissionSchema = z.object({
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
   emergency_contact_relationship: z.string().optional(),
+  // 'register' (default) = new applicant; 'update' = applicant identified via
+  // the public lookup and is editing their EXISTING member record (linked by
+  // existing_member_id or by the id_number/phone match).
+  intent: z.enum(['register', 'update']).optional(),
+  existing_member_id: z.string().uuid().optional(),
 });
 
 /**
@@ -59,16 +67,21 @@ export async function POST(request: NextRequest) {
         ipAddress: getClientIP(request),
         userAgent: getUserAgent(request),
         source: 'public_form',
+        intent: validated.intent,
+        existingMemberId: validated.existing_member_id,
       });
 
+    const isUpdate = validated.intent === 'update';
     return NextResponse.json(
       {
         success: true,
-        message:
-          'Your information has been submitted successfully. Your application is awaiting processing by YUNITE PAMOJA CBO. This submission does not automatically make you a registered member.',
+        message: isUpdate
+          ? 'Your update request has been submitted successfully. A YUNITE administrator will review and apply the changes to your existing member record.'
+          : 'Your information has been submitted successfully. Your application is awaiting processing by YUNITE PAMOJA CBO. This submission does not automatically make you a registered member.',
         data: {
           submission_reference: submission.submission_reference,
           status: submission.status,
+          intent: isUpdate ? 'update' : 'register',
           duplicate_flagged: duplicates.flagged,
         },
       },
@@ -79,6 +92,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Validation error', details: error.errors },
         { status: 400 }
+      );
+    }
+    // Duplicate id_number/phone on a NEW registration → 409 Conflict. The
+    // public form uses the matches to offer the "load my existing record"
+    // update flow.
+    if (error instanceof DuplicateMemberError) {
+      return NextResponse.json(
+        { success: false, error: error.message, code: 'DUPLICATE_MEMBER', matches: error.matches },
+        { status: 409 }
       );
     }
     const errorMessage = error instanceof Error ? error.message : 'Submission failed';

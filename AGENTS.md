@@ -1193,6 +1193,34 @@ existing registration engine remains the source of truth — this layer feeds it
   templates (`member.submission.received`, `member.submission.reviewing`,
   `member.submission.registered`, `member.submission.rejected`). Run in
   Supabase SQL Editor on deploy.
+- **Duplicate rejection + pre-edit update flow (migration 041
+  `041_submission_update_intent.sql`, IMPLEMENTED)**: public form submissions
+  now have `intent` ('register'|'update') + `existing_member_id` +
+  `update_applied_at/by` columns. id_number/phone are HARD identity fields: a
+  'register' submission matching an existing member on either is REFUSED with
+  `DuplicateMemberError` → HTTP 409 `{code:'DUPLICATE_MEMBER', matches}` (email
+  matches stay advisory flags). Public lookup route `GET
+  /api/member-registration-submissions/lookup?id_number=|phone=` (no session —
+  the middleware publicReadPaths prefix covers it) returns the member's record
+  for pre-fill; exact case-insensitive single-record match only (no fuzzy
+  search → not enumerable). The public form has an "Already registered? Find
+  my record" button next to the ID field (+ a "Load my existing record" button
+  on a 409): on a match it enters pre-edit mode — whole form pre-filled from
+  the on-file data, header switches to "Update My Member Record", submit sends
+  `intent:'update'` + `existing_member_id`, and the success screen talks about
+  an update request. Admin queue (AutofillFromSubmissionsModal): update-intent
+  submissions show a blue "Update request" badge + a "View member →" link +
+  an "Apply Update to Member" button (PATCH `{status:'applied'}` →
+  `applyUpdate()`, gated by members.update). `applyUpdate()` writes ONLY
+  non-empty submitted fields (never erases with blanks), then closes the
+  submission (status 'registered' linked to the UPDATED member). The service
+  degrades gracefully if migration 041 hasn't been run: the insert retries
+  without the new columns and embeds `intent`/`existing_member_id` in the
+  `submitted_data` JSON, which `applyUpdate()` also reads back. Deploy: run
+  migration 041 in Supabase SQL Editor. Tests:
+  `tests/member-registration-submissions.test.ts` (18: id/phone hard
+  rejection, email flag-only, update linkage, lookup fallbacks, applyUpdate
+  writes + double-apply refusal, register-refusal, 409 mapping, 201 update).
 - **Service** (`src/lib/services/member-registration-submission.service.ts`):
   `create(data, opts)` — validates against the SAME Zod schema shape as
   `registrationSchema`, normalizes phone/email, detects duplicates against

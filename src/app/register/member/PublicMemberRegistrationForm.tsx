@@ -72,10 +72,15 @@ export default function PublicMemberRegistrationForm() {
   const [formData, setFormData] = useState<RegistrationForm>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<
-    | { type: 'success'; reference: string; duplicate_flagged: boolean }
-    | { type: 'error'; text: string }
+    | { type: 'success'; reference: string; duplicate_flagged: boolean; intent: 'register' | 'update' }
+    | { type: 'error'; text: string; duplicate?: boolean }
     | null
   >(null);
+  // Existing-member ("pre-edit") state: when the ID/phone lookup finds a
+  // record, the form is pre-filled with the on-file data and submits an
+  // UPDATE request linked to that member instead of a new registration.
+  const [existingMember, setExistingMember] = useState<{ id: string; member_number: string; status: string } | null>(null);
+  const [lookupState, setLookupState] = useState<'idle' | 'checking' | 'found' | 'not_found'>('idle');
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -84,16 +89,69 @@ export default function PublicMemberRegistrationForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  /**
+   * Look up the applicant's existing record by ID number (falling back to
+   * phone). On a match, pre-fill the whole form with the on-file data and
+   * switch the form into "update" mode.
+   */
+  const runLookup = async () => {
+    const idNumber = formData.id_number.trim();
+    const phone = formData.phone.trim();
+    if (!idNumber && !phone) {
+      setLookupState('not_found');
+      return;
+    }
+    setLookupState('checking');
+    try {
+      const params = new URLSearchParams();
+      if (idNumber) params.set('id_number', idNumber);
+      else if (phone) params.set('phone', phone);
+      const res = await fetch(`/api/member-registration-submissions/lookup?${params.toString()}`);
+      const data = await res.json();
+
+      if (data.success && data.data?.exists && data.data?.member) {
+        const m = data.data.member as Record<string, string | null>;
+        const prefill: Record<string, string> = {};
+        (Object.keys(EMPTY_FORM) as (keyof RegistrationForm)[]).forEach((k) => {
+          const v = m[k];
+          prefill[k] = v === null || v === undefined ? (k === 'gender' ? 'male' : '') : String(v);
+        });
+        if (!['male', 'female', 'other'].includes(prefill.gender)) prefill.gender = 'male';
+        setFormData({ ...EMPTY_FORM, ...prefill } as RegistrationForm);
+        setExistingMember({ id: m.id as string, member_number: m.member_number as string, status: m.status as string });
+        setLookupState('found');
+      } else {
+        setExistingMember(null);
+        setLookupState('not_found');
+      }
+    } catch {
+      setLookupState('not_found');
+    }
+  };
+
+  /** Leave the existing-record pre-edit mode and go back to a fresh form. */
+  const resetToNewRegistration = () => {
+    setExistingMember(null);
+    setLookupState('idle');
+    setFormData(EMPTY_FORM);
+    setResult(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setResult(null);
 
     try {
+      const payload: Record<string, unknown> = { ...formData };
+      if (existingMember) {
+        payload.intent = 'update';
+        payload.existing_member_id = existingMember.id;
+      }
       const res = await fetch('/api/member-registration-submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
@@ -102,10 +160,17 @@ export default function PublicMemberRegistrationForm() {
           type: 'success',
           reference: data.data.submission_reference,
           duplicate_flagged: data.data.duplicate_flagged,
+          intent: existingMember ? 'update' : 'register',
         });
         setFormData(EMPTY_FORM);
+        setExistingMember(null);
+        setLookupState('idle');
       } else {
-        setResult({ type: 'error', text: data.error || 'Submission failed' });
+        setResult({
+          type: 'error',
+          text: data.error || 'Submission failed',
+          duplicate: data.code === 'DUPLICATE_MEMBER',
+        });
       }
     } catch {
       setResult({ type: 'error', text: 'Submission failed. Please try again.' });
@@ -122,28 +187,39 @@ export default function PublicMemberRegistrationForm() {
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <div style={{ fontSize: 48 }}>✓</div>
             <h1 style={{ color: '#0B2A4A', fontFamily: 'Georgia, serif', fontSize: 24, margin: '8px 0' }}>
-              Your Information Has Been Submitted
+              {result.intent === 'update' ? 'Your Update Request Has Been Submitted' : 'Your Information Has Been Submitted'}
             </h1>
             <p style={{ color: '#4B5563', fontSize: 14, maxWidth: 480, margin: '0 auto' }}>
-              Thank you for submitting your information to {ORG_IDENTITY.name}.
+              {result.intent === 'update'
+                ? 'A YUNITE administrator will review and apply the changes to your existing member record.'
+                : `Thank you for submitting your information to ${ORG_IDENTITY.name}.`}
             </p>
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 16, margin: '20px 0', textAlign: 'left' }}>
               <div style={{ fontSize: 13, color: '#166534' }}>
                 <strong>Reference:</strong> {result.reference}
               </div>
-              <p style={{ fontSize: 13, color: '#166534', marginTop: 8 }}>
-                Your application is awaiting processing by YUNITE PAMOJA CBO.
-              </p>
-              <p style={{ fontSize: 13, color: '#9A3412', marginTop: 8, fontWeight: 600 }}>
-                This submission does NOT automatically make you a registered member. A YUNITE
-                administrator will review your information and complete your registration. You will
-                be contacted once your membership has been processed.
-              </p>
-              {result.duplicate_flagged && (
-                <p style={{ fontSize: 12, color: '#92400E', marginTop: 8, background: '#FEF3C7', padding: 8, borderRadius: 6 }}>
-                  Note: our records show information similar to yours may already be on file. This
-                  does not prevent submission — an administrator will review it.
+              {result.intent === 'update' ? (
+                <p style={{ fontSize: 13, color: '#166534', marginTop: 8 }}>
+                  Your update is awaiting administrator approval — it updates your EXISTING member
+                  record, it does not create a duplicate profile.
                 </p>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: '#166534', marginTop: 8 }}>
+                    Your application is awaiting processing by YUNITE PAMOJA CBO.
+                  </p>
+                  <p style={{ fontSize: 13, color: '#9A3412', marginTop: 8, fontWeight: 600 }}>
+                    This submission does NOT automatically make you a registered member. A YUNITE
+                    administrator will review your information and complete your registration. You will
+                    be contacted once your membership has been processed.
+                  </p>
+                  {result.duplicate_flagged && (
+                    <p style={{ fontSize: 12, color: '#92400E', marginTop: 8, background: '#FEF3C7', padding: 8, borderRadius: 6 }}>
+                      Note: our records show information similar to yours may already be on file. This
+                      does not prevent submission — an administrator will review it.
+                    </p>
+                  )}
+                </>
               )}
             </div>
             <button
@@ -164,16 +240,41 @@ export default function PublicMemberRegistrationForm() {
       <BrandHeader />
       <div style={cardStyle}>
         <h1 style={{ color: '#0B2A4A', fontFamily: 'Georgia, serif', fontSize: 24, margin: '0 0 4px' }}>
-          Member Registration Form
+          {existingMember ? 'Update My Member Record' : 'Member Registration Form'}
         </h1>
         <p style={{ color: '#6B7280', fontSize: 13, margin: '0 0 20px' }}>
-          Please provide your information below. A YUNITE administrator will review and complete your
-          registration. Submitting this form does not automatically make you a registered member.
+          {existingMember
+            ? `You are updating the existing record for member no. ${existingMember.member_number}. Edit the fields below and an administrator will apply your changes.`
+            : 'Please provide your information below. A YUNITE administrator will review and complete your registration. Submitting this form does not automatically make you a registered member.'}
         </p>
+
+        {existingMember && (
+          <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <span>
+              ✓ Existing record found (member no. <strong>{existingMember.member_number}</strong>, status: {existingMember.status}). The form below is pre-filled with your on-file data — review and update it.
+            </span>
+            <button
+              type="button"
+              onClick={resetToNewRegistration}
+              style={{ padding: '6px 12px', background: '#fff', color: '#1E40AF', border: '1px solid #BFDBFE', borderRadius: 6, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+            >
+              Start new registration
+            </button>
+          </div>
+        )}
 
         {result?.type === 'error' && (
           <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
-            {result.text}
+            <div>{result.text}</div>
+            {result.duplicate && (
+              <button
+                type="button"
+                onClick={runLookup}
+                style={{ marginTop: 8, padding: '6px 12px', background: '#991B1B', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600 }}
+              >
+                Load my existing record
+              </button>
+            )}
           </div>
         )}
 
@@ -195,6 +296,21 @@ export default function PublicMemberRegistrationForm() {
               </Field>
               <Field label="ID Number">
                 <input type="text" name="id_number" value={formData.id_number} onChange={handleInputChange} className={inputClass} />
+              </Field>
+              <Field label="&nbsp;">
+                <button
+                  type="button"
+                  onClick={runLookup}
+                  disabled={lookupState === 'checking'}
+                  style={{ padding: '9px 14px', background: '#EFF6FF', color: '#1E40AF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+                >
+                  {lookupState === 'checking' ? 'Checking…' : 'Already registered? Find my record'}
+                </button>
+                {lookupState === 'not_found' && (
+                  <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                    No existing record for this ID/phone — continue as a new registration.
+                  </p>
+                )}
               </Field>
               <Field label="KRA PIN">
                 <input type="text" name="kra_pin" value={formData.kra_pin} onChange={handleInputChange} className={inputClass} />
@@ -289,7 +405,11 @@ export default function PublicMemberRegistrationForm() {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
             <button type="submit" disabled={submitting} style={{ ...buttonStyle, opacity: submitting ? 0.6 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-              {submitting ? 'Submitting...' : 'Submit Registration Information'}
+              {submitting
+                ? 'Submitting...'
+                : existingMember
+                  ? `Submit Update for Member ${existingMember.member_number}`
+                  : 'Submit Registration Information'}
             </button>
           </div>
         </form>

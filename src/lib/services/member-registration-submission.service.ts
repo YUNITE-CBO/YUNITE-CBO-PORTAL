@@ -63,10 +63,22 @@ export type SubmissionStatus =
   | 'rejected'
   | 'archived';
 
+/**
+ * 'register' = a brand-new applicant. 'update' = the applicant's ID number or
+ * phone already matches an existing member; the public form pre-filled the
+ * EXISTING record and the applicant edited it — an admin applies the changes
+ * to that member instead of registering a duplicate profile.
+ */
+export type SubmissionIntent = 'register' | 'update';
+
 export interface MemberRegistrationSubmission extends RegistrationSubmissionData {
   id: string;
   submission_reference: string;
   status: SubmissionStatus;
+  intent: SubmissionIntent;
+  existing_member_id: string | null;
+  update_applied_at: string | null;
+  update_applied_by: string | null;
   registered_member_id: string | null;
   registered_member_number: string | null;
   registered_at: string | null;
@@ -85,6 +97,28 @@ export interface MemberRegistrationSubmission extends RegistrationSubmissionData
   updated_at: string;
 }
 
+/**
+ * Thrown when a 'register' submission collides with an existing member on
+ * id_number and/or phone. The API route maps this to HTTP 409 so the public
+ * form can offer the "load my existing record" update flow instead.
+ */
+export class DuplicateMemberError extends Error {
+  matches: DuplicateMatch['match'];
+  constructor(matches: DuplicateMatch['match']) {
+    const fields = Object.keys(matches).map((f) => f.replace('_', ' ')).join(' and ');
+    const memberNumbers = Object.values(matches)
+      .map((m) => m.member_number)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .join(', ');
+    super(
+      `A member with this ${fields} already exists in the system (member no. ${memberNumbers}). ` +
+      `Duplicate profiles are not allowed — use the "Already registered? Find my record" option to review and update the existing record instead.`
+    );
+    this.name = 'DuplicateMemberError';
+    this.matches = matches;
+  }
+}
+
 export interface DuplicateMatch {
   flagged: boolean;
   match: Record<string, { member_id: string; member_number: string; name: string }>;
@@ -101,12 +135,27 @@ export interface SubmissionQueryParams {
 class MemberRegistrationSubmissionService {
   /**
    * Create a new pre-registration submission from the public form.
-   * Does NOT create a member. Runs duplicate detection against existing
-   * members (id_number / phone / email) and stores the flag for the admin.
+   * Does NOT create a member.
+   *
+   * Duplicate policy (id_number / phone are identity fields):
+   *   - intent 'register' (default): a match on id_number or phone means the
+   *     profile already exists — the submission is REFUSED with
+   *     DuplicateMemberError (HTTP 409) so no duplicate profile can enter the
+   *     system. Email matches stay advisory flags only.
+   *   - intent 'update': the applicant identified themselves via the public
+   *     lookup; the submission is LINKED to the existing member
+   *     (existing_member_id) and an admin later applies the edits — no new
+   *     member is ever registered from it.
    */
   async create(
     data: RegistrationSubmissionData,
-    opts: { ipAddress?: string; userAgent?: string; source?: string } = {}
+    opts: {
+      ipAddress?: string;
+      userAgent?: string;
+      source?: string;
+      intent?: SubmissionIntent;
+      existingMemberId?: string;
+    } = {}
   ): Promise<{ submission: MemberRegistrationSubmission; duplicates: DuplicateMatch }> {
     const supabase = await createServiceClient();
 
@@ -118,24 +167,70 @@ class MemberRegistrationSubmissionService {
 
     // Duplicate detection against EXISTING members (read-only).
     const duplicates = await this.detectDuplicates(data);
+    const intent: SubmissionIntent = opts.intent === 'update' ? 'update' : 'register';
+
+    let existingMemberId: string | null = null;
+    if (intent === 'update') {
+      // Resolve the member this update targets: an explicit id wins, else the
+      // id_number/phone match. An update against nothing is meaningless.
+      existingMemberId =
+        opts.existingMemberId ||
+        duplicates.match.id_number?.member_id ||
+        duplicates.match.phone?.member_id ||
+        null;
+      if (!existingMemberId) {
+        throw new Error(
+          'No existing member record was found for this ID number/phone. Submit as a new registration instead.'
+        );
+      }
+    } else if (duplicates.match.id_number || duplicates.match.phone) {
+      // HARD duplicate rejection: id_number/phone uniquely identify a member.
+      throw new DuplicateMemberError({
+        ...(duplicates.match.id_number ? { id_number: duplicates.match.id_number } : {}),
+        ...(duplicates.match.phone ? { phone: duplicates.match.phone } : {}),
+      });
+    }
 
     const submission_reference = await this.generateReference();
-    const { data: row, error } = await supabase
+    const insertPayload: Record<string, unknown> = {
+      id: uuidv4(),
+      submission_reference,
+      ...data,
+      status: 'submitted',
+      intent,
+      existing_member_id: existingMemberId,
+      duplicate_flagged: duplicates.flagged,
+      duplicate_match: duplicates.match as unknown as Record<string, string> | null,
+      submitted_data: data as unknown as Record<string, unknown>,
+      submission_source: opts.source || 'public_form',
+      ip_address: opts.ipAddress || null,
+      user_agent: opts.userAgent || null,
+    };
+    let { data: row, error } = await supabase
       .from('member_registration_submissions')
-      .insert({
-        id: uuidv4(),
-        submission_reference,
-        ...data,
-        status: 'submitted',
-        duplicate_flagged: duplicates.flagged,
-        duplicate_match: duplicates.match as unknown as Record<string, string> | null,
-        submitted_data: data as unknown as Record<string, unknown>,
-        submission_source: opts.source || 'public_form',
-        ip_address: opts.ipAddress || null,
-        user_agent: opts.userAgent || null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    // Migration 041 not yet applied: the intent/existing_member_id columns do
+    // not exist. Retry without them, embedding the update linkage inside the
+    // submitted_data JSON so applyUpdate() can still resolve it.
+    if (error && /intent|existing_member_id/i.test(error.message || '')) {
+      const fallback = { ...insertPayload };
+      delete fallback.intent;
+      delete fallback.existing_member_id;
+      fallback.submitted_data = {
+        ...(data as unknown as Record<string, unknown>),
+        _intent: intent,
+        _existing_member_id: existingMemberId,
+      };
+      ({ data: row, error } = await supabase
+        .from('member_registration_submissions')
+        .insert(fallback)
+        .select()
+        .single());
+      if (row && !row.intent) row.intent = intent;
+    }
 
     if (error || !row) {
       throw new Error(`Failed to create submission: ${error?.message}`);
@@ -438,6 +533,160 @@ class MemberRegistrationSubmissionService {
     const existing = await this.getById(id);
     if (!existing) return { flagged: false, match: {} };
     return this.detectDuplicates(existing);
+  }
+
+  /**
+   * PUBLIC lookup used by the pre-registration form: find an existing member
+   * by EXACT id_number and/or phone so the form can open in "pre-edit" mode
+   * with the member's on-file data instead of creating a duplicate profile.
+   * Exact, case-insensitive, single-record match only — no fuzzy search (that
+   * would make the member list enumerable).
+   */
+  async lookupExistingMember(identifier: {
+    id_number?: string;
+    phone?: string;
+  }): Promise<Record<string, unknown> | null> {
+    const supabase = await createServiceClient();
+    const idNumber = identifier.id_number?.trim();
+    const phone = identifier.phone?.trim();
+    if (!idNumber && !phone) return null;
+
+    if (idNumber) {
+      const { data } = await supabase
+        .from('members')
+        .select('*')
+        .ilike('id_number', idNumber)
+        .limit(1)
+        .maybeSingle();
+      if (data) return data;
+    }
+    if (phone) {
+      const { data } = await supabase
+        .from('members')
+        .select('*')
+        .ilike('phone', phone)
+        .limit(1)
+        .maybeSingle();
+      if (data) return data;
+    }
+    return null;
+  }
+
+  /** The registration fields an update submission is allowed to apply. */
+  private static readonly UPDATE_FIELDS: (keyof RegistrationSubmissionData)[] = [
+    'first_name', 'last_name', 'email', 'phone', 'alt_phone', 'alt_email',
+    'id_number', 'kra_pin', 'date_of_birth', 'gender', 'marital_status',
+    'nationality', 'physical_address', 'postal_address', 'occupation',
+    'employer', 'employer_address', 'next_of_kin_name', 'next_of_kin_phone',
+    'next_of_kin_relationship', 'emergency_contact_name',
+    'emergency_contact_phone', 'emergency_contact_relationship',
+  ];
+
+  /**
+   * Apply an update-intent submission to its linked existing member. Only
+   * non-empty submitted fields are written — a blank field in the form never
+   * erases on-file data. Marks the submission processed (status 'registered',
+   * linked to the UPDATED member) so it leaves the queue and cannot be
+   * applied twice.
+   */
+  async applyUpdate(
+    id: string,
+    adminUserId: string
+  ): Promise<{ success: boolean; error?: string; member?: { id: string; member_number: string } }> {
+    const supabase = await createServiceClient();
+    const existing = await this.getById(id);
+    if (!existing) return { success: false, error: 'Submission not found' };
+
+    const submitted = (existing.submitted_data || {}) as unknown as Record<string, unknown>;
+    const intent: SubmissionIntent =
+      existing.intent || (submitted._intent === 'update' ? 'update' : 'register');
+    if (intent !== 'update') {
+      return { success: false, error: 'Only update submissions can be applied to an existing member. Use Register Member for new applicants.' };
+    }
+    const targetMemberId =
+      existing.existing_member_id || (submitted._existing_member_id as string | undefined) || null;
+    if (!targetMemberId) {
+      return { success: false, error: 'This update submission is not linked to an existing member.' };
+    }
+    if (existing.update_applied_at || submitted._update_applied_at) {
+      return { success: false, error: 'This update has already been applied.' };
+    }
+    if (existing.status === 'registered' || existing.status === 'rejected') {
+      return { success: false, error: 'This submission is already closed and cannot be applied.' };
+    }
+
+    const { data: member } = await supabase
+      .from('members')
+      .select('id, member_number')
+      .eq('id', targetMemberId)
+      .maybeSingle();
+    if (!member) {
+      return { success: false, error: 'The linked member no longer exists.' };
+    }
+
+    // Build the member patch from non-empty submitted fields only.
+    const patch: Record<string, unknown> = {};
+    for (const field of MemberRegistrationSubmissionService.UPDATE_FIELDS) {
+      const v = submitted[field];
+      if (v !== undefined && v !== null && v !== '') patch[field] = v;
+    }
+    if (Object.keys(patch).length === 0) {
+      return { success: false, error: 'Nothing to apply — the submission carries no profile fields.' };
+    }
+    patch.updated_at = new Date().toISOString();
+
+    const { error: upErr } = await supabase.from('members').update(patch).eq('id', targetMemberId);
+    if (upErr) {
+      return { success: false, error: `Failed to update member: ${upErr.message}` };
+    }
+
+    const now = new Date().toISOString();
+    let { error: subErr } = await supabase
+      .from('member_registration_submissions')
+      .update({
+        status: 'registered',
+        registered_member_id: targetMemberId,
+        registered_member_number: member.member_number,
+        registered_at: now,
+        registered_by: adminUserId,
+        update_applied_at: now,
+        update_applied_by: adminUserId,
+        reviewed_at: existing.reviewed_at || now,
+        reviewed_by: existing.reviewed_by || adminUserId,
+      })
+      .eq('id', id);
+    // Migration 041 not yet applied: drop the new columns.
+    if (subErr && /update_applied/i.test(subErr.message || '')) {
+      ({ error: subErr } = await supabase
+        .from('member_registration_submissions')
+        .update({
+          status: 'registered',
+          registered_member_id: targetMemberId,
+          registered_member_number: member.member_number,
+          registered_at: now,
+          registered_by: adminUserId,
+        })
+        .eq('id', id));
+    }
+    if (subErr) {
+      return { success: false, error: `Member updated but failed to close the submission: ${subErr.message}` };
+    }
+
+    try {
+      await supabase.from('audit_logs').insert({
+        id: uuidv4(),
+        action: 'member_registration_submission.update_applied',
+        record_id: id,
+        user_id: adminUserId,
+        after_value: { member_id: targetMemberId, member_number: member.member_number, fields: Object.keys(patch) },
+        description: `Update submission ${existing.submission_reference} applied to member ${member.member_number} (${Object.keys(patch).length} fields)`,
+        created_at: now,
+      });
+    } catch (e) {
+      console.warn('Failed to audit submission update:', e);
+    }
+
+    return { success: true, member: { id: targetMemberId, member_number: member.member_number } };
   }
 
   /**
