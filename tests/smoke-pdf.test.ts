@@ -1,6 +1,19 @@
 import { generateDocument, buildEnvelope } from '@/modules/documents';
 import type { DocumentData } from '@/modules/documents';
 import { renderDocument } from '@/lib/services/reports/report-renderer';
+import type { MemberProfileData } from '@/lib/services/reports/report-data.service';
+
+const PROFILE: MemberProfileData = {
+  member_number: 'YUN-20260804-0001', first_name: 'Stephen', last_name: 'Ngari', email: 'stephen@x.com', phone: '0700000000',
+  alt_phone: null, alt_email: null, id_number: '12345678', kra_pin: 'A001234567X', date_of_birth: '1990-05-04',
+  gender: 'male', marital_status: 'married', nationality: 'Kenyan', physical_address: 'Nairobi CBD',
+  postal_address: 'P.O. Box 1', occupation: 'Tailor', employer: 'Acme Ltd', employer_address: 'Industrial Area',
+  next_of_kin_name: 'Jane Kin', next_of_kin_phone: '0722', next_of_kin_relationship: 'Spouse',
+  emergency_contact_name: 'Mary Emg', emergency_contact_phone: '0733', emergency_contact_relationship: 'Sister',
+  preferred_language: 'English', preferred_contact_method: 'sms', sms_notifications: true, email_notifications: false,
+  membership_category: 'Standard', member_group: null, status: 'active', workflow_stage: 'completed',
+  registration_date: '2026-08-04', created_at: '2026-08-04T10:00:00Z',
+};
 
 describe('PDF smoke test (pdfmake, browser-free)', () => {
   test('renders an organization summary to a non-empty PDF buffer', async () => {
@@ -115,6 +128,39 @@ describe('PDF smoke test (pdfmake, browser-free)', () => {
       },
     };
     const result = await generateDocument({ kind: 'member_statement', envelope, data });
+    expect(result.buffer.slice(0, 5).toString('ascii')).toBe('%PDF-');
+    expect(result.buffer.length).toBeGreaterThan(1000);
+  }, 30000);
+
+  test('renders a single member profile PDF with all personal information', async () => {
+    const envelope = await buildEnvelope({
+      kind: 'member_profile',
+      title: 'Member Profile',
+      eyebrow: 'Member Profile',
+      period: { start: new Date('2026-01-01'), end: new Date(), label: 'All time' },
+      memberNumber: 'YUN-20260804-0001',
+      classification: 'Confidential',
+    });
+    const data: DocumentData = { kind: 'member_profile', profiles: [PROFILE], total: 1 };
+    const result = await generateDocument({ kind: 'member_profile', envelope, data });
+    expect(result.buffer.slice(0, 5).toString('ascii')).toBe('%PDF-');
+    expect(result.buffer.length).toBeGreaterThan(1000);
+    // Envelope carries the doc ref + auth hash for traceability.
+    expect(envelope.documentNumber).toMatch(/^YUNITE-MBR-PRF-/);
+    expect(envelope.authHash).toHaveLength(16);
+  }, 30000);
+
+  test('renders a bulk all-members profile PDF (one profile per page)', async () => {
+    const other: MemberProfileData = { ...PROFILE, member_number: 'YUN-20260805-0002', first_name: 'Jane', last_name: 'Doe', status: 'pending' };
+    const envelope = await buildEnvelope({
+      kind: 'member_profile',
+      title: 'Member Profiles',
+      eyebrow: 'Member Profiles',
+      period: { start: new Date('2026-01-01'), end: new Date(), label: 'All time' },
+      classification: 'Confidential',
+    });
+    const data: DocumentData = { kind: 'member_profile', profiles: [PROFILE, other], total: 2 };
+    const result = await generateDocument({ kind: 'member_profile', envelope, data });
     expect(result.buffer.slice(0, 5).toString('ascii')).toBe('%PDF-');
     expect(result.buffer.length).toBeGreaterThan(1000);
   }, 30000);

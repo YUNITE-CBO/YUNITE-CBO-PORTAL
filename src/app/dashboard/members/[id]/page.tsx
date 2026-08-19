@@ -283,12 +283,12 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
     }
   };
 
-  /** Generate & download a certified member statement of account. */
-  const generateStatement = async (format: 'pdf' | 'csv' = 'pdf') => {
+  /** Generate & download a certified member document (statement or profile). */
+  const generateMemberDocument = async (type: 'member_statement' | 'member_profile', format: 'pdf' | 'csv' = 'pdf') => {
     setGeneratingStatement(true);
     try {
       const url = new URL('/api/reports/generate', window.location.origin);
-      url.searchParams.set('type', 'member_statement');
+      url.searchParams.set('type', type);
       url.searchParams.set('format', format);
       url.searchParams.set('date_range', 'all_time');
       url.searchParams.set('member_id', id);
@@ -300,7 +300,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       const blob = await res.blob();
       const disp = res.headers.get('Content-Disposition') || '';
       const m = disp.match(/filename="?([^"]+)"?/i);
-      const filename = m ? m[1] : `member_statement_${id}.${format}`;
+      const filename = m ? m[1] : `${type}_${id}.${format}`;
       const objUrl = window.URL.createObjectURL(blob);
       const a = window.document.createElement('a');
       a.href = objUrl;
@@ -309,13 +309,17 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       a.click();
       a.remove();
       window.URL.revokeObjectURL(objUrl);
-      setMessage({ type: 'success', text: `Statement ${res.headers.get('X-Document-Ref') || ''} generated & downloaded.` });
+      const label = type === 'member_profile' ? 'Profile' : 'Statement';
+      setMessage({ type: 'success', text: `${label} ${res.headers.get('X-Document-Ref') || ''} generated & downloaded.` });
     } catch (e) {
-      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to generate statement' });
+      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to generate document' });
     } finally {
       setGeneratingStatement(false);
     }
   };
+
+  /** Generate & download a certified member statement of account. */
+  const generateStatement = (format: 'pdf' | 'csv' = 'pdf') => generateMemberDocument('member_statement', format);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -788,6 +792,15 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
                   <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => generateMemberDocument('member_profile', 'pdf')}
+                      disabled={generatingStatement}
+                      title="Generate & download a certified member profile with all personal information (PDF)"
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg text-white disabled:opacity-50"
+                      style={{ background: '#0B2A4A' }}
+                    >
+                      {generatingStatement ? '⏳ …' : '🪪 Profile (PDF)'}
+                    </button>
                     <button
                       onClick={() => generateStatement('pdf')}
                       disabled={generatingStatement}

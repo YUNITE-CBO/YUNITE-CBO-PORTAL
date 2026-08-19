@@ -17,6 +17,7 @@ import {
   memberFinancialStandingTemplate,
   loanStatementTemplate,
 } from './statement-reports';
+import { memberProfileTemplate } from './profile-reports';
 import {
   investigationReportTemplate,
   memberVerificationReportTemplate,
@@ -46,6 +47,8 @@ export async function renderTemplate(envelope: DocumentEnvelope, data: DocumentD
       return welfareReportTemplate(envelope, data.welfare);
     case 'member_list':
       return memberListTemplate(envelope, data.members, data.total);
+    case 'member_profile':
+      return memberProfileTemplate(envelope, data.profiles, data.total);
     case 'loan_report':
       return loanReportTemplate(envelope, data.loans, data.total);
     case 'transaction_report':

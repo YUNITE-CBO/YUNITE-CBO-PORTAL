@@ -43,6 +43,7 @@ interface GeneratedDocHistory {
 const ICONS: Record<string, string> = {
   financial_summary: '💰',
   member_list: '👥',
+  member_profile: '🪪',
   loan_report: '🏦',
   transaction_report: '📋',
   contribution_report: '🎯',
@@ -50,6 +51,7 @@ const ICONS: Record<string, string> = {
   member_statement: '📑',
   welfare_report: '🛡️',
   organization_summary: '🏢',
+  unity_fund_report: '🏦',
 };
 
 const DATE_RANGE_LABELS: Record<string, string> = {

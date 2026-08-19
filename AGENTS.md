@@ -219,8 +219,29 @@ manual admin action on `/dashboard/members/[id]` (PUT status->active upserts
 ## Document Generation & Export Engine (`src/lib/services/reports/`)
 A full bank-style document generation engine produces branded, certified,
 downloadable PDF/CSV documents for every reportable surface: financial
-summary, member register, loan portfolio, transaction ledger, contributions,
-fines, member statement of account, welfare fund, and organization summary.
+summary, member register, **member profile**, loan portfolio, transaction
+ledger, contributions, fines, member statement of account, welfare fund, and
+organization summary.
+- **Member Profile (`member_profile`)**: a certified document carrying ALL
+  personal information for a member (personal / contact / employment / next
+  of kin / emergency contact / communication preferences / membership
+  details). With `member_id` → one member; WITHOUT `member_id` → ALL members
+  (one profile per page, bulk register of profiles). Data getter:
+  `reportDataService.getMemberProfiles(memberId?)` — it deliberately uses
+  `select('*')` (NOT a fixed column list) because optional migration-011
+  columns may be absent on a not-yet-migrated DB and a fixed list would make
+  PostgREST error out; missing columns simply read back as null. pdfmake
+  template: `src/modules/documents/templates/profile-reports.ts`
+  (`memberProfileTemplate`, doc-number prefix `MBR-PRF`). UI: "🪪 Profile
+  (PDF)" button on the member detail Personal Information card
+  (`members/[id]/page.tsx`, via `generateMemberDocument`), and the Member
+  Profile card on `/dashboard/reports` (PDF = all members, CSV = full-column
+  export). No financial values → the data-quality reconciliation block is
+  skipped for this type.
+- **Gotcha — pdfmake pageBreak**: `pageBreak()` in
+  `src/modules/documents/utils/headers.ts` must return `{ text: ' ', pageBreak:
+  'after' }` — a bare `{ pageBreak: 'after' }` node is rejected by pdfmake with
+  "Unrecognized document structure".
 - **Brand** (`brand.ts`): single source of truth for org identity. The
   canonical fallback carries ONLY non-invented facts: name `YUNITE PAMOJA
   CBO`, city `Nairobi`, country `Kenya`, currency `KES`. It deliberately

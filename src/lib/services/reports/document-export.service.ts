@@ -118,7 +118,9 @@ export class DocumentExportService {
       // truth. Never blocks generation (best-effort; warns on failure).
       let dataQuality: DataQualityReport | undefined;
       try {
-        if (opts.memberId) {
+        if (opts.type === 'member_profile') {
+          // Personal profile document — no financial values to reconcile.
+        } else if (opts.memberId) {
           // Pass the statement's own breakdown/closing into the reconciliation
           // so it validates the values actually rendered on the document (not
           // a re-derivation). For non-statement member reports this is simply
@@ -198,6 +200,11 @@ export class DocumentExportService {
       case 'member_list': {
         const { members, total } = await reportDataService.getMemberList();
         return { memberList: { members, total } };
+      }
+      case 'member_profile': {
+        // With ctx.memberId: one member's full profile. Without: all members.
+        const { profiles, total } = await reportDataService.getMemberProfiles(ctx.memberId);
+        return { memberProfile: { profiles, total } };
       }
       case 'loan_report': {
         const { loans, total } = await reportDataService.getLoanReport();
@@ -310,6 +317,7 @@ function reportTypeToDocumentKind(type: ReportType): DocumentKind {
   const map: Record<ReportType, DocumentKind> = {
     financial_summary: 'financial_summary',
     member_list: 'member_list',
+    member_profile: 'member_profile',
     loan_report: 'loan_report',
     transaction_report: 'transaction_report',
     contribution_report: 'contribution_report',
@@ -332,6 +340,8 @@ function payloadToDocumentData(kind: DocumentKind, type: ReportType, payload: Re
       return { kind, summary: payload.financialSummary! };
     case 'member_list':
       return { kind, members: payload.memberList!.members, total: payload.memberList!.total };
+    case 'member_profile':
+      return { kind, profiles: payload.memberProfile!.profiles, total: payload.memberProfile!.total };
     case 'loan_report':
       return { kind, loans: payload.loanReport!.loans, total: payload.loanReport!.total };
     case 'transaction_report':

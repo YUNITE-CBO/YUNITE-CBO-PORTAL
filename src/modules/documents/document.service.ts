@@ -98,6 +98,7 @@ export async function nextDocumentNumber(kind: DocumentData['kind']): Promise<st
 const DOC_NUMBER_PREFIXES: Record<DocumentData['kind'], string> = {
   financial_summary: 'FIN',
   member_list: 'MBR-REG',
+  member_profile: 'MBR-PRF',
   loan_report: 'LOAN-PRF',
   transaction_report: 'TXN',
   contribution_report: 'CONTRIB',

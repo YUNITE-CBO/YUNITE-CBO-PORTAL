@@ -5,6 +5,7 @@ export {
   type ReportType,
   type ReportPeriod,
   type ReportContext,
+  type MemberProfileData,
 } from './report-data.service';
 
 export {

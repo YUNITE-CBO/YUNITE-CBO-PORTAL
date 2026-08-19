@@ -219,6 +219,7 @@ export const YUNITE_STYLES = {
   metaLabel: { fontSize: 7, color: BRAND_COLORS.muted, font: 'Roboto' },
   metaValue: { fontSize: 8, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
   sectionTitle: { fontSize: 11, bold: true, color: BRAND_COLORS.navy, font: 'Roboto', margin: [0, 10, 0, 3] },
+  memberName: { fontSize: 12, bold: true, color: BRAND_COLORS.navy, font: 'Roboto' },
   // Body
   body: { fontSize: 9, color: BRAND_COLORS.ink, font: 'Roboto' },
   bodySmall: { fontSize: 7, color: BRAND_COLORS.muted, font: 'Roboto' },

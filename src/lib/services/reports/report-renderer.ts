@@ -28,6 +28,7 @@ import {
   ReportContext,
   FinancialSummaryData,
   MemberRow,
+  MemberProfileData,
   LoanRow,
   TransactionRow,
   ContributionRow,
@@ -365,6 +366,83 @@ function renderMemberList(members: MemberRow[], total: number): string {
   </table>`;
 }
 
+function profileSection(title: string, fields: Array<[string, unknown]>): string {
+  const rows = fields
+    .map(([label, value]) => `<tr><td style="width:38%;color:${BRAND_COLORS.muted}">${esc(label)}</td><td>${esc(value)}</td></tr>`)
+    .join('');
+  return `
+  <h3 class="section-title">${esc(title)}</h3>
+  <table class="data"><tbody>${rows}</tbody></table>`;
+}
+
+function renderOneMemberProfile(m: MemberProfileData): string {
+  return `
+  <div style="display:flex;align-items:center;justify-content:space-between;margin:6px 0 2px">
+    <div>
+      <strong style="font-size:12px;color:${BRAND_COLORS.navy}">${esc(m.first_name)} ${esc(m.last_name)}</strong>
+      <span style="color:${BRAND_COLORS.muted};font-size:9px"> · Member No. ${esc(m.member_number)}</span>
+    </div>
+    ${statusBadge(m.status)}
+  </div>
+  ${profileSection('Personal Information', [
+    ['Full Name', `${m.first_name} ${m.last_name}`],
+    ['ID Number', m.id_number],
+    ['KRA PIN', m.kra_pin],
+    ['Date of Birth', m.date_of_birth ? formatDate(m.date_of_birth) : null],
+    ['Gender', m.gender],
+    ['Marital Status', m.marital_status],
+    ['Nationality', m.nationality],
+  ])}
+  ${profileSection('Contact Information', [
+    ['Phone', m.phone],
+    ['Alternative Phone', m.alt_phone],
+    ['Email', m.email],
+    ['Alternative Email', m.alt_email],
+    ['Physical Address', m.physical_address],
+    ['Postal Address', m.postal_address],
+  ])}
+  ${profileSection('Employment', [
+    ['Occupation', m.occupation],
+    ['Employer', m.employer],
+    ['Employer Address', m.employer_address],
+  ])}
+  ${profileSection('Next of Kin', [
+    ['Name', m.next_of_kin_name],
+    ['Phone', m.next_of_kin_phone],
+    ['Relationship', m.next_of_kin_relationship],
+  ])}
+  ${profileSection('Emergency Contact', [
+    ['Name', m.emergency_contact_name],
+    ['Phone', m.emergency_contact_phone],
+    ['Relationship', m.emergency_contact_relationship],
+  ])}
+  ${profileSection('Communication Preferences', [
+    ['Preferred Language', m.preferred_language],
+    ['Preferred Contact Method', m.preferred_contact_method],
+    ['SMS Notifications', m.sms_notifications === null ? null : m.sms_notifications ? 'Enabled' : 'Disabled'],
+    ['Email Notifications', m.email_notifications === null ? null : m.email_notifications ? 'Enabled' : 'Disabled'],
+  ])}
+  ${profileSection('Membership Details', [
+    ['Member Number', m.member_number],
+    ['Status', m.status],
+    ['Membership Category', m.membership_category],
+    ['Member Group', m.member_group],
+    ['Workflow Stage', m.workflow_stage],
+    ['Registration Date', formatDate(m.registration_date)],
+    ['Record Created', formatDateTime(m.created_at)],
+  ])}`;
+}
+
+function renderMemberProfile(profiles: MemberProfileData[], total: number): string {
+  if (!profiles.length) return `<div class="empty-note">No members on record.</div>`;
+  const blocks = profiles
+    .map((m, i) => `<div${i > 0 ? ' style="page-break-before: always"' : ''}>${renderOneMemberProfile(m)}</div>`)
+    .join('');
+  return `
+  <p class="subtitle">${total === 1 ? 'Profile for 1 member' : `Profiles for <strong>${total}</strong> members`}</p>
+  ${blocks}`;
+}
+
 function renderLoanReport(loans: LoanRow[], total: number): string {
   if (!loans.length) return `<div class="empty-note">No loans on record.</div>`;
   const rows = loans
@@ -572,6 +650,7 @@ function renderOrgSummary(data: OrgSummaryData): string {
 export interface ReportPayload {
   financialSummary?: FinancialSummaryData;
   memberList?: { members: MemberRow[]; total: number };
+  memberProfile?: { profiles: MemberProfileData[]; total: number };
   loanReport?: { loans: LoanRow[]; total: number };
   transactionReport?: { transactions: TransactionRow[]; total: number };
   contributionReport?: { rows: ContributionRow[]; total: number; totalAmount: number };
@@ -655,6 +734,9 @@ export function renderDocument(ctx: ReportContext, payload: ReportPayload): Rend
     case 'member_list':
       body = payload.memberList ? renderMemberList(payload.memberList.members, payload.memberList.total) : '';
       break;
+    case 'member_profile':
+      body = payload.memberProfile ? renderMemberProfile(payload.memberProfile.profiles, payload.memberProfile.total) : '';
+      break;
     case 'loan_report':
       body = payload.loanReport ? renderLoanReport(payload.loanReport.loans, payload.loanReport.total) : '';
       break;
@@ -715,6 +797,7 @@ export function renderDocument(ctx: ReportContext, payload: ReportPayload): Rend
 export const REPORT_TITLES: Record<string, { title: string; description: string }> = {
   financial_summary: { title: 'Financial Summary Report', description: 'Aggregate balances across all financial accounts.' },
   member_list: { title: 'Member Register', description: 'Official membership roll.' },
+  member_profile: { title: 'Member Profile', description: 'Full personal profile of a member (or all members).' },
   loan_report: { title: 'Loan Portfolio Report', description: 'Loan disbursements, repayments, and outstanding balances.' },
   transaction_report: { title: 'Transaction Ledger Report', description: 'All posted ledger entries.' },
   contribution_report: { title: 'Contributions Report', description: 'Monthly, special, and development contributions.' },

@@ -14,6 +14,7 @@
 import type {
   FinancialSummaryData,
   MemberRow,
+  MemberProfileData,
   LoanRow,
   TransactionRow,
   ContributionRow,
@@ -77,6 +78,7 @@ export interface DocumentEnvelope {
 export type DocumentKind =
   | 'financial_summary'
   | 'member_list'
+  | 'member_profile'
   | 'loan_report'
   | 'transaction_report'
   | 'contribution_report'
@@ -105,6 +107,7 @@ export interface DocumentRequest {
 export type DocumentData =
   | { kind: 'financial_summary'; summary: FinancialSummaryData }
   | { kind: 'member_list'; members: MemberRow[]; total: number }
+  | { kind: 'member_profile'; profiles: MemberProfileData[]; total: number }
   | { kind: 'loan_report'; loans: LoanRow[]; total: number }
   | { kind: 'transaction_report'; transactions: TransactionRow[]; total: number }
   | { kind: 'contribution_report'; rows: ContributionRow[]; total: number; totalAmount: number }

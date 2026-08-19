@@ -16,6 +16,7 @@ import { ORG_IDENTITY } from './brand';
 export type ReportType =
   | 'financial_summary'
   | 'member_list'
+  | 'member_profile'
   | 'loan_report'
   | 'transaction_report'
   | 'contribution_report'
@@ -28,6 +29,7 @@ export type ReportType =
 export const REPORT_TYPES: ReportType[] = [
   'financial_summary',
   'member_list',
+  'member_profile',
   'loan_report',
   'transaction_report',
   'contribution_report',
@@ -51,6 +53,11 @@ export const REPORT_META: Record<
     title: 'Member Register',
     description: 'Full membership roll with status, contacts, and registration dates.',
     supportsMemberScope: false,
+  },
+  member_profile: {
+    title: 'Member Profile',
+    description: 'Full personal profile (personal, contact, employment, next of kin, emergency contact) — one member or all members.',
+    supportsMemberScope: true,
   },
   loan_report: {
     title: 'Loan Portfolio Report',
@@ -211,6 +218,49 @@ export interface WelfareData {
   balance: number;
   monthlyAmount: number;
   rows: ContributionRow[];
+}
+
+/**
+ * Full member profile (all personal information captured at registration):
+ * personal, contact, employment, next of kin, emergency contact, preferences,
+ * and membership details. Used by the `member_profile` document — for a single
+ * member (member_id scoped) or for every member (bulk register of profiles).
+ */
+export interface MemberProfileData {
+  member_number: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string;
+  alt_phone: string | null;
+  alt_email: string | null;
+  id_number: string | null;
+  kra_pin: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  marital_status: string | null;
+  nationality: string | null;
+  physical_address: string | null;
+  postal_address: string | null;
+  occupation: string | null;
+  employer: string | null;
+  employer_address: string | null;
+  next_of_kin_name: string | null;
+  next_of_kin_phone: string | null;
+  next_of_kin_relationship: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  emergency_contact_relationship: string | null;
+  preferred_language: string | null;
+  preferred_contact_method: string | null;
+  sms_notifications: boolean | null;
+  email_notifications: boolean | null;
+  membership_category: string | null;
+  member_group: string | null;
+  status: string;
+  workflow_stage: string | null;
+  registration_date: string;
+  created_at: string;
 }
 
 export interface OrgSummaryData {
@@ -658,6 +708,61 @@ export class ReportDataService {
       .eq('id', memberId)
       .maybeSingle();
     return data;
+  }
+
+  /**
+   * Full member profiles for the `member_profile` document. With `memberId`
+   * returns that one member (throws when missing); without it returns every
+   * member on record (bulk profile register). `select('*')` is deliberate:
+   * optional migration-011 columns may be absent on a not-yet-migrated DB and
+   * a fixed column list would make PostgREST error out — '*' only returns
+   * columns that exist, and missing fields simply read back as null.
+   */
+  async getMemberProfiles(memberId?: string): Promise<{ profiles: MemberProfileData[]; total: number }> {
+    const supabase = await createServiceClient();
+    let q = supabase.from('members').select('*').order('member_number', { ascending: true });
+    if (memberId) q = q.eq('id', memberId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    if (memberId && (!data || data.length === 0)) throw new Error('Member not found');
+
+    const profiles: MemberProfileData[] = (data || []).map((m: any) => ({
+      member_number: m.member_number,
+      first_name: m.first_name,
+      last_name: m.last_name,
+      email: m.email ?? null,
+      phone: m.phone,
+      alt_phone: m.alt_phone ?? null,
+      alt_email: m.alt_email ?? null,
+      id_number: m.id_number ?? null,
+      kra_pin: m.kra_pin ?? null,
+      date_of_birth: m.date_of_birth ?? null,
+      gender: m.gender ?? null,
+      marital_status: m.marital_status ?? null,
+      nationality: m.nationality ?? null,
+      physical_address: m.physical_address ?? null,
+      postal_address: m.postal_address ?? null,
+      occupation: m.occupation ?? null,
+      employer: m.employer ?? null,
+      employer_address: m.employer_address ?? null,
+      next_of_kin_name: m.next_of_kin_name ?? null,
+      next_of_kin_phone: m.next_of_kin_phone ?? null,
+      next_of_kin_relationship: m.next_of_kin_relationship ?? null,
+      emergency_contact_name: m.emergency_contact_name ?? null,
+      emergency_contact_phone: m.emergency_contact_phone ?? null,
+      emergency_contact_relationship: m.emergency_contact_relationship ?? null,
+      preferred_language: m.preferred_language ?? null,
+      preferred_contact_method: m.preferred_contact_method ?? null,
+      sms_notifications: m.sms_notifications ?? null,
+      email_notifications: m.email_notifications ?? null,
+      membership_category: m.membership_category ?? null,
+      member_group: m.member_group ?? null,
+      status: m.status,
+      workflow_stage: m.workflow_stage ?? null,
+      registration_date: m.registration_date,
+      created_at: m.created_at,
+    }));
+    return { profiles, total: profiles.length };
   }
 
   /**

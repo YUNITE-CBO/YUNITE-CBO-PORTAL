@@ -229,7 +229,8 @@ export function signatureArea(labels: string[] = ['Prepared By', 'Approved By'],
   } as unknown as Content;
 }
 
-/** A forced page break. */
+/** A forced page break. pdfmake requires a text node — a bare
+ * `{ pageBreak: 'after' }` is rejected as an unrecognized structure. */
 export function pageBreak(): Content {
-  return { pageBreak: 'after' } as unknown as Content;
+  return { text: ' ', pageBreak: 'after' } as unknown as Content;
 }

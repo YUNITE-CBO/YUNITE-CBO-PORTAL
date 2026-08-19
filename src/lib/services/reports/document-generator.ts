@@ -13,6 +13,7 @@ import {
   ReportContext,
   FinancialSummaryData,
   MemberRow,
+  MemberProfileData,
   LoanRow,
   TransactionRow,
   ContributionRow,
@@ -40,6 +41,7 @@ function csvRows(headers: string[], rows: Array<unknown[]>): string {
 export interface CsvPayload {
   financialSummary?: FinancialSummaryData;
   memberList?: { members: MemberRow[]; total: number };
+  memberProfile?: { profiles: MemberProfileData[]; total: number };
   loanReport?: { loans: LoanRow[]; total: number };
   transactionReport?: { transactions: TransactionRow[]; total: number };
   contributionReport?: { rows: ContributionRow[]; total: number; totalAmount: number };
@@ -71,6 +73,30 @@ export function reportToCsv(ctx: ReportContext, payload: CsvPayload): string {
         i + 1, m.member_number, m.first_name, m.last_name, m.phone, m.email, m.occupation, m.gender, formatDate(m.registration_date), m.status,
       ]);
       return csvRows(['#', 'Member No', 'First Name', 'Last Name', 'Phone', 'Email', 'Occupation', 'Gender', 'Reg Date', 'Status'], rows);
+    }
+    case 'member_profile': {
+      const profiles = payload.memberProfile!.profiles;
+      const headers = [
+        'Member No', 'First Name', 'Last Name', 'ID Number', 'KRA PIN', 'Date of Birth', 'Gender', 'Marital Status', 'Nationality',
+        'Phone', 'Alt Phone', 'Email', 'Alt Email', 'Physical Address', 'Postal Address',
+        'Occupation', 'Employer', 'Employer Address',
+        'Next of Kin Name', 'Next of Kin Phone', 'Next of Kin Relationship',
+        'Emergency Contact Name', 'Emergency Contact Phone', 'Emergency Contact Relationship',
+        'Preferred Language', 'Preferred Contact Method', 'SMS Notifications', 'Email Notifications',
+        'Membership Category', 'Member Group', 'Status', 'Workflow Stage', 'Registration Date',
+      ];
+      const rows = profiles.map((m) => [
+        m.member_number, m.first_name, m.last_name, m.id_number, m.kra_pin, m.date_of_birth, m.gender, m.marital_status, m.nationality,
+        m.phone, m.alt_phone, m.email, m.alt_email, m.physical_address, m.postal_address,
+        m.occupation, m.employer, m.employer_address,
+        m.next_of_kin_name, m.next_of_kin_phone, m.next_of_kin_relationship,
+        m.emergency_contact_name, m.emergency_contact_phone, m.emergency_contact_relationship,
+        m.preferred_language, m.preferred_contact_method,
+        m.sms_notifications === null ? '' : m.sms_notifications ? 'Yes' : 'No',
+        m.email_notifications === null ? '' : m.email_notifications ? 'Yes' : 'No',
+        m.membership_category, m.member_group, m.status, m.workflow_stage, formatDate(m.registration_date),
+      ]);
+      return csvRows(headers, rows);
     }
     case 'loan_report': {
       const rows = payload.loanReport!.loans.map((l) => [
