@@ -42,7 +42,7 @@ describe('supabase server client bypasses Next.js fetch cache (UF balance regres
     const fetchWrapper = capturedOptions.global.fetch as typeof fetch;
 
     const original = global.fetch;
-    const recorded: Array<RequestInfo | URL | { init?: RequestInit }> = [];
+    const recorded: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
     global.fetch = jest.fn((input, init) => {
       recorded.push({ input, init });
       return Promise.resolve(new Response('{}', { status: 200 }));

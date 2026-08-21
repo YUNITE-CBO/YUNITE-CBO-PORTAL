@@ -165,13 +165,6 @@ export class TransactionEngine {
       throw new Error('Transaction not found');
     }
     
-    console.log('Reversing transaction:', {
-      id: original.id,
-      type: original.transaction_type,
-      amount: original.amount,
-      metadata: original.metadata
-    });
-
     if (original.reversed) throw new Error('Already reversed');
 
     const reversalRef = `REV-${original.transaction_ref}`;
@@ -203,8 +196,6 @@ export class TransactionEngine {
       throw new Error('Reversal failed');
     }
     
-    console.log('Reversal transaction created:', reversal.id);
-
     // Update original transaction as reversed
     const { error: updateError } = await supabase
       .from('transactions')
@@ -218,15 +209,12 @@ export class TransactionEngine {
 
     if (updateError) {
       console.error('Error marking original as reversed:', updateError);
-    } else {
-      console.log('Original transaction marked as reversed');
     }
 
     // SPECIAL HANDLING FOR LOAN DISBURSEMENTS
     // Reverse the disbursement effect on loan
     if (original.transaction_type === 'loan_disbursement' && original.metadata?.loan_id) {
       const loanId = original.metadata.loan_id;
-      console.log('Reversing loan disbursement for loan:', loanId);
       
       const { data: loan } = await supabase
         .from('loans')
@@ -247,8 +235,6 @@ export class TransactionEngine {
         
         if (loanUpdateError) {
           console.error('Error reverting loan disbursement:', loanUpdateError);
-        } else {
-          console.log('Loan disbursement reverted:', { loanId });
         }
       }
     }
@@ -256,7 +242,6 @@ export class TransactionEngine {
     // SPECIAL HANDLING FOR LOAN REPAYMENTS
     if (original.transaction_type === 'loan_repayment' && original.metadata?.loan_id) {
       const loanId = original.metadata.loan_id;
-      console.log('Reversing loan repayment for loan:', loanId);
       
       const { data: loan } = await supabase
         .from('loans')
@@ -289,8 +274,6 @@ export class TransactionEngine {
         
         if (loanUpdateError) {
           console.error('Error updating loan:', loanUpdateError);
-        } else {
-          console.log('Loan updated:', { newAmountPaid, newAmountDue, newStatus });
         }
       }
 
@@ -328,7 +311,6 @@ export class TransactionEngine {
     // When reversing a fine posting, we need to mark the fine as waived
     if (original.transaction_type === 'fine_posting' && original.metadata?.fine_id) {
       const fineId = original.metadata.fine_id;
-      console.log('Reversing fine posting for fine:', fineId);
       
       const { error: fineUpdateError } = await supabase
         .from('fines')
@@ -342,8 +324,6 @@ export class TransactionEngine {
 
       if (fineUpdateError) {
         console.error('Error waiving fine:', fineUpdateError);
-      } else {
-        console.log('Fine waived:', { fineId });
       }
     }
 
@@ -351,7 +331,6 @@ export class TransactionEngine {
     // Need to update the fine record to reverse the payment
     if (original.transaction_type === 'fine_payment' && original.metadata?.fine_id) {
       const fineId = original.metadata.fine_id;
-      console.log('Reversing fine payment for fine:', fineId);
       
       const { data: fine } = await supabase
         .from('fines')
@@ -384,8 +363,6 @@ export class TransactionEngine {
 
         if (fineUpdateError) {
           console.error('Error updating fine:', fineUpdateError);
-        } else {
-          console.log('Fine updated:', { priorAmountPaid, newStatus });
         }
       }
     }
@@ -395,7 +372,6 @@ export class TransactionEngine {
     const contributionTypes = ['contribution_monthly', 'contribution_special', 'contribution_development'];
     if (contributionTypes.includes(original.transaction_type) && original.metadata?.campaign_id) {
       const campaignId = original.metadata.campaign_id;
-      console.log('Reversing contribution for campaign:', campaignId);
       
       // Recalculate campaign totals from non-reversed transactions of THIS campaign
       // Filter by both transaction_type AND campaign_id in metadata
@@ -420,8 +396,6 @@ export class TransactionEngine {
 
       if (campaignUpdateError) {
         console.error('Error updating campaign:', campaignUpdateError);
-      } else {
-        console.log('Campaign updated:', { campaignId, totalAmount, count });
       }
     }
 
@@ -437,7 +411,6 @@ export class TransactionEngine {
 
     // Calculate final balances
     const balances = await this.calculateAllBalances(original.member_id);
-    console.log('Final balances:', balances);
     
     return { reversal, balances };
   }
