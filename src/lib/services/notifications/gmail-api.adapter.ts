@@ -136,6 +136,14 @@ export class GmailApiAdapter {
     }
 
     try {
+      // Admin opt-out from Settings -> Integrations. An absent setting row
+      // (null) means enabled, preserving behavior on a not-yet-migrated DB.
+      const enabled = await settingsService.get('integrations.gmail_api_enabled');
+      if (enabled !== null && enabled.trim() !== 'true') {
+        this.isConfigured = false;
+        return false;
+      }
+
       // Try environment variables first (primary for production)
       // Then fallback to database settings
       let clientId: string | undefined | null = process.env.GOOGLE_CLIENT_ID;

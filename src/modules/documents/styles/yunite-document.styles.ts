@@ -86,12 +86,14 @@ export async function resolveOrgIdentity(): Promise<ResolvedOrgIdentity> {
       'organization.city',
       'organization.country',
       'organization.logo_url',
+      'branding.tagline',
     ]);
     const pick = (key: string, fallback: string) => {
       const v = vals[key];
       return v && String(v).trim() ? String(v).trim() : fallback;
     };
     resolved.name = pick('organization.name', base.name);
+    resolved.tagline = pick('branding.tagline', base.tagline);
     resolved.email = pick('organization.email', base.email);
     resolved.phone = pick('organization.phone', base.phone);
     resolved.address = pick('organization.address', base.address);

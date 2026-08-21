@@ -8,6 +8,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { notificationEventService } from './notifications';
+import { settingsService } from './settings.service';
 
 export type TransactionType =
   | 'savings_deposit'
@@ -80,6 +81,21 @@ export class TransactionEngine {
     // Validate sufficient balance for withdrawals
     if (newBalance < 0 && this.isDebitTransaction(request.transaction_type)) {
       throw new Error('Insufficient balance');
+    }
+
+    // Configurable savings withdrawal limits from Settings (savings category).
+    // Both default to 0 = unrestricted, which preserves the standard behavior.
+    if (request.account_type === 'savings' && request.transaction_type === 'savings_withdrawal') {
+      const [minBalance, maxWithdrawal] = await Promise.all([
+        settingsService.getNumber('savings.min_balance', 0),
+        settingsService.getNumber('savings.max_withdrawal_amount', 0),
+      ]);
+      if (maxWithdrawal > 0 && request.amount > maxWithdrawal) {
+        throw new Error(`Withdrawal amount exceeds the configured maximum of ${maxWithdrawal}`);
+      }
+      if (minBalance > 0 && newBalance < minBalance) {
+        throw new Error(`Insufficient balance: a minimum savings balance of ${minBalance} must be maintained`);
+      }
     }
 
     // Generate reference

@@ -25,10 +25,46 @@ export interface SettingWithCategory {
   data_type: string;
   is_encrypted: boolean;
   is_public: boolean;
+  is_required?: boolean;
   display_order: number;
   help_text: string | null;
   updated_by: string | null;
   updated_at: string;
+}
+
+export type CategoryConfigurationStatus = 'configured' | 'partial' | 'unconfigured';
+
+/**
+ * Compute a category's configuration status from its settings.
+ *
+ * Only REQUIRED settings block a category from being 'configured': optional
+ * settings (is_required === false — e.g. organization contacts that are
+ * deliberately never fabricated, or secrets supplied via env) are complete
+ * even when empty. `is_required` is absent on a not-yet-migrated DB (the
+ * column comes from migration 042 and rows are read via select('*')), so
+ * `undefined` is treated as required — preserving the pre-migration behavior.
+ */
+export function computeCategoryStatus(
+  settings: Array<{ value: string | null; is_required?: boolean }>
+): { status: CategoryConfigurationStatus; configuredCount: number; totalCount: number } {
+  const hasValue = (s: { value: string | null }) => !!s.value && String(s.value).trim() !== '';
+  const totalCount = settings.length;
+  const configuredCount = settings.filter(hasValue).length;
+  const required = settings.filter(s => s.is_required !== false);
+  const configuredRequired = required.filter(hasValue).length;
+
+  let status: CategoryConfigurationStatus = 'unconfigured';
+  if (totalCount > 0) {
+    const complete = required.length > 0
+      ? configuredRequired === required.length
+      : configuredCount > 0;
+    if (complete) {
+      status = 'configured';
+    } else if (configuredCount > 0) {
+      status = 'partial';
+    }
+  }
+  return { status, configuredCount, totalCount };
 }
 
 export interface ConfigurationCategoryWithSettings {
@@ -113,20 +149,12 @@ export class ConfigurationService {
     // Build result with configuration status
     return categories.map(category => {
       const categorySettings = groupedSettings[category.id] || [];
-      const totalCount = categorySettings.length;
-      const configuredCount = categorySettings.filter(s => s.value && s.value.trim() !== '').length;
-      
-      let configuration_status: 'configured' | 'partial' | 'unconfigured' = 'unconfigured';
-      if (configuredCount === totalCount && totalCount > 0) {
-        configuration_status = 'configured';
-      } else if (configuredCount > 0) {
-        configuration_status = 'partial';
-      }
+      const { status, configuredCount, totalCount } = computeCategoryStatus(categorySettings);
 
       return {
         ...category,
         settings: categorySettings,
-        configuration_status,
+        configuration_status: status,
         configured_count: configuredCount,
         total_count: totalCount,
       };
@@ -154,15 +182,7 @@ export class ConfigurationService {
       .order('display_order');
 
     const categorySettings = settings || [];
-    const totalCount = categorySettings.length;
-    const configuredCount = categorySettings.filter(s => s.value && s.value.trim() !== '').length;
-    
-    let configuration_status: 'configured' | 'partial' | 'unconfigured' = 'unconfigured';
-    if (configuredCount === totalCount && totalCount > 0) {
-      configuration_status = 'configured';
-    } else if (configuredCount > 0) {
-      configuration_status = 'partial';
-    }
+    const { status, configuredCount, totalCount } = computeCategoryStatus(categorySettings);
 
     return {
       ...category,
@@ -172,7 +192,7 @@ export class ConfigurationService {
         category_icon: category.icon,
         category_color: category.color,
       })),
-      configuration_status,
+      configuration_status: status,
       configured_count: configuredCount,
       total_count: totalCount,
     };

@@ -28,6 +28,7 @@ interface Setting {
   data_type: string;
   is_encrypted: boolean;
   is_public: boolean;
+  is_required?: boolean;
   display_order: number;
   help_text: string | null;
   updated_by: string | null;
@@ -119,7 +120,7 @@ type ResetStep =
   | 'complete'
   | 'failed';
 
-type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'system' | 'membership' | 'workflow' | 'history' | 'api' | 'ai' | 'media' | 'registration';
+type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'savings' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'branding' | 'integrations' | 'system' | 'membership' | 'workflow' | 'history' | 'api' | 'ai' | 'media' | 'registration' | 'unity_fund';
 
 export default function EnhancedSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -568,6 +569,7 @@ export default function EnhancedSettingsPage() {
                   {category.code === 'organization' && '🏢'}
                   {category.code === 'financial' && '💰'}
                   {category.code === 'loan' && '💳'}
+                  {category.code === 'savings' && '🐷'}
                   {category.code === 'security' && '🔒'}
                   {category.code === 'smtp' && '📧'}
                   {category.code === 'notifications' && '🔔'}
@@ -575,6 +577,7 @@ export default function EnhancedSettingsPage() {
                   {category.code === 'contributions' && '🎁'}
                   {category.code === 'compliance' && '📋'}
                   {category.code === 'branding' && '🎨'}
+                  {category.code === 'integrations' && '🔌'}
                   {category.code === 'system' && '⚙️'}
                   {category.code === 'membership' && '👥'}
                   {category.code === 'workflow' && '🔧'}
@@ -582,7 +585,8 @@ export default function EnhancedSettingsPage() {
                   {category.code === 'ai' && '🧠'}
                   {category.code === 'media' && '🖼️'}
                   {category.code === 'registration' && '📝'}
-                  {!['organization', 'financial', 'loan', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'system', 'membership', 'workflow', 'api', 'ai', 'media', 'registration'].includes(category.code) && '⚙️'}
+                  {category.code === 'unity_fund' && '🏦'}
+                  {!['organization', 'financial', 'loan', 'savings', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'integrations', 'system', 'membership', 'workflow', 'api', 'ai', 'media', 'registration', 'unity_fund'].includes(category.code) && '⚙️'}
                 </span>
               </div>
               {getStatusBadge(category.configuration_status)}
@@ -655,6 +659,11 @@ export default function EnhancedSettingsPage() {
                 <div className="flex-1 mr-4">
                   <label className="block text-sm font-medium text-gray-900 mb-1">
                     {setting.key.split('.').pop()?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    {setting.is_required === false && (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 align-middle">
+                        Optional
+                      </span>
+                    )}
                   </label>
                   <p className="text-xs text-gray-500 mb-2">{setting.help_text || setting.description}</p>
                   {setting.updated_at && (
@@ -696,6 +705,30 @@ export default function EnhancedSettingsPage() {
                       {editedSettings[setting.key] === 'true' ? 'Enabled' : 'Disabled'}
                     </span>
                   </label>
+                ) : setting.data_type === 'color' ? (
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={/^#[0-9A-Fa-f]{6}$/.test(editedSettings[setting.key] || '') ? editedSettings[setting.key] : '#0B2A4A'}
+                      onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+                      disabled={!isAdmin}
+                      className="h-10 w-14 p-1 border border-gray-300 rounded-lg cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                    <input
+                      type="text"
+                      value={editedSettings[setting.key] || ''}
+                      onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+                      disabled={!isAdmin}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                      placeholder="#0B2A4A"
+                    />
+                    {/^#[0-9A-Fa-f]{6}$/.test(editedSettings[setting.key] || '') && (
+                      <span
+                        className="h-8 w-8 rounded-lg border border-gray-200 flex-shrink-0"
+                        style={{ backgroundColor: editedSettings[setting.key] }}
+                      />
+                    )}
+                  </div>
                 ) : setting.key === 'organization.logo_url' ? (
                   /* The org logo is managed by the central Media Engine uploader,
                      not a free-text URL field. Upload/replace/remove here writes

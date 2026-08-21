@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { documentService } from '@/lib/services/document.service';
 import { authService } from '@/lib/services/auth.service';
+import { settingsService } from '@/lib/services/settings.service';
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 export const dynamic = 'force-dynamic';
@@ -269,6 +270,16 @@ export async function POST(request: NextRequest) {
     //    for every required member category (creating rows if none exist).
     // 3. Sets member_approval_workflow.compliance_score = 100, required_documents_complete = true.
     if (action === 'manual_complete' && memberId) {
+      // Settings -> Compliance gate. An absent setting row (null) means
+      // allowed, preserving behavior on a not-yet-migrated DB.
+      const allowManual = await settingsService.get('compliance.allow_manual_completion');
+      if (allowManual !== null && allowManual.trim() !== 'true') {
+        return NextResponse.json(
+          { success: false, error: 'Manual compliance completion is disabled in Settings -> Compliance' },
+          { status: 403 }
+        );
+      }
+
       const { MemberDocumentsConfig } = await import('@/lib/services/documents/module-configurations');
       const requiredCategories = Object.values(MemberDocumentsConfig.categories)
         .filter(c => c.isRequired);

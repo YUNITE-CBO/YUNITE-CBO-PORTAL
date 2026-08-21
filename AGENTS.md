@@ -1278,3 +1278,47 @@ existing registration engine remains the source of truth — this layer feeds it
   barrel) pulls `document-export.service.ts` → `@/lib/supabase/server` →
   `next/headers`, which breaks client compilation. Import `ORG_IDENTITY`
   directly from `@/lib/services/reports/brand` (pure module, no server imports).
+
+## Settings Categories: Required/Optional Status + 4 Implemented Categories (migration 042)
+- **"Partially Set" mislabeling root cause**: category `configuration_status`
+  counted EVERY setting with an empty value as unconfigured, but some settings
+  are optional by design (organization contacts/registration number are
+  deliberately never fabricated; `smtp.password` comes from env or Gmail
+  OAuth). Migration 042 adds `settings.is_required` (default TRUE) and marks
+  the deliberately-optional keys FALSE. `computeCategoryStatus()`
+  (exported pure function in `configuration.service.ts`, used by both
+  `getAllByCategory` + `getByCategory`) computes status over REQUIRED settings
+  only: optional-empty no longer blocks 'configured'. Rows are read via
+  `select('*')`, so on a not-yet-migrated DB `is_required` is undefined and
+  treated as required (legacy behavior preserved).
+- **Dead `smtp.username` key**: migration 007 seeded `smtp.username` but the
+  email service reads `smtp.user` (migration 005). The dead empty row held
+  SMTP at "Partial" forever. 042 preserves any value into `smtp.user` then
+  deletes the dead row.
+- **The 4 previously-"Not Set" categories** (no settings rows seeded) are now
+  implemented with real consumers: **savings** (`savings.min_balance` /
+  `savings.max_withdrawal_amount` enforced on `savings_withdrawal` in
+  `transaction.engine.ts`; 0 = unrestricted preserves behavior),
+  **integrations** (`integrations.gmail_api_enabled` gates
+  `gmail-api.adapter.ts`; the consumed `gmail.*` credential keys — previously
+  never seeded, invisible in the UI — are seeded as optional password-type
+  rows under the integrations category), **compliance**
+  (`compliance.allow_manual_completion` gates the `manual_complete` action in
+  `/api/compliance`), **branding** (`branding.tagline` flows into
+  `resolveOrgIdentity()` → rendered on every generated document header;
+  primary/accent colors use the new `color` data_type with a color picker in
+  the generic settings form).
+- **Settings page UI**: `ActiveSection` union extended with
+  savings/integrations/branding/unity_fund; nav icon map + fallback-exclusion
+  list updated; generic form shows an "Optional" badge on
+  `is_required === false` settings.
+- **Tests**: `tests/settings-categories.test.ts` (13: computeCategoryStatus
+  semantics incl. pre-migration `is_required === undefined` treated as
+  required, all-optional category, whitespace/null values; migration 042
+  consistency — required seeds must have non-empty defaults, gmail.* seeds,
+  smtp.username cleanup). Run: `npx jest tests/settings-categories --forceExit`.
+- **Pre-existing tsc error fixed**: `tests/supabase-no-store-fetch.test.ts`
+  had a bad `recorded` array type (introduced in 052cfc9); fixed to
+  `Array<{ input: RequestInfo | URL; init?: RequestInit }>`. `tsc --noEmit`
+  is fully clean again.
+- **Deploy step**: run migration 042 in Supabase SQL Editor.
