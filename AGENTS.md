@@ -1356,6 +1356,83 @@ journey:
   member_number/organization_name variables; brand fallback). Run:
   `npx jest tests/member-registration --forceExit`.
 
+## Permanent Member Deletion Engine (migration 045)
+Super-Admin-only, atomic, irreversible member deletion. Two deletion levels
+exist: **Archive** (pre-existing `DELETE /api/members/[id]` → status
+'withdrawn', reversible) and **Permanent Delete** (this engine).
+- **Migration 045** (`045_permanent_member_deletion.sql`): the
+  `permanent_member_deletions` MINIMAL audit table (member_id + member_number
+  + deleted_by + deleted_at + reason + per-table deleted_counts — NO financial
+  history) and `permanently_delete_member(p_member_id, p_admin_id, p_reason,
+  p_ip_address, p_user_agent)`, a SECURITY DEFINER Postgres function that
+  performs the ENTIRE dependency-ordered deletion. A function executes inside
+  ONE database transaction: any failure rolls back EVERYTHING. The function
+  guards every optional table (`to_regclass`) and every 004-vs-005 /
+  012-vs-005 column shape (notifications.member_id vs recipient_type/
+  recipient_id, notification_statements, notification_preferences) so it works
+  on partially-migrated DBs. REVOKEd from PUBLIC, EXECUTE granted to
+  service_role only. **Deploy step: run migration 045 in Supabase SQL
+  Editor** — without it the POST route returns EXECUTION_FAILED (and deletes
+  nothing).
+- **Dependency ordering (mapped from migrations 001-045, not guessed)**:
+  member_compliance BEFORE documents (FK document_id); email_queue +
+  notification_delivery_history BEFORE notifications (FK notification_id);
+  loan_interest_receipts BEFORE loans (FK loan_id); transactions BEFORE
+  accounts BEFORE members. CASCADE tables (accounts, member_approval_workflow,
+  member_status_history, member_committees/projects/meetings,
+  loan_interest_receipts) are also deleted explicitly for deterministic
+  counts. meetings.chairperson/secretary are SET NULL (meeting records
+  preserved); member_registration_submissions.registered_member_id/
+  existing_member_id are unlinked (applicant intake record preserved);
+  generated_documents + ai_verification_results use their designed
+  ON DELETE SET NULL; member_financial_obligations +
+  unity_fund_actual_receipts are VIEWS (auto-refresh); audit_logs +
+  notification_event_logs are KEPT (append-only operational audit).
+- **Deliberate exception**: migration 001's "NEVER delete transactions" rule
+  applies to day-to-day operations (use reversals). This engine is the single
+  audited Super-Admin exception — a permanent deletion removes the member's
+  ledger rows inside the atomic transaction. Org totals are computed LIVE
+  (SUM over the ledger / views), so they are automatically correct after
+  deletion; no stored aggregates need recomputation.
+- **Service** (`src/lib/services/member-deletion.service.ts`):
+  `MEMBER_DEPENDENCY_MAP` (single source of truth: 30 entries, strategy
+  delete/unlink/cascade/set_null/view/audit_keep),
+  `scanMemberDependencies()` (read-only scan + live financial state via
+  `transactionEngine.calculateAllBalances` + loans/fines/obligations),
+  `executePermanentDeletion(memberId, adminId, confirmText)` — requires
+  confirmText === 'DELETE MEMBER', calls the RPC, then verifies (member gone
+  by id AND member_number; zero remaining rows in every member-linked table)
+  and throws VERIFICATION_FAILED rather than claim success if anything
+  remains. Storage objects (documents bucket + media asset buckets) are
+  cleaned up best-effort AFTER commit (storage is not transactional; failure
+  never fails the deletion). Audit: the RPC inserts the
+  permanent_member_deletions row inside the transaction; the service adds an
+  audit_logs row (best-effort, per project convention).
+- **Routes**: `GET /api/members/[id]/permanent-delete` (scan preview) and
+  `POST /api/members/[id]/permanent-delete` (execute; body
+  `{confirm_text: 'DELETE MEMBER', reason?}`), both `requireSuperAdmin` +
+  `dynamic = 'force-dynamic'`. `GET /api/admin/member-deletions` lists the
+  minimal audit trail (super_admin). The v1 API gateway has NO member-delete
+  endpoint — permanent deletion is session-auth super_admin only, never
+  API-key reachable.
+- **UI**: member profile → Settings tab → red "Danger Zone" card
+  (super_admin only): Archive (reversible) vs Permanently Delete (opens a
+  modal that live-loads the dependency scan: member name/number, financial
+  state, per-module record counts, typed `DELETE MEMBER` confirmation; on
+  success shows the completion report — per-table deleted counts, post-delete
+  org totals, storage cleanup, verification all-clear — then returns to the
+  members list).
+- **Caches/lookup**: there are NO server-side member caches (every read is a
+  live query); member-lookup portal + v1 API 404 naturally after deletion
+  (stateless member JWTs expire via their short TTL — acceptable, documented
+  pattern).
+- **Tests**: `tests/member-deletion.test.ts` (16: dependency-map completeness,
+  migration static guarantees incl. delete ordering + in-transaction audit,
+  scan financial state + counts, confirmation gate, full atomic deletion of a
+  realistic connected member with other members untouched + org totals
+  consistent, full rollback on mid-transaction failure, route auth 403/400/
+  200). Run: `npx jest tests/member-deletion --forceExit`.
+
 ## Settings Categories: Required/Optional Status + 4 Implemented Categories (migration 042)
 - **"Partially Set" mislabeling root cause**: category `configuration_status`
   counted EVERY setting with an empty value as unconfigured, but some settings

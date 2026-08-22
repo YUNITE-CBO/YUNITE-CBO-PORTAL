@@ -198,7 +198,7 @@ const WORKFLOW_STAGES = [
 
 type ProfileSection = 'overview' | 'documents' | 'compliance' | 'financial' | 'loans' | 'timeline' | 'kyc' | 'committees' | 'settings';
 type ActionModal = 'edit_profile' | 'edit_contact' | 'savings_deposit' | 'savings_withdrawal' | 'contribution' | 'fine' | 
-  'approve' | 'reject' | 'suspend' | 'reactivate' | 'archive' |
+  'approve' | 'reject' | 'suspend' | 'reactivate' | 'archive' | 'permanent_delete' |
   'upload_document' | 'verify_document' | 'view_document' | 'delete_document' | 'edit_next_of_kin' | 'edit_emergency' | 'edit_employment' | 'edit_preferences' | null;
 
 // ============================================
@@ -241,7 +241,14 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   const [deleteReason, setDeleteReason] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [generatingStatement, setGeneratingStatement] = useState(false);
+
+  // Permanent deletion (Super Admin only)
+  const [deleteScan, setDeleteScan] = useState<any>(null);
+  const [deleteScanLoading, setDeleteScanLoading] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteReport, setDeleteReport] = useState<any>(null);
   
   // Form states
   const [profileForm, setProfileForm] = useState({
@@ -277,6 +284,7 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       const data = await res.json();
       if (data.success && ['super_admin', 'admin', 'staff'].includes(data.data?.user?.role)) {
         setIsAdmin(true);
+        if (data.data?.user?.role === 'super_admin') setIsSuperAdmin(true);
       }
     } catch (err) {
       console.error('Failed to check admin access:', err);
@@ -541,6 +549,41 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
       if (data.success) { showMessage('success', 'Member reactivated'); setActionModal(null); fetchMember(); fetchActivities(); }
       else showMessage('error', data.error || 'Failed to reactivate member');
     } catch { showMessage('error', 'Failed to reactivate member'); } finally { setSubmitting(false); }
+  };
+
+  const openPermanentDelete = async () => {
+    setDeleteScan(null);
+    setDeleteReport(null);
+    setDeleteConfirmText('');
+    setActionModal('permanent_delete');
+    setDeleteScanLoading(true);
+    try {
+      const res = await fetch(`/api/members/${id}/permanent-delete`);
+      const data = await res.json();
+      if (data.success) setDeleteScan(data.data);
+      else { showMessage('error', data.error || 'Failed to scan member dependencies'); setActionModal(null); }
+    } catch {
+      showMessage('error', 'Failed to scan member dependencies');
+      setActionModal(null);
+    } finally { setDeleteScanLoading(false); }
+  };
+
+  const handlePermanentDelete = async () => {
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/members/${id}/permanent-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm_text: deleteConfirmText, reason: approvalForm.comments || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDeleteReport(data.data);
+      } else {
+        showMessage('error', data.error || 'Permanent deletion failed');
+      }
+    } catch { showMessage('error', 'Permanent deletion failed'); }
+    finally { setSubmitting(false); }
   };
 
   const handleArchiveMember = async () => {
@@ -1415,6 +1458,31 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
                 <InfoCard label="Member Group" value={member.member_group || 'Default'} />
               </div>
             </div>
+            {isSuperAdmin && (
+              <div className="rounded-xl border-2 border-red-200 bg-red-50 p-6">
+                <h2 className="text-lg font-semibold text-red-900 mb-2">⚠️ Danger Zone</h2>
+                <p className="text-sm text-red-700 mb-4">
+                  These actions affect the member&apos;s access and data. <strong>Archive</strong> is reversible
+                  (the member disappears from active members but all historical records remain).
+                  <strong> Permanently Delete</strong> is irreversible — the member and all dependent records
+                  (savings, loans, fines, transactions, documents, notifications) are permanently removed.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => { setApprovalForm({ comments: '' }); setActionModal('archive'); }}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm font-medium"
+                  >
+                    📁 Archive Member (Reversible)
+                  </button>
+                  <button
+                    onClick={openPermanentDelete}
+                    className="px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 text-sm font-medium"
+                  >
+                    🗑️ Permanently Delete Member
+                  </button>
+                </div>
+              </div>
+            )}
             {isAdmin && (
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Admin Notes</h2>
@@ -1557,6 +1625,122 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Reason for Archiving *</label><textarea value={approvalForm.comments} onChange={(e) => setApprovalForm({ ...approvalForm, comments: e.target.value })} placeholder="Explain why this member is being archived..." rows={3} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
           </div>
           <ModalActions><button onClick={() => setActionModal(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button onClick={handleArchiveMember} disabled={submitting} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50">{submitting ? 'Processing...' : 'Archive Member'}</button></ModalActions>
+        </Modal>
+      )}
+
+      {actionModal === 'permanent_delete' && (
+        <Modal title="Permanently Delete Member" onClose={() => { if (!submitting) { setActionModal(null); if (deleteReport) router.push('/dashboard/members'); } }}>
+          {deleteReport ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="font-semibold text-green-800">✓ Member permanently deleted</p>
+                <p className="text-sm text-green-700 mt-1">
+                  {deleteReport.member.name} ({deleteReport.member.member_number}) and all dependent records were
+                  permanently removed in a single atomic transaction.
+                </p>
+              </div>
+              <div className="text-sm">
+                <p className="font-medium text-gray-900 mb-2">Records removed:</p>
+                <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
+                  {Object.entries(deleteReport.deletedCounts || {}).map(([table, count]: [string, any]) => (
+                    <div key={table} className="flex justify-between px-3 py-1.5">
+                      <span className="font-mono text-xs text-gray-600">{table}</span>
+                      <span className="text-xs font-semibold">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="text-xs text-gray-600 space-y-1">
+                <p>✓ Member no longer exists · ✓ Dependent records removed · ✓ No orphaned records</p>
+                <p>
+                  Totals after deletion — members: {deleteReport.totalsAfter?.totalMembers} ({deleteReport.totalsAfter?.activeMembers} active),
+                  savings: {deleteReport.totalsAfter?.netSavings}, outstanding loans: {deleteReport.totalsAfter?.outstandingLoans}
+                </p>
+                {deleteReport.storageCleanup && (
+                  <p>Storage objects removed: {deleteReport.storageCleanup.removed}{deleteReport.storageCleanup.failed > 0 ? ` (${deleteReport.storageCleanup.failed} failed)` : ''}</p>
+                )}
+                <p className="text-gray-500">A minimal administrative audit record of this deletion was retained (member number, authorizing admin, timestamp).</p>
+              </div>
+              <ModalActions>
+                <button onClick={() => router.push('/dashboard/members')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Back to Members</button>
+              </ModalActions>
+            </div>
+          ) : deleteScanLoading ? (
+            <p className="text-gray-600">Scanning all modules for records connected to this member…</p>
+          ) : deleteScan ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-red-50 border border-red-300 rounded-lg">
+                <p className="font-semibold text-red-800">⚠️ This action is IRREVERSIBLE</p>
+                <p className="text-sm text-red-700 mt-1">
+                  You are about to permanently delete <strong>{deleteScan.member.first_name} {deleteScan.member.last_name}</strong>{' '}
+                  (Member #{deleteScan.member.member_number}). This cannot be undone.
+                </p>
+              </div>
+
+              <div className="text-sm">
+                <p className="font-medium text-gray-900 mb-1">Financial state at deletion:</p>
+                <div className="grid grid-cols-2 gap-1 text-xs text-gray-700">
+                  <span>Savings: <strong>{deleteScan.financial.savings}</strong></span>
+                  <span>Shares: <strong>{deleteScan.financial.shares}</strong></span>
+                  <span>Contributions: <strong>{deleteScan.financial.contributions}</strong></span>
+                  <span>Welfare: <strong>{deleteScan.financial.welfare}</strong></span>
+                  <span>Active loans: <strong>{deleteScan.financial.activeLoans}</strong> (outstanding {deleteScan.financial.outstandingLoanBalance})</span>
+                  <span>Pending fines: <strong>{deleteScan.financial.pendingFines}</strong> (outstanding {deleteScan.financial.outstandingFineBalance})</span>
+                  <span>Pending obligations: <strong>{deleteScan.financial.pendingObligations}</strong></span>
+                </div>
+              </div>
+
+              <div className="text-sm">
+                <p className="font-medium text-gray-900 mb-1">
+                  Records to be permanently removed: <strong>{deleteScan.totalRecordsToDelete}</strong>
+                  {deleteScan.totalRecordsToUnlink > 0 && <span className="text-gray-500"> (+ {deleteScan.totalRecordsToUnlink} references unlinked)</span>}
+                </p>
+                <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
+                  {deleteScan.dependencies.filter((d: any) => (d.count ?? 0) > 0).map((d: any) => (
+                    <div key={d.key} className="flex justify-between px-3 py-1.5">
+                      <span className="text-xs text-gray-700">{d.module} — {d.detail.split('(')[0]}</span>
+                      <span className="text-xs font-semibold">{d.strategy === 'delete' || d.strategy === 'cascade' ? `${d.count} deleted` : d.strategy === 'unlink' ? `${d.count} unlinked` : d.strategy === 'set_null' ? `${d.count} anonymized` : d.strategy}</span>
+                    </div>
+                  ))}
+                  {deleteScan.dependencies.every((d: any) => !(d.count ?? 0)) && (
+                    <p className="px-3 py-2 text-xs text-gray-500">No dependent records found.</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional, kept in audit)</label>
+                <textarea value={approvalForm.comments} onChange={(e) => setApprovalForm({ ...approvalForm, comments: e.target.value })} rows={2} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500" placeholder="Why is this member being permanently deleted?" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-red-700 mb-1">
+                  Type <span className="font-mono font-bold">DELETE MEMBER</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="DELETE MEMBER"
+                  className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 font-mono"
+                  autoComplete="off"
+                />
+              </div>
+
+              <ModalActions>
+                <button onClick={() => setActionModal(null)} disabled={submitting} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                <button
+                  onClick={handlePermanentDelete}
+                  disabled={submitting || deleteConfirmText !== 'DELETE MEMBER'}
+                  className="px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 disabled:opacity-50"
+                >
+                  {submitting ? 'Deleting…' : 'Permanently Delete'}
+                </button>
+              </ModalActions>
+            </div>
+          ) : (
+            <p className="text-gray-600">Preparing…</p>
+          )}
         </Modal>
       )}
 
