@@ -247,10 +247,25 @@ export default function UnityFundPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      // Parse defensively: a gateway/middleware error may return a non-JSON
+      // body, in which case res.json() throws — surface a clear message rather
+      // than a generic "Network error".
+      let data: Record<string, unknown> = {};
+      try {
+        data = await res.json();
+      } catch {
+        setFormError(`Unexpected response from server (${res.status}).`);
+        return;
+      }
       if (!res.ok || !data.success) {
         // Surface the engine/business-rule message (e.g. available-cash guard).
-        setFormError(data?.error?.message || data?.error || `Failed (${res.status})`);
+        const err = data.error;
+        const msg = typeof err === 'string'
+          ? err
+          : (err && typeof err === 'object' && 'message' in err && typeof (err as Record<string, unknown>).message === 'string')
+            ? (err as Record<string, string>).message
+            : `Failed (${res.status})`;
+        setFormError(msg);
         return;
       }
       setSuccessMsg(`${meta.label} recorded successfully.`);
