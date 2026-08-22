@@ -124,6 +124,16 @@ A substantial notification/automation stack already exists in
   historical).
 - **Notification service** (`notification.service.ts`): `sendFromTemplate(code,
   recipient, variables, opts)` sends in-app + enqueues `email_queue` row.
+- **Unread-first list ordering** (fa3927d): `getForRecipient()` orders
+  `read_at DESC NULLS FIRST` then `created_at DESC` — unread (read_at IS NULL)
+  float to the top, read sink below, newest-first within each group, and
+  pagination applies AFTER ordering so page 1 always carries the unread
+  (previously pure created_at DESC interleaved read/unread by date, forcing
+  users to scroll past read messages to find unread ones). Both markAsRead
+  and markAllAsRead set read_at, so NULL reliably means unread. One
+  server-side fix covers the bell dropdown, notifications page, the v1
+  gateway route, and the member-lookup portal. Tests:
+  `tests/notification-ordering.test.ts` (4).
 - **API routes** all exist: `notifications/events`, `notifications/schedules`,
   `notifications/statements`, `notifications/templates`, `notifications/preferences`,
   `notifications/actions` (email queue processing), `audit`.
