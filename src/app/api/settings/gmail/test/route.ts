@@ -15,6 +15,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authService } from '@/lib/services/auth.service';
 import { gmailApiAdapter } from '@/lib/services/notifications/gmail-api.adapter';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Verify user is authenticated

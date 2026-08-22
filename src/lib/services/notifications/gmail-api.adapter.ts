@@ -64,9 +64,11 @@ const GMAIL_UPLOAD_URL = 'https://www.googleapis.com/upload/gmail/v1/users/me/me
 /**
  * Encode email to RFC 2822 format with base64url encoding
  */
-function encodeEmail(message: GmailApiMessage, senderName: string): { raw: string; headers: Record<string, string> } {
+export function encodeEmail(message: GmailApiMessage, senderName: string, senderEmail: string): { raw: string; headers: Record<string, string> } {
   const toAddress = message.toName ? `"${message.toName}" <${message.to}>` : message.to;
-  const fromAddress = senderName ? `"${senderName}" <${message.to}>` : message.to;
+  // From MUST be the authenticated sender address. Using the recipient here
+  // (a previous bug) makes Gmail reject every send with an invalid From header.
+  const fromAddress = senderName ? `"${senderName}" <${senderEmail}>` : senderEmail;
   
   let body = `To: ${toAddress}\r\n`;
   body += `From: ${fromAddress}\r\n`;
@@ -116,32 +118,45 @@ export class GmailApiAdapter {
   private config: GmailApiConfig | null = null;
 
   /**
-   * Check if Gmail API is configured
+   * Check if Gmail API is configured via environment variables.
+   * ALL four credentials must be present — a single stray GOOGLE_* env var
+   * must NOT route delivery to a Gmail API that will then fail every send.
    */
   isGmailApiConfigured(): boolean {
     return !!(
-      process.env.GOOGLE_CLIENT_ID ||
-      process.env.GOOGLE_CLIENT_SECRET ||
-      process.env.GOOGLE_REFRESH_TOKEN ||
+      process.env.GOOGLE_CLIENT_ID &&
+      process.env.GOOGLE_CLIENT_SECRET &&
+      process.env.GOOGLE_REFRESH_TOKEN &&
       process.env.GOOGLE_SENDER_EMAIL
     );
+  }
+
+  /**
+   * Whether the Gmail API channel is usable right now: the integrations toggle
+   * is on AND a complete credential set resolves (env vars or DB settings).
+   * This is the gate EmailService should use before attempting Gmail delivery.
+   */
+  async isAvailable(): Promise<boolean> {
+    return this.initialize();
   }
 
   /**
    * Initialize Gmail API configuration
    */
   private async initialize(): Promise<boolean> {
-    if (this.config && this.isConfigured) {
-      return true;
-    }
-
     try {
       // Admin opt-out from Settings -> Integrations. An absent setting row
       // (null) means enabled, preserving behavior on a not-yet-migrated DB.
+      // Checked before the cache so disabling the toggle takes effect on the
+      // next send without a restart.
       const enabled = await settingsService.get('integrations.gmail_api_enabled');
       if (enabled !== null && enabled.trim() !== 'true') {
         this.isConfigured = false;
         return false;
+      }
+
+      if (this.config && this.isConfigured) {
+        return true;
       }
 
       // Try environment variables first (primary for production)
@@ -236,7 +251,7 @@ export class GmailApiAdapter {
   /**
    * Send email via Gmail API
    */
-  async send(message: GmailApiMessage): Promise<GmailApiDeliveryResult> {
+  async send(message: GmailApiMessage, retryOnAuth: boolean = true): Promise<GmailApiDeliveryResult> {
     if (!await this.initialize()) {
       return { 
         success: false, 
@@ -254,7 +269,7 @@ export class GmailApiAdapter {
       };
     }
 
-    const { raw } = encodeEmail(message, this.config!.senderName ?? 'YUNITE');
+    const { raw } = encodeEmail(message, this.config!.senderName ?? 'YUNITE', this.config!.senderEmail);
 
     try {
       const response = await fetch(GMAIL_SEND_URL, {
@@ -282,14 +297,14 @@ export class GmailApiAdapter {
         console.error('Gmail API send error:', response.status, errorMessage);
         
         // Handle specific error codes
-        if (response.status === 401) {
-          // Clear cached token and retry once
+        if (response.status === 401 && retryOnAuth) {
+          // Clear cached token and retry exactly once
           this.accessToken = null;
           this.tokenExpiry = 0;
-          
+
           const retryToken = await this.getAccessToken();
           if (retryToken) {
-            return this.send(message);
+            return this.send(message, false);
           }
         }
 

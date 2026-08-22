@@ -73,16 +73,13 @@ export class EmailService {
    * Initialize email service - determines which delivery method to use
    */
   private async initialize(): Promise<boolean> {
-    // Check for Gmail API configuration first
-    if (gmailApiAdapter.isGmailApiConfigured()) {
-      const testResult = await gmailApiAdapter.testConnection();
-      if (testResult.success) {
-        console.log('Email service: Using Gmail API (OAuth2) for email delivery');
-        this.useGmailApi = true;
-        this.isConfigured = true;
-        return true;
-      }
-      console.log('Gmail API configured but connection test failed, falling back to SMTP');
+    // Check for Gmail API configuration first (complete credential set +
+    // integrations toggle). Delivery failures surface at send time and fall
+    // back to SMTP there — no network probe needed on every queue run.
+    if (await gmailApiAdapter.isAvailable()) {
+      this.useGmailApi = true;
+      this.isConfigured = true;
+      return true;
     }
 
     // Fall back to SMTP
@@ -158,11 +155,15 @@ export class EmailService {
   }
 
   /**
-   * Send email - automatically selects best delivery method
+   * Send email - Gmail API is the primary channel, SMTP is the fallback.
+   *
+   * A Gmail API failure (misconfiguration, revoked token, quota, transient
+   * network error) NEVER fails the email outright when SMTP is configured:
+   * the message is retried through SMTP and only reported as failed when
+   * both channels are unavailable.
    */
   async send(message: EmailMessage): Promise<EmailDeliveryResult> {
-    // Check if we should use Gmail API
-    if (gmailApiAdapter.isGmailApiConfigured()) {
+    if (await gmailApiAdapter.isAvailable()) {
       const gmailMessage: GmailApiMessage = {
         to: message.to,
         toName: message.toName,
@@ -175,26 +176,28 @@ export class EmailService {
       };
 
       const result = await gmailApiAdapter.send(gmailMessage);
-      // Gmail API "not configured" is a deterministic configuration problem
-      // (partial env vars) and should not be retried. A failed token refresh
-      // (AUTH_FAILED) is left retryable since it may be a transient network
-      // error rather than a revoked credential; deterministic OAuth errors
-      // (invalid_grant / invalid_client / unauthorized_client) are caught by
-      // isConfigurationError on the returned error message.
-      const nonRetryable = !result.success && (
-        result.errorCode === 'NOT_CONFIGURED' ||
-        isConfigurationError(result.error || '')
-      );
-      return {
-        success: result.success,
-        messageId: result.messageId,
-        error: result.error,
-        method: 'gmail_api',
-        nonRetryable,
-      };
+      if (result.success) {
+        return {
+          success: true,
+          messageId: result.messageId,
+          method: 'gmail_api',
+        };
+      }
+
+      console.warn(`Gmail API delivery failed (${result.errorCode || 'unknown'}: ${result.error}), falling back to SMTP`);
+      const smtpResult = await this.sendViaSmtp(message);
+      if (!smtpResult.success) {
+        // Gmail failed AND SMTP failed: non-retryable only when BOTH failures
+        // are configuration problems; otherwise leave it retryable.
+        const gmailNonRetryable = result.errorCode === 'NOT_CONFIGURED' || isConfigurationError(result.error || '');
+        smtpResult.error = `Gmail API: ${result.error || 'failed'} | SMTP: ${smtpResult.error || 'failed'}`;
+        smtpResult.nonRetryable = gmailNonRetryable && !!smtpResult.nonRetryable;
+      }
+      return smtpResult;
     }
 
-    // Fall back to SMTP
+    // Gmail API not available (incomplete credentials or toggle off) — SMTP
+    // is the delivery channel.
     return this.sendViaSmtp(message);
   }
 
@@ -283,11 +286,14 @@ export class EmailService {
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
-    // Get pending emails
+    // Get pending emails that are due now. Without the scheduled_for filter a
+    // retry scheduled 30 minutes out is re-processed on the next 5-minute cron
+    // tick, burning all retry attempts within minutes of the first failure.
     const { data: emails } = await supabase
       .from('email_queue')
       .select('*')
       .eq('status', 'pending')
+      .lte('scheduled_for', new Date().toISOString())
       .order('priority', { ascending: false })
       .order('scheduled_for', { ascending: true })
       .limit(batchSize);
@@ -516,6 +522,7 @@ export class EmailService {
         status: 'pending',
         error_message: null,
         retry_count: 0,
+        scheduled_for: new Date().toISOString(),
       })
       .eq('status', 'failed');
 
@@ -554,7 +561,7 @@ export class EmailService {
    */
   async testConnection(): Promise<{ success: boolean; message: string; method?: 'gmail_api' | 'smtp' }> {
     // Try Gmail API first
-    if (gmailApiAdapter.isGmailApiConfigured()) {
+    if (await gmailApiAdapter.isAvailable()) {
       const gmailResult = await gmailApiAdapter.testConnection();
       if (gmailResult.success) {
         return { 

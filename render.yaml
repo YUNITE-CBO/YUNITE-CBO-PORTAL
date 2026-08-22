@@ -28,6 +28,26 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      # ===================================================================
+      # EMAIL DELIVERY — Gmail API (primary) + SMTP (fallback)
+      # ===================================================================
+      # Gmail API (OAuth2 over HTTPS) is the primary channel — recommended on
+      # Render Free tier where outbound SMTP ports are blocked. ALL FOUR
+      # GOOGLE_* values must be set for Gmail API delivery; a partial set is
+      # treated as "not configured" and delivery falls back to SMTP. If a
+      # Gmail API send fails at runtime (revoked token, quota, network), the
+      # email service automatically retries through SMTP.
+      # Values can also be managed in Settings -> Integrations (gmail.* rows).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: GOOGLE_SENDER_EMAIL
+        sync: false
+      - key: GOOGLE_SENDER_NAME
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

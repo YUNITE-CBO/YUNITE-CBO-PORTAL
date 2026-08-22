@@ -13,6 +13,26 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   (run via Supabase SQL Editor at https://sprlwlxjhhmazxpflhnb.supabase.co/project/-/sql)
 
 ## Known Gotchas
+- **Email delivery (Gmail API primary, SMTP fallback — the "38 failed
+  notifications" fix, migration 043)**: three defects combined to fail every
+  queued email: (a) `gmailApiAdapter.isGmailApiConfigured()` used OR logic, so
+  ONE stray `GOOGLE_*` env var routed all sends to an unconfigured Gmail API →
+  NOT_CONFIGURED → nonRetryable → permanently failed, with NO SMTP fallback in
+  `EmailService.send()`; (b) `encodeEmail()` put the RECIPIENT in the `From:`
+  header (Gmail rejects every such send) — it now takes the sender email as a
+  third arg and is exported for tests; (c) `processQueue()` ignored
+  `scheduled_for`, burning all 3 retries within minutes on the 5-min cron tick
+  (now `.lte('scheduled_for', now)`; `retryFailed()` resets `scheduled_for`).
+  `send()` is now Gmail-first → SMTP fallback on ANY Gmail failure; a send is
+  non-retryable only when BOTH channels fail with configuration errors.
+  `gmailApiAdapter.isAvailable()` (async: integrations toggle + complete
+  env/DB credentials) is the gate — never the sync env check. The Gmail
+  adapter's 401 re-auth retry is bounded (`retryOnAuth` param) to prevent
+  infinite recursion. Migration 043 requeues all `failed` email_queue rows and
+  moves their linked notifications back to `queued`. GOOGLE_* env vars are
+  declared in render.yaml (sync:false). Tests:
+  `tests/email-delivery-fallback.test.ts` (18: AND-logic config gating, From
+  header, base64url, Gmail→SMTP fallback routing, combined-error semantics).
 - **Session id linkage**: The JWT `session_id` MUST equal the `user_sessions.id`
   of the row created at login. `src/lib/api/principal.ts` resolves sessions by
   `user_sessions.id` using the JWT's `session_id`; if they diverge the gateway
