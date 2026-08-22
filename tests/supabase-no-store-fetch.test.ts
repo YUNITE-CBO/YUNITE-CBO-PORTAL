@@ -58,7 +58,7 @@ describe('supabase server client bypasses Next.js fetch cache (UF balance regres
     }
 
     expect(recorded).toHaveLength(1);
-    const call = recorded[0] as { input: RequestInfo | URL; init?: RequestInit };
+    const call = recorded[0];
     expect(call.init?.cache).toBe('no-store');
   });
 
