@@ -952,28 +952,28 @@ centrally → remove safely → keep the entire system consistent.
 - **Dashboard module UI coverage (all backend modules now have a page)**:
   Every module that had a backend (API + service) but no dedicated, sidebar-
   accessible admin console page now has one (commit 356c0d2):
-  - **Meetings** `/dashboard/meetings` � schedule/edit/cancel + create modal,
+  - **Meetings** `/dashboard/meetings` -- schedule/edit/cancel + create modal,
     upcoming/all filter. Uses GET/POST `/api/meetings` + GET/PUT
-    `/api/meetings/[id]`. (No DELETE handler exists on the route � cancel via
+    `/api/meetings/[id]`. (No DELETE handler exists on the route -- cancel via
     PUT status='cancelled'.) Admin only.
-  - **Automation** `/dashboard/automation` � run history table (GET
+  - **Automation** `/dashboard/automation` -- run history table (GET
     `/api/automation/runs?limit=30`), 'Run Now' button (POST
     `/api/automation/trigger` returns `AutomationTickResult` with `steps[]` +
     `totals`), run-detail modal showing the `details` JSON. Admin only.
-  - **Media & Assets** `/dashboard/media` � org logo upload/remove
+  - **Media & Assets** `/dashboard/media` -- org logo upload/remove
     (POST/DELETE `/api/media/organization/org/ORGANIZATION_LOGO`), integrity
     check (GET `/api/media/integrity`), asset-type reference. Admin only.
     Member/user profile photos remain on their detail pages (this page
     centralizes org-level assets only).
-  - **System Status** `/dashboard/system-status` � polls GET `/api/health`
+  - **System Status** `/dashboard/system-status` -- polls GET `/api/health`
     every 30s; overall/database/application status cards. Super-admin only.
-  - **Email Queue** `/dashboard/email-queue` � queue stats (GET
+  - **Email Queue** `/dashboard/email-queue` -- queue stats (GET
     `/api/notifications/email?action=stats` returns `{pending,processing,
     sent,failed}`), Process Now (POST `?action=process`), Retry Failed (POST
     `?action=retry`), Test SMTP (GET `?action=test`), delivery progress bar.
     Admin only. NOTE: there is no list endpoint for individual email_queue
-    rows � only stats; the page shows stats + controls, not a row table.
-  - **Login Activity** `/dashboard/admin/login-activity` � pre-existing orphan
+    rows -- only stats; the page shows stats + controls, not a row table.
+  - **Login Activity** `/dashboard/admin/login-activity` -- pre-existing orphan
     page now linked in the super-admin Administration nav block.
   Sidebar nav (`layout.tsx`) main nav now includes: Meetings, Email Queue,
   Automation, Media & Assets. Super-admin Administration block now includes:
