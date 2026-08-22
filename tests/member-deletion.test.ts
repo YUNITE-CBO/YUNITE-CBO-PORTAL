@@ -105,12 +105,16 @@ function seedRealisticData() {
       { id: 'eq-1', notification_id: 'ntf-1', to_email: 'jane@example.com' },
       { id: 'eq-2', notification_id: 'ntf-2', to_email: 'john@example.com' },
       { id: 'eq-3', notification_id: null, to_email: 'jane@example.com' },
+      // case-variant of the member email (e.g. applicant confirmation sent
+      // before registration with differently-cased input)
+      { id: 'eq-4', notification_id: null, to_email: 'Jane@Example.COM' },
     ],
     notification_delivery_history: [
       { id: 'ndh-1', notification_id: 'ntf-1', email_queue_id: 'eq-1' },
       { id: 'ndh-2', notification_id: 'ntf-2', email_queue_id: 'eq-2' },
       // regression: history references a queue row with notification_id NULL
       { id: 'ndh-3', notification_id: null, email_queue_id: 'eq-3' },
+      { id: 'ndh-4', notification_id: null, email_queue_id: 'eq-4' },
     ],
     notification_statements: [
       { id: 'nstmt-1', member_id: MEMBER_ID, recipient_type: 'member', recipient_id: MEMBER_ID },
@@ -165,7 +169,8 @@ function simulateAtomicRpc(memberId: string, adminId: string) {
     );
     const queueIds = new Set(
       db.email_queue
-        .filter((r) => (r.notification_id && notifIds.has(r.notification_id)) || r.to_email === member.email)
+        .filter((r) => (r.notification_id && notifIds.has(r.notification_id)) ||
+          (r.to_email && member.email && r.to_email.toLowerCase() === member.email.toLowerCase()))
         .map((r) => r.id)
     );
     del('notification_delivery_history',
@@ -358,6 +363,8 @@ describe('migration 045 static guarantees', () => {
     // queue rows it references (notification_delivery_history_email_queue_id_fkey)
     expect(sql.indexOf('DELETE FROM notification_delivery_history')).toBeLessThan(sql.indexOf('DELETE FROM email_queue'));
     expect(sql).toContain('email_queue_id = ANY(v_queue_ids)');
+    // direct-to-member queue rows matched case-insensitively
+    expect(sql).toContain('lower(to_email) = lower(v_member_email)');
   });
 
   it('inserts the audit record inside the same transaction', () => {
@@ -388,7 +395,7 @@ describe('dependency scan', () => {
     expect(byKey.fines).toBe(2);
     expect(byKey.documents).toBe(1);
     expect(byKey.notifications).toBe(1);
-    expect(byKey.email_queue).toBe(2); // ntf-1 linked + direct to_email
+    expect(byKey.email_queue).toBe(2); // ntf-1 linked + direct to_email (exact-match preview; the atomic function also removes case-variants)
     expect(byKey.meetings_chair_secretary).toBe(1);
     expect(byKey.member_registration_submissions).toBe(2);
     expect(byKey.media_assets).toBe(1);
@@ -436,8 +443,10 @@ describe('permanent deletion', () => {
       expect((db[t] || []).filter((r) => r.member_id === MEMBER_ID)).toHaveLength(0);
     }
     expect(db.file_uploads.filter((r) => r.entity_type === 'member' && r.entity_id === MEMBER_ID)).toHaveLength(0);
-    expect(db.email_queue.filter((r) => r.to_email === 'jane@example.com')).toHaveLength(0);
+    expect(db.email_queue.filter((r) => (r.to_email || '').toLowerCase() === 'jane@example.com')).toHaveLength(0);
     expect(db.notification_delivery_history.filter((r) => r.notification_id === 'ntf-1')).toHaveLength(0);
+    // history rows linked only via email_queue_id (notification_id NULL) gone too
+    expect(db.notification_delivery_history.filter((r) => ['eq-3', 'eq-4'].includes(r.email_queue_id))).toHaveLength(0);
 
     // unlink strategies applied
     expect(db.meetings[0].chairperson).toBeNull();

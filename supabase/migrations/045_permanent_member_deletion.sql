@@ -177,14 +177,16 @@ BEGIN
 
     -- Collect the queue rows to remove: linked to member notifications OR
     -- addressed directly to the member's email (e.g. the applicant
-    -- confirmation, which has notification_id NULL).
+    -- confirmation, which has notification_id NULL). The email match is
+    -- case-insensitive: a case-variant address must not orphan a queue row
+    -- (and its delivery-history rows) for a deleted member.
     v_queue_ids := ARRAY[]::UUID[];
     IF to_regclass('public.email_queue') IS NOT NULL THEN
         SELECT ARRAY(
             SELECT id FROM email_queue
             WHERE (v_notif_ids IS NOT NULL AND array_length(v_notif_ids, 1) > 0
                    AND notification_id = ANY(v_notif_ids))
-               OR (v_member_email IS NOT NULL AND to_email = v_member_email)
+               OR (v_member_email IS NOT NULL AND lower(to_email) = lower(v_member_email))
         ) INTO v_queue_ids;
     END IF;
 
