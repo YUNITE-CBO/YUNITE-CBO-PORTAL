@@ -33,6 +33,28 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   declared in render.yaml (sync:false). Tests:
   `tests/email-delivery-fallback.test.ts` (18: AND-logic config gating, From
   header, base64url, Gmail→SMTP fallback routing, combined-error semantics).
+- **Email outage 2026-08-22 (total delivery failure, diagnosed live + fixed)**:
+  BOTH channels were down at once — (a) the `GOOGLE_REFRESH_TOKEN` was revoked
+  by Google (`invalid_grant: Token has been expired or revoked` from
+  oauth2.googleapis.com/token; the DB `gmail.refresh_token` was the same dead
+  value), so every Gmail API send failed auth; (b) Render free tier blocks
+  outbound SMTP (port 587), so the fallback timed out ("Connection timeout").
+  Failure signature in `email_queue.error_message`: `Gmail API: Failed to
+  obtain Gmail access token | SMTP: Connection timeout`. Code fixes
+  (commit 95c1cf3): the adapter now captures Google's real token error
+  (`lastTokenError`) and surfaces it in `send()`/`testConnection()` with a
+  re-authorization hint (also makes `isConfigurationError` match
+  `invalid_grant` → correctly non-retryable), and `processQueue()` re-queues
+  rows stuck in `processing` for >10 min (a crashed run had orphaned one).
+  IMPORTANT for Render free tier: SMTP can NEVER work there — Gmail API is the
+  only viable channel, so a revoked refresh token = total email outage until
+  re-authorized via `scripts/generate-gmail-refresh-token.js` (needs the
+  Google account owner's browser consent) + updating `GOOGLE_REFRESH_TOKEN`
+  in Render Dashboard. The SMTP credentials themselves are VALID (both the env
+  `SMTP_PASS` and the DB `smtp.password` authenticate to smtp.gmail.com:587) —
+  delivery works from any network that allows outbound 587 (verified: backlog
+  drained end-to-end, real emails delivered to the super admin inbox).
+
 - **Session id linkage**: The JWT `session_id` MUST equal the `user_sessions.id`
   of the row created at login. `src/lib/api/principal.ts` resolves sessions by
   `user_sessions.id` using the JWT's `session_id`; if they diverge the gateway
