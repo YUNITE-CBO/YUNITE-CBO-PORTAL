@@ -48,20 +48,50 @@ WHERE t.member_id IS NULL
 
 -- Pass 2: quarantine any orphans that could not be backfilled (no resolvable
 -- account → member). Mark reversed so they drop out of balance derivation.
+--
+-- IMPORTANT: transactions.member_id is NOT NULL in the schema, and Pass 3
+-- below re-enforces that constraint. A quarantined orphan has no resolvable
+-- member, yet the row must be preserved (the "NEVER delete transactions"
+-- rule) and member_id cannot stay NULL or the SET NOT NULL would fail. We
+-- therefore assign every unresolvable orphan to a dedicated sentinel member
+-- (member_number = 'ORPHAN-QUARANTINE', status = 'withdrawn') created here.
+-- The sentinel owns no real balance — quarantined rows are reversed=true, so
+-- the balance engine filters them out — it exists purely to satisfy the
+-- NOT NULL / FK constraint while keeping the forensic row auditable.
+
+-- 2a. Ensure the sentinel member exists (idempotent).
+INSERT INTO members (
+  id, member_number, first_name, last_name, phone,
+  registration_date, status
+)
+SELECT
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  'ORPHAN-QUARANTINE', 'Orphan', 'Quarantine', '0000000000',
+  '1970-01-01'::date, 'withdrawn'
+WHERE NOT EXISTS (
+  SELECT 1 FROM members WHERE member_number = 'ORPHAN-QUARANTINE'
+);
+
+-- 2b. Reassign the unresolvable orphans to the sentinel member and quarantine.
 UPDATE transactions
-SET reversed = true,
+SET member_id = (
+      SELECT id FROM members WHERE member_number = 'ORPHAN-QUARANTINE'
+    ),
+    reversed = true,
     reversed_at = now(),
-    reversal_reason = 'Orphaned ledger entry: member_id was NULL and no account → member mapping resolved it. Reversed by migration 032 to restore ledger integrity.',
+    reversal_reason = 'Orphaned ledger entry: member_id was NULL and no account → member mapping resolved it. Reassigned to the ORPHAN-QUARANTINE sentinel member and reversed by migration 032 to restore ledger integrity.',
     metadata = COALESCE(metadata, '{}'::jsonb) || '{"orphan_repaired": true, "orphan_repair_migration": "032", "orphan_unresolvable": true}'::jsonb
 WHERE member_id IS NULL;
 
 -- Re-enforce the NOT NULL constraint (the schema has it, but the live DB may
--- have been created without it or had it dropped at some point).
+-- have been created without it or had it dropped at some point). Safe now:
+-- Pass 1 repaired resolvable orphans and Pass 2 reassigned the rest to the
+-- sentinel member, so no NULL member_id values remain.
 ALTER TABLE transactions ALTER COLUMN member_id SET NOT NULL;
 
 -- Add a defensive trigger: reject any future insert with a NULL member_id.
 -- This is belt-and-suspenders since the transaction engine already validates,
--- but it catches direct DB insertsions / future code paths.
+-- but it catches direct DB insertions / future code paths.
 CREATE OR REPLACE FUNCTION prevent_null_member_id()
 RETURNS TRIGGER AS $$
 BEGIN
