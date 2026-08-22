@@ -441,7 +441,10 @@ export class NotificationService {
       query = query.neq('status', 'read');
     }
 
+    // Unread first (read_at IS NULL), read below — newest first within each
+    // group — so unread messages never require scrolling past read ones.
     const { data, count } = await query
+      .order('read_at', { ascending: false, nullsFirst: true })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
