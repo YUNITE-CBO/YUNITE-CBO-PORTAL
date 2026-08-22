@@ -1393,6 +1393,19 @@ exist: **Archive** (pre-existing `DELETE /api/members/[id]` → status
   ON DELETE SET NULL; member_financial_obligations +
   unity_fund_actual_receipts are VIEWS (auto-refresh); audit_logs +
   notification_event_logs are KEPT (append-only operational audit).
+- **Live FK failure 2026-08-22 (stale function)**: the live DB aborted a
+  deletion with `notification_delivery_history_email_queue_id_fkey` because
+  the DEPLOYED function was the original 045 body (history cleared by
+  notification_id only); commit 5aee568 fixed it (clear history by
+  notification OR queue link before deleting queue rows). A migration edit
+  does NOT reach the live DB by itself — the function body lives in the
+  database, so **re-running migration 045 in the Supabase SQL Editor is the
+  deploy step** (idempotent DROP + CREATE OR REPLACE). The rollback was by
+  design: the atomic function left zero partial state, so the member was
+  safe to delete again after the re-run. Follow-up hardening (8b11403):
+  direct-to-member queue rows are matched case-insensitively
+  (`lower(to_email) = lower(v_member_email)`) so a case-variant address
+  cannot orphan a queue row + its history rows.
 - **Deliberate exception**: migration 001's "NEVER delete transactions" rule
   applies to day-to-day operations (use reversals). This engine is the single
   audited Super-Admin exception — a permanent deletion removes the member's
