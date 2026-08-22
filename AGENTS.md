@@ -1321,6 +1321,41 @@ existing registration engine remains the source of truth — this layer feeds it
   `next/headers`, which breaks client compilation. Import `ORG_IDENTITY`
   directly from `@/lib/services/reports/brand` (pure module, no server imports).
 
+## Registration Acknowledgement Emails (migration 044)
+Two distinct acknowledgement emails, one per stage of the applicant→member
+journey:
+- **Pre-registration (submission received)**: `create()` in
+  `member-registration-submission.service.ts` calls `sendApplicantConfirmation()`
+  when the applicant provided an email. It renders the seeded
+  `applicant.submission_received` template (migration 040; subject/body are
+  admin-editable) with a built-in fallback copy when the template row is
+  missing, inserts a `recipient_type='system'` notification addressed to the
+  applicant email, and queues an `email_queue` row with an EXPLICIT
+  `scheduled_for` (processQueue filters `.lte('scheduled_for', now)` which
+  never matches NULL rows — an omitted value can leave the email queued
+  forever on DBs where the column default was not applied). It then attempts
+  immediate `emailService.processQueue()` (best-effort; the automation cron
+  is the fallback). The copy makes clear the applicant is NOT yet a member.
+- **Official registration (member registered)**: the `member.registered`
+  event previously only notified `all_admins` (admin-facing
+  `member.registered` template) — the member never got an email. A SECOND
+  event mapping in `event.service.ts` now fires
+  `member.registration_confirmation` (seeded by migration
+  `044_member_registration_acknowledgement.sql`, channels in_app+email) to
+  `recipient_type: 'member'`. `emitMemberRegistered` adds `organization_name`
+  to the event data via `getOrganizationName()` (settings
+  `organization.name` → `ORG_IDENTITY.name` fallback). Members without an
+  email still get the in-app notification; `sendFromTemplate` logs + skips
+  gracefully if migration 044 has not been run.
+- **Deploy step**: run migration 044 in Supabase SQL Editor.
+- **Tests**: `tests/member-registration-submissions.test.ts` (+3: applicant
+  email queued with explicit scheduled_for + immediate processQueue; template
+  rendering when seeded; no email when none provided) and
+  `tests/member-registration-acknowledgement.test.ts` (4: member.registered
+  notifies admins AND the member with member.registration_confirmation;
+  member_number/organization_name variables; brand fallback). Run:
+  `npx jest tests/member-registration --forceExit`.
+
 ## Settings Categories: Required/Optional Status + 4 Implemented Categories (migration 042)
 - **"Partially Set" mislabeling root cause**: category `configuration_status`
   counted EVERY setting with an empty value as unconfigured, but some settings

@@ -8,6 +8,8 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { notificationService, NotificationRecipient } from './notification.service';
+import { configurationService } from '../configuration.service';
+import { ORG_IDENTITY } from '../reports/brand';
 
 export interface DomainEvent {
   event_type: string;
@@ -39,6 +41,24 @@ const EVENT_TEMPLATE_MAPPINGS: EventTemplateMapping[] = [
     template_code: 'member.registered',
     recipient_type: 'all_admins',
     variable_mapping: { member_id: 'member_id', member_name: 'member_name', member_number: 'member_number' },
+  },
+  {
+    // Acknowledgement to the newly registered member themselves (the
+    // member.registered mapping above is the admin-facing copy). Both fire
+    // for the same event.
+    event_type: 'member',
+    event_action: 'registered',
+    template_code: 'member.registration_confirmation',
+    recipient_type: 'member',
+    variable_mapping: {
+      member_id: 'member_id',
+      member_name: 'member_name',
+      member_number: 'member_number',
+      phone: 'phone',
+      email: 'email',
+      registration_date: 'registration_date',
+      organization_name: 'organization_name',
+    },
   },
   {
     event_type: 'member',
@@ -463,10 +483,23 @@ export class NotificationEventService {
         phone: memberData.phone,
         email: memberData.email,
         registration_date: memberData.registration_date,
+        organization_name: await this.getOrganizationName(),
       },
       actor_id: actorId,
       actor_type: 'user',
     });
+  }
+
+  /**
+   * Organization name for template variables — configured value wins, brand
+   * fallback otherwise. Best-effort: never blocks event emission.
+   */
+  private async getOrganizationName(): Promise<string> {
+    try {
+      return (await configurationService.getSetting('organization.name')) || ORG_IDENTITY.name;
+    } catch {
+      return ORG_IDENTITY.name;
+    }
   }
 
   async emitLoanApplication(loanId: string, loanData: any, memberData: any, actorId?: string): Promise<string> {

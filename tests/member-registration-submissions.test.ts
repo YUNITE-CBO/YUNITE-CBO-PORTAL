@@ -19,6 +19,7 @@ let auditLogs: Row[] = [];
 let notifications: Row[] = [];
 let emailQueue: Row[] = [];
 let usersTable: Row[] = [];
+let templatesTable: Row[] = [];
 
 jest.mock('@/lib/supabase/server', () => ({
   createServiceClient: async () => ({
@@ -47,6 +48,7 @@ jest.mock('@/lib/supabase/server', () => ({
         select: (_cols?: string) => { builder._isSelect = true; return proxy; },
         eq: (col: string, val: unknown) => {
           if (col === 'id') builder._id = val;
+          builder._eqs = { ...(builder._eqs || {}), [col]: val };
           return proxy;
         },
         ilike: (col: string, val: string) => {
@@ -70,6 +72,15 @@ jest.mock('@/lib/supabase/server', () => ({
           return { data: builder._last ?? null, error: null };
         },
         maybeSingle: () => {
+          // Template lookup: notification_templates by template_code.
+          if (table === 'notification_templates') {
+            const code = builder._eqs?.template_code;
+            const active = builder._eqs?.is_active;
+            const row = templatesTable.find(
+              (t) => t.template_code === code && (active === undefined || t.is_active === active)
+            );
+            return { data: row ?? null, error: null };
+          }
           // getById-style single-row fetch; pick the store by table name so
           // member lookups and submission lookups both resolve.
           const id = builder._id;
@@ -132,9 +143,16 @@ jest.mock('@/lib/services/configuration.service', () => ({
   },
 }));
 
+let processQueueCalls = 0;
 jest.mock('@/lib/services/notifications', () => ({
   notificationService: {
     sendFromTemplate: async () => ({ id: 'n-1', ref: 'NTF-1' }),
+  },
+  emailService: {
+    processQueue: async () => {
+      processQueueCalls += 1;
+      return { processed: 0, succeeded: 0, failed: 0 };
+    },
   },
 }));
 
@@ -156,6 +174,8 @@ describe('Member pre-registration submission service', () => {
     notifications = [];
     emailQueue = [];
     usersTable = [];
+    templatesTable = [];
+    processQueueCalls = 0;
   });
 
   it('create() stores a pending submission and does NOT create a member', async () => {
@@ -295,6 +315,59 @@ describe('Member pre-registration submission service', () => {
       'https://yunite.app/register/member'
     );
     expect(memberRegistrationSubmissionService.resolvePublicUrl(null)).toMatch(/register\/member$/);
+  });
+
+  it('create() queues an acknowledgement email to the applicant (submission received)', async () => {
+    const { submission } = await memberRegistrationSubmissionService.create(baseData);
+
+    // A 'system' notification addressed to the applicant email exists...
+    const notification = notifications.find((n) => n.template_code === 'applicant.submission_received');
+    expect(notification).toBeDefined();
+    expect(notification!.recipient_email).toBe('john@example.com');
+    expect(notification!.recipient_type).toBe('system');
+    expect(notification!.source_entity_id).toBe(submission.id);
+
+    // ...and an email_queue row is queued for immediate processing.
+    expect(emailQueue).toHaveLength(1);
+    const email = emailQueue[0];
+    expect(email.to_email).toBe('john@example.com');
+    expect(email.to_name).toBe('John Doe');
+    expect(email.status).toBe('pending');
+    // scheduled_for must be set explicitly — processQueue filters
+    // .lte('scheduled_for', now) which never matches NULL rows.
+    expect(email.scheduled_for).toBeTruthy();
+    // The built-in copy (no template row in templatesTable) acknowledges the
+    // submission AND makes clear the applicant is NOT yet a member.
+    expect(email.subject).toContain('registration information has been received');
+    expect(email.text_body).toContain('John Doe');
+    expect(email.text_body).toContain(submission.submission_reference);
+    expect(email.text_body).toContain('does NOT automatically make you a registered member');
+    // Immediate delivery was attempted.
+    expect(processQueueCalls).toBe(1);
+  });
+
+  it('create() renders the seeded applicant.submission_received template when present', async () => {
+    templatesTable.push({
+      template_code: 'applicant.submission_received',
+      is_active: true,
+      subject_template: 'Received: {{submission_reference}} ({{org_name}})',
+      body_template: 'Hello {{applicant_name}}, ref {{submission_reference}} — {{org_name}}',
+    });
+    const { submission } = await memberRegistrationSubmissionService.create(baseData);
+
+    expect(emailQueue).toHaveLength(1);
+    const email = emailQueue[0];
+    expect(email.subject).toBe(`Received: ${submission.submission_reference} (YUNITE PAMOJA CBO)`);
+    expect(email.text_body).toBe(
+      `Hello John Doe, ref ${submission.submission_reference} — YUNITE PAMOJA CBO`
+    );
+  });
+
+  it('create() does NOT queue an applicant email when no email address was provided', async () => {
+    const { email, ...noEmail } = baseData;
+    await memberRegistrationSubmissionService.create(noEmail);
+    expect(emailQueue).toHaveLength(0);
+    expect(notifications.find((n) => n.template_code === 'applicant.submission_received')).toBeUndefined();
   });
 });
 

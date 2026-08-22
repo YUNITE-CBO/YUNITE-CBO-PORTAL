@@ -757,10 +757,20 @@ class MemberRegistrationSubmissionService {
     // the email directly. Best-effort — never fails the submission.
     const supabase = await createServiceClient();
     const applicantName = `${submission.first_name} ${submission.last_name}`;
-    const subject = `Your registration information has been received — ${ORG_IDENTITY.name}`;
-    const body = `Hello ${applicantName},
+    const orgName = (await configurationService.getSetting('organization.name')) || ORG_IDENTITY.name;
+    const variables = {
+      applicant_name: applicantName,
+      org_name: orgName,
+      submission_reference: submission.submission_reference,
+    };
 
-Thank you for submitting your information to ${ORG_IDENTITY.name}.
+    // Render the seeded applicant.submission_received template so admins can
+    // edit the wording; fall back to the built-in copy on databases where the
+    // template row is missing/inactive (e.g. migration 040 not yet applied).
+    let subject = `Your registration information has been received — ${orgName}`;
+    let body = `Hello ${applicantName},
+
+Thank you for submitting your information to ${orgName}.
 
 Your submission has been received and is awaiting processing by our administrators.
 
@@ -770,7 +780,22 @@ IMPORTANT: This submission does NOT automatically make you a registered member. 
 
 If you did not submit this information, please ignore this message.
 
-— ${ORG_IDENTITY.name}`;
+— ${orgName}`;
+
+    try {
+      const { data: template } = await supabase
+        .from('notification_templates')
+        .select('subject_template, body_template')
+        .eq('template_code', 'applicant.submission_received')
+        .eq('is_active', true)
+        .maybeSingle();
+      if (template?.subject_template && template?.body_template) {
+        subject = this.renderTemplateString(template.subject_template, variables);
+        body = this.renderTemplateString(template.body_template, variables);
+      }
+    } catch (e) {
+      console.warn('Failed to load applicant.submission_received template, using built-in copy:', e);
+    }
 
     const { data: notification } = await supabase
       .from('notifications')
@@ -782,7 +807,7 @@ If you did not submit this information, please ignore this message.
         body,
         title: subject,
         message: body,
-        rendered_variables: { applicant_name: applicantName, org_name: ORG_IDENTITY.name, submission_reference: submission.submission_reference },
+        rendered_variables: variables,
         priority: 'normal',
         recipient_type: 'system',
         recipient_email: submission.email,
@@ -806,8 +831,29 @@ If you did not submit this information, please ignore this message.
         text_body: body,
         priority: 0,
         status: 'pending',
+        // Explicit: processQueue() filters .lte('scheduled_for', now) which
+        // never matches NULL rows on databases where the column default was
+        // not applied — an omitted value would leave the email queued forever.
+        scheduled_for: new Date().toISOString(),
       });
+
+      // Attempt immediate delivery (best-effort). If the email service is not
+      // configured here, the automation cron picks the row up on its next tick.
+      try {
+        const { emailService } = await import('./notifications');
+        await emailService.processQueue();
+      } catch (e) {
+        console.warn('Applicant confirmation queued; immediate processing failed:', e);
+      }
     }
+  }
+
+  private renderTemplateString(template: string, variables: Record<string, string>): string {
+    let rendered = template;
+    for (const [key, value] of Object.entries(variables)) {
+      rendered = rendered.split(`{{${key}}}`).join(value ?? '');
+    }
+    return rendered;
   }
 }
 
