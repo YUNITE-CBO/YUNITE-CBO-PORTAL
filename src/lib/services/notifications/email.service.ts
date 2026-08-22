@@ -286,6 +286,17 @@ export class EmailService {
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
+    // Recover rows stuck in 'processing' — a crashed/interrupted worker leaves
+    // them there forever and they are never picked up again (observed on the
+    // live DB). Rows whose processing started more than 10 minutes ago are
+    // assumed abandoned and re-queued.
+    const staleCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await supabase
+      .from('email_queue')
+      .update({ status: 'pending' })
+      .eq('status', 'processing')
+      .lt('processing_started_at', staleCutoff);
+
     // Get pending emails that are due now. Without the scheduled_for filter a
     // retry scheduled 30 minutes out is re-processed on the next 5-minute cron
     // tick, burning all retry attempts within minutes of the first failure.

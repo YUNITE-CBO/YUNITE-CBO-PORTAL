@@ -116,6 +116,9 @@ export class GmailApiAdapter {
   private tokenExpiry: number = 0;
   private isConfigured: boolean = false;
   private config: GmailApiConfig | null = null;
+  // The real error returned by Google's token endpoint (e.g. invalid_grant),
+  // so send() can surface the actionable cause instead of a generic message.
+  private lastTokenError: string | null = null;
 
   /**
    * Check if Gmail API is configured via environment variables.
@@ -232,18 +235,28 @@ export class GmailApiAdapter {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Failed to get Gmail access token:', response.status, errorText);
+        let googleError = `HTTP ${response.status}`;
+        try {
+          const parsed = JSON.parse(errorText);
+          googleError = parsed.error_description || parsed.error || googleError;
+        } catch {
+          // keep the HTTP status fallback
+        }
+        this.lastTokenError = googleError;
         return null;
       }
 
       const data: GmailTokenResponse = await response.json();
-      
+
       this.accessToken = data.access_token;
       // Set expiry 5 minutes before actual expiry for safety margin
       this.tokenExpiry = Date.now() + (data.expires_in - 300) * 1000;
-      
+      this.lastTokenError = null;
+
       return this.accessToken;
     } catch (error) {
       console.error('Error getting Gmail access token:', error);
+      this.lastTokenError = error instanceof Error ? error.message : 'token request failed';
       return null;
     }
   }
@@ -262,9 +275,13 @@ export class GmailApiAdapter {
 
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      return { 
-        success: false, 
-        error: 'Failed to obtain Gmail access token',
+      const detail = this.lastTokenError ? `: ${this.lastTokenError}` : '';
+      const hint = /invalid_grant|expired|revoked/i.test(this.lastTokenError || '')
+        ? ' — the OAuth refresh token is no longer valid; re-authorize with scripts/generate-gmail-refresh-token.js and update GOOGLE_REFRESH_TOKEN'
+        : '';
+      return {
+        success: false,
+        error: `Failed to obtain Gmail access token${detail}${hint}`,
         errorCode: 'AUTH_FAILED'
       };
     }
@@ -348,13 +365,14 @@ export class GmailApiAdapter {
     if (!accessToken) {
       return {
         success: false,
-        message: 'Failed to obtain access token from Gmail API',
+        message: `Failed to obtain access token from Gmail API${this.lastTokenError ? `: ${this.lastTokenError}` : ''}`,
         details: {
           stage: 'authentication',
           hasClientId: !!this.config?.clientId,
           hasClientSecret: !!this.config?.clientSecret,
           hasRefreshToken: !!this.config?.refreshToken,
           senderEmail: this.config?.senderEmail,
+          tokenError: this.lastTokenError,
         },
       };
     }
