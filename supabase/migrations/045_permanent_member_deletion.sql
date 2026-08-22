@@ -113,6 +113,7 @@ DECLARE
     v_has_col BOOLEAN;
     v_table TEXT;
     v_notif_ids UUID[];
+    v_queue_ids UUID[];
     v_member_email TEXT;
     v_doc_paths TEXT[];
     v_media_objects JSONB := '[]'::JSONB;
@@ -174,27 +175,37 @@ BEGIN
         v_notif_ids := ARRAY[]::UUID[];
     END IF;
 
-    IF v_notif_ids IS NOT NULL AND array_length(v_notif_ids, 1) > 0 THEN
-        IF to_regclass('public.email_queue') IS NOT NULL THEN
-            DELETE FROM email_queue WHERE notification_id = ANY(v_notif_ids);
-            GET DIAGNOSTICS v_n = ROW_COUNT;
-            v_counts := v_counts || jsonb_build_object('email_queue', v_n);
-        END IF;
-        IF to_regclass('public.notification_delivery_history') IS NOT NULL THEN
-            DELETE FROM notification_delivery_history WHERE notification_id = ANY(v_notif_ids);
-            GET DIAGNOSTICS v_n = ROW_COUNT;
-            v_counts := v_counts || jsonb_build_object('notification_delivery_history', v_n);
-        END IF;
+    -- Collect the queue rows to remove: linked to member notifications OR
+    -- addressed directly to the member's email (e.g. the applicant
+    -- confirmation, which has notification_id NULL).
+    v_queue_ids := ARRAY[]::UUID[];
+    IF to_regclass('public.email_queue') IS NOT NULL THEN
+        SELECT ARRAY(
+            SELECT id FROM email_queue
+            WHERE (v_notif_ids IS NOT NULL AND array_length(v_notif_ids, 1) > 0
+                   AND notification_id = ANY(v_notif_ids))
+               OR (v_member_email IS NOT NULL AND to_email = v_member_email)
+        ) INTO v_queue_ids;
     END IF;
 
-    -- Also remove any queue rows addressed directly to the member's email.
-    IF v_member_email IS NOT NULL AND to_regclass('public.email_queue') IS NOT NULL THEN
-        DELETE FROM email_queue WHERE to_email = v_member_email;
+    -- Delivery history references BOTH notifications(notification_id) AND
+    -- email_queue(email_queue_id) — clear it FIRST by either link before
+    -- deleting the rows it points at (fixes
+    -- notification_delivery_history_email_queue_id_fkey violations).
+    IF to_regclass('public.notification_delivery_history') IS NOT NULL THEN
+        DELETE FROM notification_delivery_history
+        WHERE (v_notif_ids IS NOT NULL AND array_length(v_notif_ids, 1) > 0
+               AND notification_id = ANY(v_notif_ids))
+           OR (v_queue_ids IS NOT NULL AND array_length(v_queue_ids, 1) > 0
+               AND email_queue_id = ANY(v_queue_ids));
         GET DIAGNOSTICS v_n = ROW_COUNT;
-        v_counts := v_counts || jsonb_build_object(
-            'email_queue',
-            COALESCE((v_counts->>'email_queue')::INT, 0) + v_n
-        );
+        v_counts := v_counts || jsonb_build_object('notification_delivery_history', v_n);
+    END IF;
+
+    IF v_queue_ids IS NOT NULL AND array_length(v_queue_ids, 1) > 0 THEN
+        DELETE FROM email_queue WHERE id = ANY(v_queue_ids);
+        GET DIAGNOSTICS v_n = ROW_COUNT;
+        v_counts := v_counts || jsonb_build_object('email_queue', v_n);
     END IF;
 
     IF v_member_pred IS NOT NULL THEN

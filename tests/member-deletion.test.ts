@@ -107,8 +107,10 @@ function seedRealisticData() {
       { id: 'eq-3', notification_id: null, to_email: 'jane@example.com' },
     ],
     notification_delivery_history: [
-      { id: 'ndh-1', notification_id: 'ntf-1' },
-      { id: 'ndh-2', notification_id: 'ntf-2' },
+      { id: 'ndh-1', notification_id: 'ntf-1', email_queue_id: 'eq-1' },
+      { id: 'ndh-2', notification_id: 'ntf-2', email_queue_id: 'eq-2' },
+      // regression: history references a queue row with notification_id NULL
+      { id: 'ndh-3', notification_id: null, email_queue_id: 'eq-3' },
     ],
     notification_statements: [
       { id: 'nstmt-1', member_id: MEMBER_ID, recipient_type: 'member', recipient_id: MEMBER_ID },
@@ -161,8 +163,14 @@ function simulateAtomicRpc(memberId: string, adminId: string) {
         .filter((n) => n.member_id === memberId || (n.recipient_type === 'member' && n.recipient_id === memberId))
         .map((n) => n.id)
     );
-    del('email_queue', (r) => (r.notification_id && notifIds.has(r.notification_id)) || r.to_email === member.email);
-    del('notification_delivery_history', (r) => notifIds.has(r.notification_id));
+    const queueIds = new Set(
+      db.email_queue
+        .filter((r) => (r.notification_id && notifIds.has(r.notification_id)) || r.to_email === member.email)
+        .map((r) => r.id)
+    );
+    del('notification_delivery_history',
+      (r) => notifIds.has(r.notification_id) || queueIds.has(r.email_queue_id));
+    del('email_queue', (r) => queueIds.has(r.id));
     del('notifications', (r) => notifIds.has(r.id));
     del('notification_statements', (r) => r.member_id === memberId || (r.recipient_type === 'member' && r.recipient_id === memberId));
     del('notification_preferences', (r) => r.member_id === memberId || (r.owner_type === 'member' && r.owner_id === memberId));
@@ -346,6 +354,10 @@ describe('migration 045 static guarantees', () => {
     expect(sql.indexOf('DELETE FROM transactions')).toBeLessThan(sql.indexOf('DELETE FROM accounts'));
     expect(sql.indexOf('DELETE FROM member_compliance')).toBeLessThan(sql.indexOf('DELETE FROM documents'));
     expect(sql.indexOf('DELETE FROM loan_interest_receipts')).toBeLessThan(sql.indexOf('DELETE FROM loans'));
+    // delivery history cleared (by notification OR queue link) BEFORE the
+    // queue rows it references (notification_delivery_history_email_queue_id_fkey)
+    expect(sql.indexOf('DELETE FROM notification_delivery_history')).toBeLessThan(sql.indexOf('DELETE FROM email_queue'));
+    expect(sql).toContain('email_queue_id = ANY(v_queue_ids)');
   });
 
   it('inserts the audit record inside the same transaction', () => {

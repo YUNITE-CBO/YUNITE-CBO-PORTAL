@@ -1375,8 +1375,13 @@ exist: **Archive** (pre-existing `DELETE /api/members/[id]` → status
   Editor** — without it the POST route returns EXECUTION_FAILED (and deletes
   nothing).
 - **Dependency ordering (mapped from migrations 001-045, not guessed)**:
-  member_compliance BEFORE documents (FK document_id); email_queue +
-  notification_delivery_history BEFORE notifications (FK notification_id);
+  member_compliance BEFORE documents (FK document_id);
+  notification_delivery_history BEFORE email_queue BEFORE notifications —
+  the history table references BOTH notifications(notification_id) and
+  email_queue(email_queue_id), so the function collects the queue ids
+  (notification-linked + direct-to-member-email, incl. the applicant
+  confirmation rows with notification_id NULL) and clears history by either
+  link before deleting the queue rows;
   loan_interest_receipts BEFORE loans (FK loan_id); transactions BEFORE
   accounts BEFORE members. CASCADE tables (accounts, member_approval_workflow,
   member_status_history, member_committees/projects/meetings,
