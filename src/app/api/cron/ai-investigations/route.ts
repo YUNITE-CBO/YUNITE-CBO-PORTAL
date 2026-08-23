@@ -22,9 +22,9 @@ import { runInvestigation } from '@/ai';
 import { listDueSchedules, markScheduleRun } from '@/ai/persistence';
 import { alertCriticalFindings } from '@/ai/alerting.service';
 export const dynamic = 'force-dynamic';
-// Dual-provider AI investigations can take minutes. Honored on Vercel
-// (plan-capped); ignored on Render.
-export const maxDuration = 300;
+// Dual-provider AI investigations can take minutes. Capped at 60s to fit
+// the Vercel Hobby function limit; Render ignores this.
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   return runTick(request);

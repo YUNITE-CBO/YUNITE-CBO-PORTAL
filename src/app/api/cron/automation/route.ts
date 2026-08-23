@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { automationRunner } from '@/lib/services/automation/runner.service';
 export const dynamic = 'force-dynamic';
 // Long-running tick (email queue + schedules + statements + forecast).
-// Honored on Vercel (plan-capped); ignored on Render.
-export const maxDuration = 300;
+// Capped at 60s to fit the Vercel Hobby function limit; Render ignores this.
+export const maxDuration = 60;
 
 /**
  * GET /api/cron/automation
