@@ -8,19 +8,19 @@ import { requireAdminAuth, requireSuperAdmin } from '../../_guard';
 import { upsertSchedule, deleteSchedule } from '@/ai/persistence';
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-  const forbidden = requireSuperAdmin(auth);
-  if (forbidden) return forbidden;
-
-  let body: any;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+    const forbidden = requireSuperAdmin(auth);
+    if (forbidden) return forbidden;
 
-  try {
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+    }
+
     const data = await upsertSchedule({
       id: params.id,
       name: body.name,
