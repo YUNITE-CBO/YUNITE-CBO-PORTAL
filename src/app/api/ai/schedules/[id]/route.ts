@@ -38,12 +38,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-  const forbidden = requireSuperAdmin(auth);
-  if (forbidden) return forbidden;
-
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+    const forbidden = requireSuperAdmin(auth);
+    if (forbidden) return forbidden;
+
     await deleteSchedule(params.id);
     return NextResponse.json({ success: true });
   } catch (error: any) {

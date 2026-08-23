@@ -15,13 +15,13 @@ import { listFindings, listInvestigations } from '@/ai/persistence';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
-  const { searchParams } = new URL(request.url);
-  let investigationId = searchParams.get('investigationId');
-
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+
+    const { searchParams } = new URL(request.url);
+    let investigationId = searchParams.get('investigationId');
+
     // Default to the latest investigation if none specified.
     if (!investigationId) {
       const recent = await listInvestigations(1);

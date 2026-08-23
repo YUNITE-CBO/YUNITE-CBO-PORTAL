@@ -27,13 +27,13 @@ const VALID_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>([
 ]);
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
-  const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
-  const scope = searchParams.get('scope') || undefined;
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const scope = searchParams.get('scope') || undefined;
     const data = await listInvestigations(limit, scope);
     return NextResponse.json({ success: true, data });
   } catch (error: any) {

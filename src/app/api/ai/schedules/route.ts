@@ -18,9 +18,9 @@ const VALID_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>([
 ]);
 
 export async function GET() {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
     return NextResponse.json({ success: true, data: await listSchedules() });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message || String(error) }, { status: 500 });
