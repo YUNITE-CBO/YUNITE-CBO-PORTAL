@@ -1266,8 +1266,13 @@ the portal instead of only contacting the office directly.
   best-effort so a missing template (pre-migration DB) never fails a write.
 - **v1 gateway**: `GET|POST /api/v1/support/tickets` (manifest ids
   `support.list`/`support.create`; scopes `support.read`/`support.create` are
-  grantable). **Deploy step: grant these two scopes to the member-portal API
-  client** (Settings → API Keys) or the portal's ticket calls 403.
+  grantable). **Deploy step: run migration 047
+  (`047_support_scope_grant.sql`)** — it auto-grants both scopes to every
+  active `lookup`-type client AND any active client already holding
+  `members.read` (the portal client qualifies either way;
+  `ON CONFLICT DO NOTHING`, idempotent). Without it the portal's ticket
+  calls 403 ("API client lacks permission support.create"); the portal BFF
+  maps that 403 to a member-friendly "being activated" message.
 - **Admin (session-auth)**: `GET /api/support/tickets` + `PATCH
   /api/support/tickets/[id]` (staff+; PATCH validates status against the
   service constants). Dashboard page `/dashboard/support-tickets` (sidebar:
@@ -1283,8 +1288,8 @@ the portal instead of only contacting the office directly.
   guarantees incl. CASCADE FK + template seeds + CHECK-vs-constants, manifest
   endpoints + grantable scopes, deletion-map entry). Run:
   `npx jest tests/support-tickets tests/api-gateway-consistency --forceExit`.
-- **Deploy**: run migration 046 in Supabase SQL Editor; grant the portal API
-  client `support.read` + `support.create`; redeploy both apps.
+- **Deploy**: run migrations 046 AND 047 in Supabase SQL Editor; redeploy
+  both apps. (047 auto-grants the scopes — no manual API Keys UI step.)
 
 ## Member Pre-Registration & Smart Auto-Fill (`/register/member`)
 A **public** pre-registration layer that collects prospective-member information

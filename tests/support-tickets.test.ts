@@ -79,6 +79,28 @@ describe('migration 046 static guarantees', () => {
   });
 });
 
+describe('migration 047 scope grant', () => {
+  const GRANT = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'migrations', '047_support_scope_grant.sql'),
+    'utf8',
+  );
+
+  it('grants both support scopes', () => {
+    expect(GRANT).toContain("'support', 'read'");
+    expect(GRANT).toContain("'support', 'create'");
+  });
+
+  it('targets the member-lookup portal client (lookup type or members.read holder)', () => {
+    expect(GRANT).toContain("c.client_type = 'lookup'");
+    expect(GRANT).toContain("p.module = 'members' AND p.action = 'read'");
+    expect(GRANT).toContain("c.status = 'active'");
+  });
+
+  it('is idempotent (ON CONFLICT DO NOTHING on the unique scope key)', () => {
+    expect(GRANT).toMatch(/ON CONFLICT \(client_id, module, action\) DO NOTHING/);
+  });
+});
+
 describe('v1 gateway manifest', () => {
   it('declares the support endpoints', () => {
     const ids = new Set(ENDPOINTS.map((e) => e.id));

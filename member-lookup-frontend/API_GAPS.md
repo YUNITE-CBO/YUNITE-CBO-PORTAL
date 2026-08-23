@@ -76,9 +76,11 @@ automatically when the backend is extended.
   form (category/subject/message) via BFF `GET|POST /api/member/support`
   (member bound from the session JWT) + a "My requests" list showing status
   and the office's response.
-- **Deploy:** run migration 046 in Supabase SQL Editor and grant the
-  `support.read` + `support.create` scopes to the portal's API client
-  (Settings → API Keys).
+- **Deploy:** run migrations 046 AND 047 in Supabase SQL Editor — 047
+  auto-grants `support.read` + `support.create` to the portal's API client
+  (any active `lookup`-type client or holder of `members.read`). Without
+  047 the submit/list calls return 403 "API client lacks permission
+  support.create".
 
 ## Scope summary for the portal's API client
 

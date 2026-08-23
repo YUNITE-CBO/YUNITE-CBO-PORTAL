@@ -44,9 +44,16 @@ export async function POST(request: Request) {
     const ticket = await createSupportTicket(guard.memberId, { category, subject, message });
     return NextResponse.json({ success: true, data: ticket }, { status: 201 });
   } catch (e: unknown) {
-    const message =
-      e instanceof YuniteApiError ? e.message : 'Unable to submit your request right now. Please try again shortly.';
+    // A 403 here means the portal's API client has not yet been granted the
+    // support.* scopes (migration 047) — never show the raw gateway message
+    // to a member.
+    const isForbidden = e instanceof YuniteApiError && e.status === 403;
+    const message = isForbidden
+      ? 'The online request service is being activated. Please contact the office directly using the details above, and include your member number.'
+      : e instanceof YuniteApiError
+        ? e.message
+        : 'Unable to submit your request right now. Please try again shortly.';
     const status = e instanceof YuniteApiError && e.status >= 400 && e.status < 600 ? e.status : 500;
-    return NextResponse.json({ success: false, error: message }, { status });
+    return NextResponse.json({ success: false, error: message }, { status: isForbidden ? 503 : status });
   }
 }
