@@ -18,34 +18,38 @@ const VALID_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>([
 ]);
 
 export async function GET() {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-  return NextResponse.json({ success: true, data: await listSchedules() });
+  try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+    return NextResponse.json({ success: true, data: await listSchedules() });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error?.message || String(error) }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-  const forbidden = requireSuperAdmin(auth);
-  if (forbidden) return forbidden;
-
-  let body: any;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+    const forbidden = requireSuperAdmin(auth);
+    if (forbidden) return forbidden;
 
-  const scope = body?.scope as InvestigationScope;
-  if (!scope || !VALID_SCOPES.has(scope)) {
-    return NextResponse.json({ success: false, error: 'Invalid scope' }, { status: 400 });
-  }
-  const cadence = body?.cadence as 'daily' | 'weekly' | 'monthly' | 'on_demand';
-  if (!['daily', 'weekly', 'monthly', 'on_demand'].includes(cadence)) {
-    return NextResponse.json({ success: false, error: 'Invalid cadence' }, { status: 400 });
-  }
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-  try {
+    const scope = body?.scope as InvestigationScope;
+    if (!scope || !VALID_SCOPES.has(scope)) {
+      return NextResponse.json({ success: false, error: 'Invalid scope' }, { status: 400 });
+    }
+    const cadence = body?.cadence as 'daily' | 'weekly' | 'monthly' | 'on_demand';
+    if (!['daily', 'weekly', 'monthly', 'on_demand'].includes(cadence)) {
+      return NextResponse.json({ success: false, error: 'Invalid cadence' }, { status: 400 });
+    }
+
     const data = await upsertSchedule({
       name: body.name,
       scope,

@@ -23,10 +23,10 @@ import { AI_SETTINGS_KEYS, AI_SETTINGS_META } from '@/ai/settings';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+
     const values = await configurationService.getMany([...AI_SETTINGS_KEYS]);
     const data = AI_SETTINGS_KEYS.map((key) => ({
       key,
@@ -40,10 +40,10 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+
     const body = await request.json();
     const { settings } = body as { settings?: Record<string, string> };
 

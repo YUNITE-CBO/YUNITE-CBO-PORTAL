@@ -15,22 +15,22 @@ import { listFindings, listInvestigations } from '@/ai/persistence';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
-  const { searchParams } = new URL(request.url);
-  let investigationId = searchParams.get('investigationId');
-
-  // Default to the latest investigation if none specified.
-  if (!investigationId) {
-    const recent = await listInvestigations(1);
-    if (!recent.length) {
-      return NextResponse.json({ success: true, data: { modules: [], investigation_id: null } });
-    }
-    investigationId = recent[0].id as string;
-  }
-
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+
+    const { searchParams } = new URL(request.url);
+    let investigationId = searchParams.get('investigationId');
+
+    // Default to the latest investigation if none specified.
+    if (!investigationId) {
+      const recent = await listInvestigations(1);
+      if (!recent.length) {
+        return NextResponse.json({ success: true, data: { modules: [], investigation_id: null } });
+      }
+      investigationId = recent[0].id as string;
+    }
+
     const findings = await listFindings(investigationId);
     const modules = buildModuleHealthMap(findings);
     return NextResponse.json({ success: true, data: { modules, investigation_id: investigationId, findings_count: findings.length } });

@@ -10,12 +10,19 @@ import { requireAdminAuth } from '../../_guard';
 import { getReport } from '@/ai/persistence';
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
-  const report = await getReport(params.id);
-  if (!report) {
-    return NextResponse.json({ success: false, error: 'Report not found' }, { status: 404 });
+  try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
+    const report = await getReport(params.id);
+    if (!report) {
+      return NextResponse.json({ success: false, error: 'Report not found' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, data: report });
+  } catch (error: any) {
+    console.error('[ai/reports] fetch failed:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to load report', message: error?.message || String(error) },
+      { status: 500 },
+    );
   }
-  return NextResponse.json({ success: true, data: report });
 }

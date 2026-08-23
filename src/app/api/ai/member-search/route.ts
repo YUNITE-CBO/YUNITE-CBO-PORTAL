@@ -13,22 +13,22 @@ import { requireAdminAuth } from '../_guard';
 import { searchMembers } from '@/ai';
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
-  let body: any;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
 
-  const query = String(body?.query ?? '').trim();
-  if (!query) {
-    return NextResponse.json({ success: false, error: 'query is required' }, { status: 400 });
-  }
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-  try {
+    const query = String(body?.query ?? '').trim();
+    if (!query) {
+      return NextResponse.json({ success: false, error: 'query is required' }, { status: 400 });
+    }
+
     const candidates = await searchMembers(query, 20);
     return NextResponse.json({ success: true, data: candidates });
   } catch (error: any) {
