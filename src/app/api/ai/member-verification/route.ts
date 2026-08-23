@@ -19,25 +19,25 @@ import { runInvestigation } from '@/ai';
 import type { InvestigationDepth, DualModeOption } from '@/ai/types';
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
-  let body: any;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
 
-  const memberId = body?.memberId;
-  if (!memberId) {
-    return NextResponse.json({ success: false, error: 'memberId is required' }, { status: 400 });
-  }
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-  const depth = (body?.depth as InvestigationDepth | undefined) ?? 'deep';
-  const dualMode = body?.dualMode as DualModeOption | undefined;
+    const memberId = body?.memberId;
+    if (!memberId) {
+      return NextResponse.json({ success: false, error: 'memberId is required' }, { status: 400 });
+    }
 
-  try {
+    const depth = (body?.depth as InvestigationDepth | undefined) ?? 'deep';
+    const dualMode = body?.dualMode as DualModeOption | undefined;
+
     const result = await runInvestigation({ scope: 'member_verification', memberId, initiatedBy: auth.userId, trigger: 'manual', depth, dualMode });
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
