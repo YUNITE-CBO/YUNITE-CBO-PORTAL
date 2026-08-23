@@ -5,6 +5,10 @@
  * strings, but the columns are TIMESTAMPTZ (migration 004). Postgres
  * rejected the insert ("invalid input syntax for type timestamp with time
  * zone") and meeting creation 500'd with "Failed to create meeting".
+ *
+ * Bare "HH:MM" values are anchored in the organisation's timezone
+ * (Africa/Nairobi), never the server's, so the stored instant matches the
+ * wall-clock time the office set regardless of deployment timezone.
  */
 
 import { normalizeMeetingTime } from '@/lib/services/meetings.service';
@@ -21,19 +25,25 @@ describe('normalizeMeetingTime', () => {
     expect(normalizeMeetingTime(SCHEDULED, '   ')).toBeNull();
   });
 
-  it('anchors a bare HH:MM on the scheduled date', () => {
+  it('anchors a bare HH:MM on the scheduled date in the org timezone (Africa/Nairobi, UTC+3)', () => {
     const result = normalizeMeetingTime(SCHEDULED, '14:30');
     expect(result).not.toBeNull();
     const d = new Date(result!);
     expect(isNaN(d.getTime())).toBe(false);
-    expect(d.getUTCHours()).toBe(14);
+    // 14:30 EAT = 11:30 UTC — server timezone must not influence the result.
+    expect(d.getUTCHours()).toBe(11);
     expect(d.getUTCMinutes()).toBe(30);
     expect(result!.startsWith('2026-08-30')).toBe(true);
   });
 
   it('accepts HH:MM:SS and single-digit hours', () => {
-    expect(new Date(normalizeMeetingTime(SCHEDULED, '9:05:15')!).getUTCHours()).toBe(9);
+    expect(new Date(normalizeMeetingTime(SCHEDULED, '9:05:15')!).getUTCHours()).toBe(6);
     expect(new Date(normalizeMeetingTime(SCHEDULED, '09:05:15')!).getUTCSeconds()).toBe(15);
+  });
+
+  it('rejects out-of-range wall-clock values', () => {
+    expect(normalizeMeetingTime(SCHEDULED, '25:00')).toBeNull();
+    expect(normalizeMeetingTime(SCHEDULED, '14:99')).toBeNull();
   });
 
   it('passes full ISO datetimes through as valid ISO', () => {

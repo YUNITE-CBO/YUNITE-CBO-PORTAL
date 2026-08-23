@@ -1,7 +1,7 @@
 import { getUpcomingMeetings, getOrganizationSettings } from '@/lib/api/meeting.service';
 import LiveClock from '@/components/LiveClock';
 import { MemberAccessCard } from '@/components/MemberAccessCard';
-import { MOTIVATIONAL, ORG_MESSAGES, formatMeetingDate } from '@/lib/home-content';
+import { MOTIVATIONAL, ORG_MESSAGES, getMeetingWhen } from '@/lib/home-content';
 
 export default async function Home() {
   const [meetings, settings] = await Promise.all([getUpcomingMeetings(), getOrganizationSettings()]);
@@ -71,19 +71,37 @@ export default async function Home() {
               <MeetingsUnavailable />
             ) : meetingsAvailable ? (
               <ul className="space-y-3">
-                {meetings!.slice(0, 3).map((m) => (
-                  <li key={m.id} className="flex items-start gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-3">
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-green/15 text-brand-green-soft">
-                      <CalIcon />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold text-white">{m.meeting_title}</div>
-                      <div className="text-xs text-white/55">
-                        {formatMeetingDate(m)}{m.venue ? ` · ${m.venue}` : ''}
+                {meetings!.slice(0, 3).map((m) => {
+                  const when = getMeetingWhen(m);
+                  return (
+                    <li key={m.id} className="flex items-stretch gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      {/* Calendar-style date badge */}
+                      <div className="flex w-16 shrink-0 flex-col items-center justify-center rounded-lg bg-brand-green/15 py-2 ring-1 ring-brand-green/30">
+                        <span className="text-2xl font-extrabold leading-none text-brand-green-soft">{when.day}</span>
+                        <span className="mt-1 text-[11px] font-bold uppercase tracking-widest text-brand-green-soft/90">{when.month}</span>
+                        <span className="text-[10px] font-medium text-white/50">{when.year}</span>
                       </div>
-                    </div>
-                  </li>
-                ))}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-bold text-white">{m.meeting_title}</div>
+                        <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+                          <ClockIcon />
+                          <span className="font-semibold text-white/85">{when.weekday}</span>
+                          {when.timeLabel && (
+                            <span className="rounded-md bg-brand-green/15 px-1.5 py-0.5 font-bold text-brand-green-soft ring-1 ring-brand-green/30">
+                              {when.timeLabel}
+                            </span>
+                          )}
+                        </div>
+                        {m.venue && (
+                          <div className="mt-1 flex items-center gap-1.5 text-xs text-white/55">
+                            <PinIcon />
+                            <span className="truncate">{m.venue}</span>
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <div className="rounded-xl border border-white/5 bg-white/[0.03] p-4 text-sm text-white/55">
@@ -178,11 +196,20 @@ function BrandMark() {
   );
 }
 
-function CalIcon() {
+function ClockIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <path d="M16 2v4M8 2v4M3 10h18" />
+    <svg className="shrink-0 text-brand-green-soft" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
     </svg>
   );
 }

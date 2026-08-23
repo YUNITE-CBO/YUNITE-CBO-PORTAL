@@ -44,8 +44,29 @@ export interface Meeting extends MeetingInput {
  * Postgres rejects ("invalid input syntax for type timestamp with time
  * zone") and the create/update fails with a 500. Normalize here: full
  * date/datetime strings pass through; bare "HH:MM[:SS]" values are anchored
- * on the meeting's scheduled_date; empty/invalid values become null.
+ * on the meeting's scheduled_date IN THE ORGANISATION'S TIMEZONE
+ * (Africa/Nairobi) — NOT the server's — so the stored instant matches the
+ * wall-clock time the office set; empty/invalid values become null.
  */
+const ORG_TIME_ZONE = 'Africa/Nairobi';
+
+/** UTC instant whose Africa/Nairobi wall-clock is datePart + hh:mm:ss. */
+function orgWallClockToUtcIso(datePart: string, hh: number, mm: number, ss: number): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
+  if (hh > 23 || mm > 59 || ss > 59) return null;
+  const guessMs = Date.UTC(+datePart.slice(0, 4), +datePart.slice(5, 7) - 1, +datePart.slice(8, 10), hh, mm, ss);
+  const parts: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat('en-US', {
+    timeZone: ORG_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date(guessMs))) {
+    parts[p.type] = p.value;
+  }
+  const wallAsUtcMs = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour % 24, +parts.minute, +parts.second);
+  const result = new Date(guessMs - (wallAsUtcMs - guessMs));
+  return isNaN(result.getTime()) ? null : result.toISOString();
+}
+
 export function normalizeMeetingTime(scheduledDate: string | undefined, time?: string | null): string | null {
   if (!time) return null;
   const t = String(time).trim();
@@ -59,8 +80,7 @@ export function normalizeMeetingTime(scheduledDate: string | undefined, time?: s
   const m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!m) return null;
   const datePart = (scheduledDate || '').slice(0, 10);
-  const d = new Date(`${datePart}T${m[1].padStart(2, '0')}:${m[2]}:${m[3] || '00'}`);
-  return isNaN(d.getTime()) ? null : d.toISOString();
+  return orgWallClockToUtcIso(datePart, +m[1], +m[2], +(m[3] || 0));
 }
 
 class MeetingsService {

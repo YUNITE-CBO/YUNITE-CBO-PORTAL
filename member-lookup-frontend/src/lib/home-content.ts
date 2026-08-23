@@ -2,7 +2,6 @@
  * Static content helpers for the home page.
  * Motivational quotes and organization messages rotate by day (deterministic).
  */
-import type { Meeting } from '@/lib/api/types';
 
 export const MOTIVATIONAL: { label: string; text: string }[] = [
   { label: 'Save today, thrive tomorrow', text: 'Small, steady savings build the foundation of lasting prosperity.' },
@@ -22,17 +21,65 @@ export const ORG_MESSAGES: string[] = [
   'Thank you for being part of YUNITE Pamoja CBO. Together we are building a stronger, more financially resilient community.',
 ];
 
-export function formatMeetingDate(m: { scheduled_date: string; start_time?: string | null }): string {
-  try {
-    const d = new Date(m.scheduled_date);
-    const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-    let time = '';
-    if (m.start_time) {
-      const [hh, mm] = m.start_time.split(':');
-      if (hh && mm) time = ` · ${hh}:${mm}`;
+/**
+ * Meeting date/time formatting.
+ *
+ * meetings.start_time is TIMESTAMPTZ (migration 004), so the API returns a
+ * full ISO datetime — NOT a bare "HH:MM". This page is server-rendered, so
+ * all formatting is pinned to the organisation's timezone (Africa/Nairobi)
+ * instead of the server's, keeping the shown time identical to what the
+ * office set in the dashboard.
+ */
+const ORG_TIME_ZONE = 'Africa/Nairobi';
+const TZ_LABEL = 'EAT';
+
+export interface MeetingWhen {
+  day: string;
+  month: string;
+  year: string;
+  weekday: string;
+  dateLabel: string;
+  timeLabel: string | null;
+}
+
+function formatInOrgZone(d: Date, opts: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat('en-KE', { timeZone: ORG_TIME_ZONE, ...opts }).format(d);
+}
+
+function to12h(hh: number, mm: string): string {
+  const suffix = hh >= 12 ? 'PM' : 'AM';
+  return `${hh % 12 || 12}:${mm} ${suffix}`;
+}
+
+export function getMeetingWhen(m: { scheduled_date: string; start_time?: string | null }): MeetingWhen {
+  const d = new Date(m.scheduled_date);
+  const valid = !isNaN(d.getTime());
+  const fallback = { day: '--', month: '---', year: '----', weekday: '', dateLabel: m.scheduled_date, timeLabel: null };
+  if (!valid) return fallback;
+
+  let timeLabel: string | null = null;
+  if (m.start_time) {
+    const t = String(m.start_time).trim();
+    const bare = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (bare) {
+      // Bare wall-clock time: already in the organisation's timezone.
+      timeLabel = `${to12h(+bare[1], bare[2])} ${TZ_LABEL}`;
+    } else {
+      const td = new Date(t);
+      if (!isNaN(td.getTime())) {
+        const raw = formatInOrgZone(td, { hour: 'numeric', minute: '2-digit', hour12: true })
+          .replace(/(am|pm)$/i, (s) => s.toUpperCase());
+        timeLabel = `${raw} ${TZ_LABEL}`;
+      }
     }
-    return `${day}${time}`;
-  } catch {
-    return m.scheduled_date;
   }
+
+  return {
+    day: formatInOrgZone(d, { day: 'numeric' }),
+    month: formatInOrgZone(d, { month: 'short' }),
+    year: formatInOrgZone(d, { year: 'numeric' }),
+    weekday: formatInOrgZone(d, { weekday: 'long' }),
+    dateLabel: formatInOrgZone(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+    timeLabel,
+  };
 }
