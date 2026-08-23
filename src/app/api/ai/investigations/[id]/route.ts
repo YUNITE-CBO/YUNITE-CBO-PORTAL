@@ -17,10 +17,9 @@ import {
 } from '@/ai/persistence';
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
     const investigation = await getInvestigation(params.id);
     if (!investigation) {
       return NextResponse.json({ success: false, error: 'Investigation not found' }, { status: 404 });

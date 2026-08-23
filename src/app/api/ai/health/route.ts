@@ -15,9 +15,9 @@ import { readAiSettings } from '@/ai/settings';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export async function GET() {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
     const [gemini, openrouter, latestSnapshots, recentRuns, aiSettings] = await Promise.all([
       getHealth(geminiProvider).catch(() => ({ provider: 'gemini' as const, status: 'unknown' as const, availability_pct: 0, success_count: 0, failure_count: 0, timeout_count: 0, rate_limited_count: 0, fallback_count: 0 })),
       getHealth(openRouterProvider).catch(() => ({ provider: 'openrouter' as const, status: 'unknown' as const, availability_pct: 0, success_count: 0, failure_count: 0, timeout_count: 0, rate_limited_count: 0, fallback_count: 0 })),

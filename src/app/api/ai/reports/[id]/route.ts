@@ -10,10 +10,9 @@ import { requireAdminAuth } from '../../_guard';
 import { getReport } from '@/ai/persistence';
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAdminAuth();
-  if (!auth.ok) return auth.response!;
-
   try {
+    const auth = await requireAdminAuth();
+    if (!auth.ok) return auth.response!;
     const report = await getReport(params.id);
     if (!report) {
       return NextResponse.json({ success: false, error: 'Report not found' }, { status: 404 });
