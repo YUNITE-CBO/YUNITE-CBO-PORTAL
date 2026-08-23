@@ -1,15 +1,10 @@
 /**
  * Meetings service.
  *
- * IMPORTANT GAP: The YUNITE backend currently exposes meetings only at
- * `GET /api/meetings` (non-v1), which requires a portal *session* cookie —
- * not the API key this portal uses. There is no `/api/v1/meetings` endpoint
- * and no `meetings.read` API-key scope. Therefore the meetings API key
- * cannot fetch meeting data today.
- *
- * This function attempts the v1 path defensively and returns null (graceful
- * empty state) when the endpoint is unavailable — it NEVER fabricates
- * meetings. See API_GAPS.md for the backend change needed to enable this.
+ * Meetings come from the gateway's `GET /api/v1/meetings` endpoint
+ * (`meetings.read` scope; granted to the portal API client by migration
+ * 048). Returns null (graceful empty state) when the endpoint/scope is
+ * unavailable — it NEVER fabricates meetings.
  */
 
 import { apiGet, YuniteApiError } from './client';
@@ -17,12 +12,10 @@ import type { Meeting } from './types';
 
 export async function getUpcomingMeetings(): Promise<Meeting[] | null> {
   try {
-    // Try the gateway path; if the backend adds /api/v1/meetings later this
-    // lights up automatically without a frontend change.
     return await apiGet<Meeting[]>('/api/v1/meetings', { upcoming: 'true' });
   } catch (e) {
-    if (e instanceof YuniteApiError && (e.status === 404 || e.code === 'endpoint_not_found')) {
-      // Expected until the backend exposes meetings through the gateway.
+    if (e instanceof YuniteApiError && (e.status === 404 || e.status === 403 || e.code === 'endpoint_not_found')) {
+      // Endpoint missing (pre-048 backend) or scope not yet granted.
       return null;
     }
     // Any other error → surface as "unavailable", not fabricated data.

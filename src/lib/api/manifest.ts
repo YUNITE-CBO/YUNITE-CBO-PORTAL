@@ -88,6 +88,9 @@ export const ENDPOINTS: EndpointSpec[] = [
   { id: 'documents.get', method: 'GET', path: '/api/v1/documents/{id}', module: 'documents', action: 'read', summary: 'Document detail', auth: 'required', minRole: 'viewer' },
   { id: 'documents.delete', method: 'DELETE', path: '/api/v1/documents/{id}', module: 'documents', action: 'delete', summary: 'Delete a document', auth: 'required', minRole: 'admin' },
 
+  // ----- Meetings (read-only via gateway; writes stay session-auth) -----
+  { id: 'meetings.list', method: 'GET', path: '/api/v1/meetings', module: 'meetings', action: 'read', summary: 'List meetings (?upcoming=true for upcoming only)', auth: 'required', minRole: 'viewer' },
+
   // ----- Notifications -----
   { id: 'notifications.list', method: 'GET', path: '/api/v1/notifications', module: 'notifications', action: 'read', summary: 'List notifications', auth: 'required', minRole: 'viewer' },
   { id: 'notifications.send', method: 'POST', path: '/api/v1/notifications', module: 'notifications', action: 'create', summary: 'Send a notification', auth: 'required', minRole: 'staff' },

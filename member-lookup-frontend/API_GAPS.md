@@ -24,19 +24,18 @@ automatically when the backend is extended.
   and returns a minimal, verified member identity. This removes the
   client-portal's need to fetch the member list.
 
-## 2. Meetings through the API-key gateway
+## 2. Meetings through the API-key gateway — **CLOSED (backend migration 048)**
 
 - **Need:** upcoming meetings for the public home page.
-- **Backend today:** meetings are exposed only at `GET /api/meetings`
-  (non-v1), which requires a **portal session cookie** — NOT the API key.
-  There is **no** `/api/v1/meetings` endpoint and no `meetings.read` scope.
-- **Workaround (implemented):** `GET /api/meetings` (BFF) tries
-  `/api/v1/meetings` defensively and returns `available: false` with a
-  graceful note when it is unavailable. **No meetings are fabricated.**
-- **Recommended backend change:** (a) add `GET /api/v1/meetings`
-  (`meetings.read` scope) and `GET /api/v1/meetings/{id}`; (b) grant
-  `meetings.read` to the API client used by this portal. The home page and
-  any future meetings tab will then populate automatically.
+- **Backend now:** `GET /api/v1/meetings?upcoming=true` exists (manifest id
+  `meetings.list`, scope `meetings.read`, minRole viewer). Migration 048
+  auto-grants `meetings.read` to every active API client that is the
+  member-lookup portal (`client_type = 'lookup'`) or already holds
+  `members.read`. **Deploy step: run migration 048 in the Supabase SQL
+  Editor** — until then the gateway returns 403 and the home page keeps the
+  graceful "unavailable" note.
+- **Behavior:** the portal BFF fetches real meetings from the gateway; on
+  404/403 it degrades gracefully (never fabricates data).
 
 ## 3. Statement generation is broken on the live DB
 

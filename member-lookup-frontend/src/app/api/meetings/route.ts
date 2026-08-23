@@ -1,10 +1,10 @@
 /**
  * GET /api/meetings — upcoming meetings for the home page.
  *
- * GAP: meetings are not available through the API-key gateway today (see
- * API_GAPS.md). This route returns `available: false` with a graceful note
- * rather than fabricated data. When `/api/v1/meetings` is added + the
- * `meetings.read` scope granted to the API client, this lights up.
+ * Served by the backend gateway `GET /api/v1/meetings` (`meetings.read`
+ * scope, migration 048). If the backend predates that endpoint or the scope
+ * grant has not been applied, returns `available: false` with a graceful
+ * note rather than fabricated data.
  */
 import { NextResponse } from 'next/server';
 import { getUpcomingMeetings } from '@/lib/api/meeting.service';
