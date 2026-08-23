@@ -139,3 +139,6 @@ export async function GET(request: NextRequest) {
 }
 
 export const dynamic = 'force-dynamic';
+// Bulk/all-members PDF generation can be slow. Honored on Vercel
+// (plan-capped); ignored on Render.
+export const maxDuration = 300;

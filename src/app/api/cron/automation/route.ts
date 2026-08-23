@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { automationRunner } from '@/lib/services/automation/runner.service';
 export const dynamic = 'force-dynamic';
+// Long-running tick (email queue + schedules + statements + forecast).
+// Honored on Vercel (plan-capped); ignored on Render.
+export const maxDuration = 300;
 
 /**
  * GET /api/cron/automation
@@ -15,14 +18,24 @@ export const dynamic = 'force-dynamic';
  * `automation_runs`.
  *
  * Authentication: this endpoint is callable without a session cookie (Render
- * cron cannot carry one). It is protected by a shared secret instead. Two
+ * cron cannot carry one). It is protected by a shared secret instead. Three
  * accepted forms:
  *   - Header:  X-Cron-Secret: <CRON_SECRET>
+ *   - Header:  Authorization: Bearer <CRON_SECRET>  (Vercel Cron's native form)
  *   - Query:   ?secret=<CRON_SECRET>
  *
  * If CRON_SECRET is unset in the environment, the endpoint refuses to run
  * (returns 503) so it can never be invoked unauthenticated by accident.
  */
+function readCronSecret(request: NextRequest): string | null {
+  const bearer = request.headers.get('authorization');
+  return (
+    request.headers.get('x-cron-secret') ||
+    (bearer?.startsWith('Bearer ') ? bearer.slice(7) : null) ||
+    request.nextUrl.searchParams.get('secret')
+  );
+}
+
 export async function GET(request: NextRequest) {
   const expected = process.env.CRON_SECRET;
   if (!expected) {
@@ -32,7 +45,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const provided = request.headers.get('x-cron-secret') || request.nextUrl.searchParams.get('secret');
+  const provided = readCronSecret(request);
   if (provided !== expected) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
@@ -71,13 +84,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let provided: string | null = request.headers.get('x-cron-secret');
+  let provided: string | null = readCronSecret(request);
   if (!provided) {
     try {
       const body = await request.json();
       provided = body?.secret || null;
     } catch {
-      provided = request.nextUrl.searchParams.get('secret');
+      provided = null;
     }
   }
   if (provided !== expected) {

@@ -107,7 +107,7 @@ export function createHandler<T>(
       }
 
       // Rate limiting (apply override or manifest limit).
-      const rl = checkRateLimit(principal, override.rateLimit ?? spec.rateLimitPerMinute);
+      const rl = await checkRateLimit(principal, override.rateLimit ?? spec.rateLimitPerMinute);
       if (!rl.allowed) {
         throw ApiError.rateLimited('Rate limit exceeded. Retry after the window resets.');
       }

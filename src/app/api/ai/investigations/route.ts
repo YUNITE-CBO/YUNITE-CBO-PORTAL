@@ -17,6 +17,9 @@ import { runInvestigation } from '@/ai';
 import { listInvestigations } from '@/ai/persistence';
 import type { InvestigationScope, InvestigationDepth, DualModeOption } from '@/ai/types';
 export const dynamic = 'force-dynamic';
+// On-demand dual-provider investigations can take minutes. Honored on
+// Vercel (plan-capped); ignored on Render.
+export const maxDuration = 300;
 
 const VALID_SCOPES: Set<InvestigationScope> = new Set<InvestigationScope>([
   'database', 'cross_module', 'business_rules', 'api', 'financial',

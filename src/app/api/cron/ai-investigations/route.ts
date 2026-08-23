@@ -13,7 +13,8 @@
  * produced and the alert still fires on deterministic criticals — AI is an
  * intelligence layer, not a dependency for alerting.
  *
- * Auth: CRON_SECRET (header X-Cron-Secret OR ?secret=). 503 if unset.
+ * Auth: CRON_SECRET (header X-Cron-Secret OR Authorization: Bearer — Vercel
+ * Cron's native form — OR ?secret=). 503 if unset.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,6 +22,9 @@ import { runInvestigation } from '@/ai';
 import { listDueSchedules, markScheduleRun } from '@/ai/persistence';
 import { alertCriticalFindings } from '@/ai/alerting.service';
 export const dynamic = 'force-dynamic';
+// Dual-provider AI investigations can take minutes. Honored on Vercel
+// (plan-capped); ignored on Render.
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   return runTick(request);
@@ -38,7 +42,11 @@ async function runTick(request: NextRequest) {
       { status: 503 },
     );
   }
-  const provided = request.headers.get('x-cron-secret') || request.nextUrl.searchParams.get('secret');
+  const bearer = request.headers.get('authorization');
+  const provided =
+    request.headers.get('x-cron-secret') ||
+    (bearer?.startsWith('Bearer ') ? bearer.slice(7) : null) ||
+    request.nextUrl.searchParams.get('secret');
   if (provided !== expected) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
