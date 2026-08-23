@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return auth.response!;
 
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 100);
+  const rawLimit = parseInt(searchParams.get('limit') || '20', 10);
+  const limit = Number.isNaN(rawLimit) ? 20 : Math.min(Math.max(rawLimit, 1), 100);
   const scope = searchParams.get('scope') || undefined;
   try {
     const data = await listInvestigations(limit, scope);
