@@ -51,7 +51,26 @@ async function runTick(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const due = await listDueSchedules();
+  let due: any[] = [];
+  try {
+    due = await listDueSchedules();
+  } catch (e: any) {
+    // The AI tables come from migration 030 (ai_investigation_schedules,
+    // ai_investigations, ...). If 030 has not been run on the live DB the
+    // first query throws (PGRST205 "Could not find the table") and the cron
+    // 500s on every tick. Degrade gracefully with an actionable message.
+    const msg = e?.message || String(e);
+    console.error('[cron/ai-investigations] listDueSchedules failed:', msg);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'ai_investigation_schedules unavailable — run migration 030 (ai_intelligence_engine) in the Supabase SQL Editor.',
+        detail: msg,
+      },
+      { status: 503 },
+    );
+  }
+
   const results: any[] = [];
   let totalCritical = 0;
   let totalAlerts = 0;
