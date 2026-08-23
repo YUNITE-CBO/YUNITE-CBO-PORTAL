@@ -43,8 +43,8 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({
       success: true,
-      available: true,
       data: {
+        available: true,
         statement,
         balances: balances.balances,
         transactions,
@@ -56,8 +56,8 @@ export async function GET(request: Request) {
     const isUnavailable = e instanceof YuniteApiError && e.status >= 500;
     return NextResponse.json({
       success: true,
-      available: false,
       data: {
+        available: false,
         balances: balances.balances,
         transactions,
         note: isUnavailable

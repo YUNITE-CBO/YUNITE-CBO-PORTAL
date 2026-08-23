@@ -1064,6 +1064,21 @@ centrally â†’ remove safely â†’ keep the entire system consistent.
   available=false with the real balances + transactions already in hand.
   The frontend StatementPage already read balances + transactions from
   data.data, so no UI change was needed.
+  CORRECTION (2026-08-23): that last claim was WRONG Ñ a third root cause
+  remained. `useApi` unwraps the envelope (`setData(body.data)`), so every
+  dashboard page must read fields FLAT off `data` (like OverviewPage does
+  `data.member`/`data.balances`). But `/api/member/statement` returned
+  `{success, available, data: {balances, transactions}}` and StatementPage
+  read `data.available`/`data.data.balances` Ñ after unwrapping, `data` IS
+  the inner payload, so `available` was undefined (banner always showed the
+  default fallback text) and `balances`/`transactions` resolved to `{}`/`[]`
+  (permanent KES 0.00 + empty activity, even though the BFF route returned
+  real data). FIX: the route now nests `available` INSIDE `data`
+  (`{success, data: {available, statement?, balances, transactions, note?}}`)
+  and the page reads `data.available`/`data.balances`/`data.transactions`/
+  `data.note` flat. Rule: BFF routes for `useApi` consumers must put ALL
+  payload fields inside the envelope's `data` Ñ never as envelope siblings
+  alongside `success`.
 
 - **Supabase UPDATE-matches-zero-rows pattern**: a PostgREST UPDATE that
   matches zero rows returns `{ data: null, error: null, count: 0 }` â€” it is

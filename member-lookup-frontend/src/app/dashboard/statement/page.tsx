@@ -8,29 +8,24 @@ import { formatMoney } from '@/lib/format';
 import type { Transaction } from '@/lib/api/types';
 
 interface StatementData {
+  available?: boolean;
+  statement?: unknown;
   balances?: Record<string, number>;
   transactions?: Transaction[];
   note?: string;
 }
 
-interface StatementResponse {
-  available?: boolean;
-  data?: StatementData;
-  note?: string;
-}
-
 export default function StatementPage() {
   const router = useRouter();
-  const { data, loading, error, reconnecting, reload } = useApi<StatementResponse>('/api/member/statement', () => router.replace('/#access'));
+  const { data, loading, error, reconnecting, reload } = useApi<StatementData>('/api/member/statement', () => router.replace('/#access'));
 
   if (reconnecting) return <Loading label="Connecting to YUNITE…" />;
   if (loading) return <Loading label="Preparing your statement…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
   const available = data?.available;
-  const s = data?.data;
-  const balances = s?.balances || {};
-  const transactions = s?.transactions || [];
+  const balances = data?.balances || {};
+  const transactions = data?.transactions || [];
 
   return (
     <>
@@ -38,7 +33,7 @@ export default function StatementPage() {
 
       {!available && (
         <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
-          {s?.note || data?.note || 'The official statement service is temporarily unavailable. Balances and recent transactions below are accurate.'}
+          {data?.note || 'The official statement service is temporarily unavailable. Balances and recent transactions below are accurate.'}
         </div>
       )}
 
