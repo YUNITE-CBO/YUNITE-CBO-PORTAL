@@ -1423,7 +1423,7 @@ export default function EnhancedSettingsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">System Configuration</h1>
         <p className="text-gray-600 mt-1">
-          Configure your organization's settings. All values are loaded directly from the database.
+          Configure your organization&apos;s settings. All values are loaded directly from the database.
         </p>
       </div>
 

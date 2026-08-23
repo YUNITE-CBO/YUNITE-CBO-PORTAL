@@ -31,9 +31,9 @@ type PdfMakeSingleton = {
   setTableLayouts: (l: Record<string, CustomTableLayout>) => void;
   createPdf: (def: TDocumentDefinitions) => { getBuffer: () => Promise<Buffer> };
 };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// pdfmake is a CommonJS singleton; require() is intentional here (lazily
+// initialised so the fonts VFS registers once per process).
 const pdfmake = require('pdfmake') as PdfMakeSingleton;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const vfsData = require('pdfmake/build/vfs_fonts.js') as Record<string, string>;
 
 let initialised = false;
