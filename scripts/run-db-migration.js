@@ -31,7 +31,10 @@ async function runMigrations() {
   ];
 
   console.log('Checking current columns in users table:');
-  const { data: currentUsers } = await supabase.from('users').select('*').limit(1);
+  const { data: currentUsers, error: usersError } = await supabase.from('users').select('*').limit(1);
+  if (usersError) {
+    throw new Error(`Failed to read users table: ${usersError.message}`);
+  }
   const existingColumns = currentUsers && currentUsers.length > 0 ? Object.keys(currentUsers[0]) : [];
   console.log(existingColumns.join(', '));
   console.log('');
@@ -49,4 +52,7 @@ async function runMigrations() {
   console.log('\nNote: Use Supabase Dashboard -> SQL Editor to run missing migrations');
 }
 
-runMigrations().catch(console.error);
+runMigrations().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
