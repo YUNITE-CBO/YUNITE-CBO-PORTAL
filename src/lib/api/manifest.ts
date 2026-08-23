@@ -116,6 +116,10 @@ export const ENDPOINTS: EndpointSpec[] = [
   { id: 'unity_fund.grant.create', method: 'POST', path: '/api/v1/unity-fund/grants', module: 'unity_fund', action: 'create', summary: 'Record a grant received into the Unity Fund', auth: 'required', minRole: 'staff', financial: true },
   { id: 'unity_fund.org_loan.create', method: 'POST', path: '/api/v1/unity-fund/organization-loans', module: 'unity_fund', action: 'create', summary: 'Record an organization loan received (cash + liability)', auth: 'required', minRole: 'admin', financial: true },
 
+  // ----- Support -----
+  { id: 'support.list', method: 'GET', path: '/api/v1/support/tickets', module: 'support', action: 'read', summary: 'List support tickets (optionally per member)', auth: 'required', minRole: 'staff' },
+  { id: 'support.create', method: 'POST', path: '/api/v1/support/tickets', module: 'support', action: 'create', summary: 'Submit a support ticket for a member', auth: 'required', minRole: 'staff', rateLimitPerMinute: 30 },
+
   // ----- API Management (super_admin only) -----
   { id: 'api.overview', method: 'GET', path: '/api/v1/management/overview', module: 'api', action: 'manage', summary: 'API health & activity overview', auth: 'required', minRole: 'super_admin' },
   { id: 'api.endpoints', method: 'GET', path: '/api/v1/management/endpoints', module: 'api', action: 'manage', summary: 'Endpoint registry', auth: 'required', minRole: 'super_admin' },

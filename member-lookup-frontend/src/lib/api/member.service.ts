@@ -3,8 +3,8 @@
  * All data and calculations come from the backend; no client-side math.
  */
 
-import { apiGet } from './client';
-import type { Member, MemberBalances, Transaction, Loan, Fine, ContributionRow, WelfareRow, Notification } from './types';
+import { apiGet, apiPost } from './client';
+import type { Member, MemberBalances, Transaction, Loan, Fine, ContributionRow, WelfareRow, Notification, SupportTicket } from './types';
 
 /**
  * Verify a member by the three public credentials (phone + id_number +
@@ -103,5 +103,22 @@ export async function getNotifications(memberId: string, opts?: { limit?: number
     recipient_id: memberId,
     recipient_type: 'member',
     limit: String(opts?.limit ?? 50),
+  });
+}
+
+export async function getSupportTickets(memberId: string): Promise<SupportTicket[]> {
+  return apiGet<SupportTicket[]>('/api/v1/support/tickets', { member_id: memberId });
+}
+
+export async function createSupportTicket(
+  memberId: string,
+  input: { category: string; subject: string; message: string },
+): Promise<SupportTicket> {
+  return apiPost<SupportTicket>('/api/v1/support/tickets', {
+    member_id: memberId,
+    category: input.category,
+    subject: input.subject,
+    message: input.message,
+    source: 'member_portal',
   });
 }

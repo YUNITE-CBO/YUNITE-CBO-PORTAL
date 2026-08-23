@@ -62,16 +62,23 @@ automatically when the backend is extended.
 - **Recommended backend change:** add `member_id` to the contributions list
   endpoint (or document transactions as the canonical per-member source).
 
-## 5. Support tickets
+## 5. Support tickets — IMPLEMENTED (migration 046)
 
-- **Need:** a way for members to submit issues online.
-- **Backend today:** there is no support/ticket endpoint in the API manifest.
-- **Workaround (implemented):** the Support page surfaces the org contact
-  details (from `/api/v1/settings`) and FAQ, and clearly states that an
-  in-app ticket system is not yet available. **No fake submission UI.**
-- **Recommended backend change:** add a `support` module
-  (`POST /api/v1/support/tickets`, `GET /api/v1/support/tickets`) with a
-  `tickets` table, scoped to the requesting member.
+- **Backend now provides:** `POST /api/v1/support/tickets` (`support.create`
+  scope) and `GET /api/v1/support/tickets?member_id=` (`support.read` scope),
+  backed by the `support_tickets` table (migration 046) and
+  `supportTicketService`. Members receive a `support.ticket.received`
+  confirmation (in-app + email) on submit; admins receive
+  `admin.support_ticket_received`; status changes send `support.ticket.updated`.
+  Staff manage tickets at `/dashboard/support-tickets` (session routes
+  `GET /api/support/tickets`, `PATCH /api/support/tickets/[id]`).
+- **Portal (implemented):** the Support page has a real "Submit a request"
+  form (category/subject/message) via BFF `GET|POST /api/member/support`
+  (member bound from the session JWT) + a "My requests" list showing status
+  and the office's response.
+- **Deploy:** run migration 046 in Supabase SQL Editor and grant the
+  `support.read` + `support.create` scopes to the portal's API client
+  (Settings → API Keys).
 
 ## Scope summary for the portal's API client
 
@@ -79,4 +86,5 @@ The portal's server-side API key currently needs (and was verified to have)
 these read scopes: `members.read`, `transactions.read`, `loans.read`,
 `fines.read`, `contributions.read`, `welfare.read`, `notifications.read`,
 `statements.read`, `dashboard.read`, `settings.read`. To enable meetings,
-add `meetings.read`.
+add `meetings.read`. For support tickets, add `support.read` +
+`support.create`.

@@ -173,6 +173,22 @@ export interface Notification {
   read_at?: string | null;
 }
 
+export interface SupportTicket {
+  id: string;
+  ticket_reference: string;
+  member_id: string;
+  category: string;
+  subject: string;
+  message: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: string;
+  source: string;
+  admin_response: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OrganizationSetting {
   id: string;
   key: string;

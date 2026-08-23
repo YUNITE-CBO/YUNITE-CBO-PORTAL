@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
   { name: 'Documents', href: '/dashboard/documents', icon: '📄' },
   { name: 'Compliance', href: '/dashboard/compliance', icon: '✅' },
   { name: 'Meetings', href: '/dashboard/meetings', icon: '📅' },
+  { name: 'Support Tickets', href: '/dashboard/support-tickets', icon: '🛟' },
   { name: 'Reports', href: '/dashboard/reports', icon: '📈' },
   { name: 'Notifications', href: '/dashboard/notifications', icon: '🔔' },
   { name: 'Email Queue', href: '/dashboard/email-queue', icon: '📧' },

@@ -164,3 +164,67 @@ export async function apiGet<T>(path: string, searchParams?: Record<string, stri
   // Exhausted retries.
   throw lastError || new YuniteApiError('Could not reach the YUNITE server after multiple attempts.', 0, 'network');
 }
+
+/**
+ * Perform an authenticated POST to the YUNITE API (server-side only).
+ * Used for the few member-initiated writes the portal supports (currently:
+ * support tickets). Same retry/backoff policy as apiGet for cold starts;
+ * POSTs are NOT retried on failure after the first successful response to
+ * avoid duplicate writes — only network-level failures are retried.
+ */
+export async function apiPost<T>(path: string, payload: Record<string, unknown>): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new YuniteApiError('YUNITE API is not configured.', 500, 'config');
+  }
+  if (!API_KEY) {
+    throw new YuniteApiError('YUNITE API key is not configured.', 500, 'config');
+  }
+
+  const url = API_BASE_URL + path;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+        cache: 'no-store',
+      });
+    } catch {
+      // Network-level failure — the request may not have reached the server,
+      // so retrying is safe (backend may be cold-starting).
+      if (attempt < MAX_RETRIES) {
+        await sleep(backoffDelay(attempt, BASE_DELAY_MS));
+        continue;
+      }
+      throw new YuniteApiError(
+        'Could not reach the YUNITE server. Please check your connection and try again.',
+        0,
+        'network',
+      );
+    }
+
+    let body: ApiEnvelope<T> | undefined;
+    try {
+      body = (await res.json()) as ApiEnvelope<T>;
+    } catch {
+      throw new YuniteApiError(friendly(res.status), res.status, 'bad_response');
+    }
+
+    // A POST that reached the server is never retried (avoid duplicate writes).
+    if (!res.ok || !body?.success) {
+      const msg = body?.error?.message || friendly(res.status);
+      throw new YuniteApiError(msg, res.status, body?.error?.code, body?.meta?.request_id);
+    }
+
+    return body.data as T;
+  }
+
+  throw new YuniteApiError('Could not reach the YUNITE server after multiple attempts.', 0, 'network');
+}

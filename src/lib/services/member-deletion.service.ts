@@ -78,6 +78,7 @@ export const MEMBER_DEPENDENCY_MAP: readonly MemberDependency[] = [
   { key: 'email_queue', table: 'email_queue', module: 'Notifications', strategy: 'delete', detail: 'Queued emails to the member or for member notifications (deleted before notifications: FK notification_id)', optional: true },
   { key: 'notification_delivery_history', table: 'notification_delivery_history', module: 'Notifications', strategy: 'delete', detail: 'Delivery history for member notifications (FK notification_id)', optional: true },
   { key: 'notification_statements', table: 'notification_statements', module: 'Statements', strategy: 'delete', detail: 'Generated member statements', optional: true },
+  { key: 'support_tickets', table: 'support_tickets', module: 'Support', strategy: 'cascade', detail: 'Support tickets (ON DELETE CASCADE via member_id FK — migration 046)', optional: true },
   { key: 'notification_preferences', table: 'notification_preferences', module: 'Notifications', strategy: 'delete', detail: 'Notification preferences (member_id or owner)', optional: true },
   { key: 'member_registration_submissions', table: 'member_registration_submissions', module: 'Registration', strategy: 'unlink', detail: 'registered_member_id/existing_member_id unlinked; the applicant intake record is preserved', optional: true },
   { key: 'media_assets', table: 'media_assets', module: 'Media', strategy: 'delete', detail: 'Profile photo asset records + storage objects (best-effort)', optional: true },
