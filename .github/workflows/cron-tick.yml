@@ -1,0 +1,57 @@
+name: Automation Cron Tick (Vercel Hobby fallback)
+
+# ===================================================================
+# External pinger for the YUNITE cron endpoints.
+#
+# WHY THIS EXISTS: Vercel Hobby (free) plan only allows cron executions
+# once per day, but the Workflow & Automation Engine needs a clock every
+# 5 minutes (email queue flush, due notification schedules, obligations
+# reminders, statement cadence). vercel.json's crons work on Pro; this
+# workflow is the free-tier fallback — delete it (or disable it) if the
+# project moves to Vercel Pro with vercel.json crons active.
+#
+# SAFETY: hitting the endpoint is idempotent — automationRunner.tick()
+# acquires a DB-level lock (automation_locks), so an overlapping
+# vercel.json cron + this pinger cannot double-run.
+#
+# REQUIRED GitHub Secrets (Repo -> Settings -> Secrets and variables):
+#   CRON_SECRET    - the same shared secret set in the Vercel env vars
+#   APP_BASE_URL   - e.g. https://yunite-enterprise-os.vercel.app
+#
+# Note: GitHub scheduled workflows can be delayed a few minutes under
+# load; a slightly-late tick is fine (idempotent, lock-guarded).
+# ===================================================================
+
+on:
+  schedule:
+    # Automation tick — every 5 minutes (matches render.yaml's */5).
+    # Both endpoints are poked in the same job; the AI investigations
+    # endpoint reads due ai_investigation_schedules so an every-5-min
+    # poke is harmless (it just no-ops when nothing is due).
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # manual trigger for testing
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    env:
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Verify secrets are configured
+        run: |
+          if [ -z "$APP_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::APP_BASE_URL and CRON_SECRET secrets must be set."
+            exit 1
+          fi
+          echo "Pinging ${APP_BASE_URL} (automation + AI investigations)"
+
+      - name: Ping automation tick
+        run: |
+          curl -fsS -m 300 -H "X-Cron-Secret: ${CRON_SECRET}" \
+            "${APP_BASE_URL}/api/cron/automation" || true
+
+      - name: Ping AI investigations tick
+        run: |
+          curl -fsS -m 900 -H "X-Cron-Secret: ${CRON_SECRET}" \
+            "${APP_BASE_URL}/api/cron/ai-investigations" || true
