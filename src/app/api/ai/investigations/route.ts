@@ -33,8 +33,16 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
   const scope = searchParams.get('scope') || undefined;
-  const data = await listInvestigations(limit, scope);
-  return NextResponse.json({ success: true, data });
+  try {
+    const data = await listInvestigations(limit, scope);
+    return NextResponse.json({ success: true, data });
+  } catch (error: any) {
+    console.error('[ai/investigations] list failed:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to list investigations', message: error?.message || String(error) },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {

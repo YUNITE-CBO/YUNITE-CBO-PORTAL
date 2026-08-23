@@ -43,6 +43,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
   const forbidden = requireSuperAdmin(auth);
   if (forbidden) return forbidden;
 
-  await deleteSchedule(params.id);
-  return NextResponse.json({ success: true });
+  try {
+    await deleteSchedule(params.id);
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error?.message || String(error) }, { status: 500 });
+  }
 }

@@ -21,16 +21,16 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   let investigationId = searchParams.get('investigationId');
 
-  // Default to the latest investigation if none specified.
-  if (!investigationId) {
-    const recent = await listInvestigations(1);
-    if (!recent.length) {
-      return NextResponse.json({ success: true, data: { modules: [], investigation_id: null } });
-    }
-    investigationId = recent[0].id as string;
-  }
-
   try {
+    // Default to the latest investigation if none specified.
+    if (!investigationId) {
+      const recent = await listInvestigations(1);
+      if (!recent.length) {
+        return NextResponse.json({ success: true, data: { modules: [], investigation_id: null } });
+      }
+      investigationId = recent[0].id as string;
+    }
+
     const findings = await listFindings(investigationId);
     const modules = buildModuleHealthMap(findings);
     return NextResponse.json({ success: true, data: { modules, investigation_id: investigationId, findings_count: findings.length } });
