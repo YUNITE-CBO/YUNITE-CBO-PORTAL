@@ -49,9 +49,13 @@ jobs:
       - name: Ping automation tick
         run: |
           curl -fsS -m 300 -H "X-Cron-Secret: ${CRON_SECRET}" \
-            "${APP_BASE_URL}/api/cron/automation" || true
+            -w "\nHTTP %{http_code}\n" \
+            "${APP_BASE_URL%/}/api/cron/automation"
 
       - name: Ping AI investigations tick
+        # Always ping both endpoints, even if the first one failed.
+        if: always()
         run: |
           curl -fsS -m 900 -H "X-Cron-Secret: ${CRON_SECRET}" \
-            "${APP_BASE_URL}/api/cron/ai-investigations" || true
+            -w "\nHTTP %{http_code}\n" \
+            "${APP_BASE_URL%/}/api/cron/ai-investigations"
