@@ -8,6 +8,14 @@ import { requireAdminAuth } from '@/app/api/ai/_guard';
 export async function GET() {
   const auth = await requireAdminAuth();
   if (!auth.ok) return auth.response!;
-  const findings = await mediaAssetService.integrityCheck();
-  return NextResponse.json({ success: true, findings, count: findings.length });
+  try {
+    const findings = await mediaAssetService.integrityCheck();
+    return NextResponse.json({ success: true, findings, count: findings.length });
+  } catch (error: any) {
+    console.error('[media/integrity] check failed:', error);
+    return NextResponse.json(
+      { success: false, error: 'Integrity check failed', message: error?.message || String(error) },
+      { status: 500 },
+    );
+  }
 }
