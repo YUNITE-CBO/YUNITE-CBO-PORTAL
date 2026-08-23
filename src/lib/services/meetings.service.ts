@@ -38,6 +38,31 @@ export interface Meeting extends MeetingInput {
   updated_at: string;
 }
 
+/**
+ * The meetings.start_time/end_time columns are TIMESTAMPTZ (migration 004),
+ * but clients may send a plain "HH:MM" from <input type="time">, which
+ * Postgres rejects ("invalid input syntax for type timestamp with time
+ * zone") and the create/update fails with a 500. Normalize here: full
+ * date/datetime strings pass through; bare "HH:MM[:SS]" values are anchored
+ * on the meeting's scheduled_date; empty/invalid values become null.
+ */
+export function normalizeMeetingTime(scheduledDate: string | undefined, time?: string | null): string | null {
+  if (!time) return null;
+  const t = String(time).trim();
+  if (!t) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) {
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  const m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  const datePart = (scheduledDate || '').slice(0, 10);
+  const d = new Date(`${datePart}T${m[1].padStart(2, '0')}:${m[2]}:${m[3] || '00'}`);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 class MeetingsService {
   async create(input: MeetingInput): Promise<Meeting> {
     const supabase = await createServiceClient();
@@ -47,6 +72,8 @@ class MeetingsService {
       .from('meetings')
       .insert({
         ...input,
+        start_time: normalizeMeetingTime(input.scheduled_date, input.start_time),
+        end_time: normalizeMeetingTime(input.scheduled_date, input.end_time),
         meeting_number,
         status: 'scheduled',
       })
@@ -65,9 +92,23 @@ class MeetingsService {
 
   async update(id: string, patch: Partial<MeetingInput>): Promise<Meeting> {
     const supabase = await createServiceClient();
+
+    let anchor = patch.scheduled_date;
+    if ((patch.start_time !== undefined || patch.end_time !== undefined) && !anchor) {
+      const existing = await this.get(id);
+      anchor = existing?.scheduled_date;
+    }
+    const normalized: Partial<MeetingInput> = { ...patch };
+    if (patch.start_time !== undefined) {
+      normalized.start_time = normalizeMeetingTime(anchor, patch.start_time);
+    }
+    if (patch.end_time !== undefined) {
+      normalized.end_time = normalizeMeetingTime(anchor, patch.end_time);
+    }
+
     const { data: meeting, error } = await supabase
       .from('meetings')
-      .update({ ...patch, updated_at: new Date().toISOString() })
+      .update({ ...normalized, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();

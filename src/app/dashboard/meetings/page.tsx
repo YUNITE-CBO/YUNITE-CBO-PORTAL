@@ -62,6 +62,16 @@ export default function MeetingsPage() {
     setShowModal(true);
   };
 
+  // <input type="time"> needs "HH:MM"; stored values may be full ISO datetimes.
+  const toTimeInput = (v?: string | null) => {
+    if (!v) return '';
+    if (v.includes('T')) {
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? '' : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    return v.slice(0, 5);
+  };
+
   const openEdit = (m: Meeting) => {
     setEditing(m);
     setFormError(null);
@@ -71,8 +81,8 @@ export default function MeetingsPage() {
       meeting_title: m.meeting_title,
       meeting_type: m.meeting_type || 'general',
       scheduled_date: isoDate,
-      start_time: m.start_time || '',
-      end_time: m.end_time || '',
+      start_time: toTimeInput(m.start_time),
+      end_time: toTimeInput(m.end_time),
       venue: m.venue || '',
       agenda: m.agenda || '',
     });
@@ -86,12 +96,14 @@ export default function MeetingsPage() {
       const isoScheduled = form.start_time
         ? new Date(`${form.scheduled_date}T${form.start_time}`).toISOString()
         : new Date(`${form.scheduled_date}T00:00:00`).toISOString();
+      // start_time/end_time columns are TIMESTAMPTZ — send full ISO datetimes
+      // (browser-local wall time converted here), not bare "HH:MM" strings.
       const body = {
         meeting_title: form.meeting_title,
         meeting_type: form.meeting_type,
         scheduled_date: isoScheduled,
-        start_time: form.start_time || null,
-        end_time: form.end_time || null,
+        start_time: form.start_time ? new Date(`${form.scheduled_date}T${form.start_time}`).toISOString() : null,
+        end_time: form.end_time ? new Date(`${form.scheduled_date}T${form.end_time}`).toISOString() : null,
         venue: form.venue || null,
         agenda: form.agenda || null,
       };
@@ -100,7 +112,7 @@ export default function MeetingsPage() {
         : await fetch('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.success) { setShowModal(false); fetchMeetings(); }
-      else setFormError(data.error || 'Failed to save meeting');
+      else setFormError(data.message || data.error || 'Failed to save meeting');
     } catch { setFormError('Failed to save meeting'); }
     finally { setSubmitting(false); }
   };
@@ -116,7 +128,11 @@ export default function MeetingsPage() {
   };
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-KE', { year: 'numeric', month: 'short', day: 'numeric' });
-  const formatTime = (t?: string | null) => t ? new Date(`1970-01-01T${t}`).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }) : null;
+  const formatTime = (t?: string | null) => {
+    if (!t) return null;
+    const d = t.includes('T') ? new Date(t) : new Date(`1970-01-01T${t}`);
+    return isNaN(d.getTime()) ? null : d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+  };
 
   const statusColor = (s: string) => ({
     scheduled: 'bg-blue-100 text-blue-800',
