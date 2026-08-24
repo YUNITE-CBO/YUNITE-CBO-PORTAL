@@ -309,6 +309,34 @@ export default function AiIntelligencePage() {
     }
   }, [isLoading, isAdmin, loadHealth, loadInvestigations, loadSchedules, loadModuleHealth]);
 
+  // Poll the History list until the investigation created by the background
+  // run appears, then auto-open it. The 202 response carries no id (the
+  // engine creates the row itself), so match on the newest row of the same
+  // scope (and member) that appeared after the request started.
+  const waitForNewInvestigation = useCallback(async (scope: string, memberId?: string) => {
+    const startedAt = Date.now();
+    const deadline = startedAt + 5 * 60 * 1000;
+    // The engine's row is created within the first few seconds of the run;
+    // capture the ids that already existed so we only match the NEW one.
+    const before = new Set(investigations.map((i) => i.id));
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 4000));
+      await loadInvestigations();
+      const fresh = (await (async () => {
+        const res = await fetch('/api/ai/investigations?limit=30', { credentials: 'include' });
+        const json = await parseJsonSafe(res);
+        return json?.success ? (json.data as Investigation[]) : [];
+      })());
+      const created = fresh.find((i) => !before.has(i.id) && i.scope === scope);
+      if (created) {
+        await openInvestigationRef.current(created.id);
+        await loadModuleHealth();
+        return;
+      }
+    }
+    setError('The investigation is taking longer than expected. It is still running — check the History tab in a moment.');
+  }, [investigations, loadInvestigations, loadModuleHealth]);
+
   const runInvestigation = useCallback(async (scope: string, memberId?: string) => {
     setRunning(true);
     setError(null);
@@ -320,8 +348,15 @@ export default function AiIntelligencePage() {
         credentials: 'include',
         body: JSON.stringify({ scope, memberId, depth, dualMode }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await parseJsonSafe(res);
+      if (res.status === 202 && json?.success) {
+        // Background mode: the engine is creating the ai_investigations row
+        // now. Poll History until it appears, then auto-open it.
+        setInfo(`Investigation queued (${depth}/${dualMode}) — running in the background. This can take a few minutes; it will open automatically when ready.`);
+        await waitForNewInvestigation(scope, memberId);
+        await loadHealth();
+      } else if (json?.success && json.data?.investigation_id) {
+        // Legacy synchronous success (older backend).
         const counts = json.data.final_report?.counts;
         setInfo(
           `Investigation ${json.data.investigation_number} (${depth}/${dualMode}) — score ${json.data.overall_score}. ` +
@@ -330,23 +365,19 @@ export default function AiIntelligencePage() {
         );
         await loadHealth();
         await loadInvestigations();
-        // Auto-open the just-run investigation so the Evidence / Recommendations
-        // / Critical / Modules tabs reflect the fresh results immediately (this
-        // also reloads module health for that investigation).
-        if (json.data.investigation_id) {
-          await openInvestigationRef.current(json.data.investigation_id);
-        } else {
-          await loadModuleHealth();
-        }
+        await openInvestigationRef.current(json.data.investigation_id);
       } else {
-        setError(json.error || 'Investigation failed');
+        setError(json?.error || `Investigation failed (HTTP ${res.status})`);
+        setRunning(false);
+        return;
       }
     } catch (e: any) {
       setError(`Investigation failed: ${e?.message || e}`);
-    } finally {
       setRunning(false);
+      return;
     }
-  }, [depth, dualMode, loadHealth, loadInvestigations, loadModuleHealth]);
+    setRunning(false);
+  }, [depth, dualMode, loadHealth, loadInvestigations, loadModuleHealth, waitForNewInvestigation]);
 
   const searchMembers = useCallback(async () => {
     if (!memberSearchQuery.trim()) {
@@ -1631,6 +1662,25 @@ function scoreColor(s: number): string {
 }
 function statusBadge(s?: string): string {
   return STATUS_BADGE[s ?? 'unknown']?.label ?? 'UNKNOWN';
+}
+
+/**
+ * Parse a fetch Response as JSON without dying on non-JSON bodies. Vercel
+ * returns a plain-text/HTML error page when a function is killed at
+ * maxDuration or crashes, so a bare res.json() surfaces as the opaque
+ * "JSON.parse: unexpected character at line 1 column 1". Returns null (and
+ * logs the real body preview) instead of throwing.
+ */
+async function parseJsonSafe(res: Response): Promise<any | null> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error(
+      `[ai-intelligence] non-JSON response (HTTP ${res.status}): ${text.slice(0, 300)}`,
+    );
+    return null;
+  }
 }
 function fmt(d: string | null | undefined): string {
   if (!d) return '—';

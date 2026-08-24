@@ -12,9 +12,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { requireAdminAuth } from '../_guard';
-import { runInvestigation } from '@/ai';
 import { listInvestigations } from '@/ai/persistence';
+import { startInvestigation } from './background';
 import type { InvestigationScope, InvestigationDepth, DualModeOption } from '@/ai/types';
 export const dynamic = 'force-dynamic';
 // On-demand dual-provider investigations can take minutes. Capped at 60s
@@ -68,14 +69,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Invalid dualMode. Valid: auto, single, dual' }, { status: 400 });
   }
 
-  try {
-    const result = await runInvestigation({ scope, memberId, initiatedBy: auth.userId, trigger: 'manual', depth, dualMode });
-    return NextResponse.json({ success: true, data: result });
-  } catch (error: any) {
-    console.error('[ai/investigations] run failed:', error);
-    return NextResponse.json(
-      { success: false, error: 'Investigation failed', message: error?.message || String(error) },
-      { status: 500 },
-    );
-  }
+  // Two-phase (same pattern as /api/cron/ai-investigations). A manual dual
+  // investigation can take minutes, but Vercel kills the function at
+  // maxDuration and returns its plain-text error page — the dashboard then
+  // dies on res.json() with "JSON.parse: unexpected character at line 1
+  // column 1". FAST PHASE: validate (above) -> 202. BACKGROUND PHASE: the
+  // engine creates + finalizes the ai_investigations row; the dashboard
+  // polls History and auto-opens it when it appears.
+  startInvestigation({ scope, memberId, initiatedBy: auth.userId, trigger: 'manual', depth, dualMode });
+  waitUntil(backgroundWork());
+
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        accepted: true,
+        scope,
+        note: 'Investigation is running in the background; it appears in History and updates as it completes.',
+      },
+    },
+    { status: 202 },
+  );
+}
+
+// waitUntil needs the in-flight promise; it lives inside background.ts.
+async function backgroundWork(): Promise<void> {
+  const { _awaitBackgroundWork } = await import('./background');
+  await _awaitBackgroundWork();
 }
