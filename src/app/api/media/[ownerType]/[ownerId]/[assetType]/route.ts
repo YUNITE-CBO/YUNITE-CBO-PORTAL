@@ -96,7 +96,7 @@ export async function POST(
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Upload failed';
     // Validation failures → 400; storage failures → 500.
-    const isValidation = /exceeds|not allowed|signature|URL|Invalid|Protocol|Dangerous/i.test(msg);
+    const isValidation = /exceeds|not allowed|signature|URL|Invalid|Protocol|Dangerous|dimensions/i.test(msg);
     return NextResponse.json({ success: false, error: msg }, { status: isValidation ? 400 : 500 });
   }
 }
