@@ -1073,7 +1073,9 @@ function DeepFindingCard({ finding }: { finding: any }) {
       {/* Verification (req. #10, #32) */}
       <div className="mt-1 flex flex-wrap gap-2 text-slate-400">
         <span>confidence: {finding.confidence}</span>
-        <span>status: {finding.verification_status}</span>
+        <span className={finding.is_verified ? 'text-green-600' : 'font-semibold text-amber-700'}>
+          status: {finding.is_verified ? finding.verification_status : 'UNVERIFIED'}
+        </span>
         {finding.sources?.length > 0 && <span>sources: {finding.sources.join(', ')}</span>}
         {finding.is_verified && <span className="text-green-600">✓ verified</span>}
       </div>

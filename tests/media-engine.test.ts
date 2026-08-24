@@ -9,6 +9,7 @@
 import {
   detectMimeType,
   detectDimensions,
+  validateDimensions,
   validateExternalUrl,
   cacheBust,
 } from '@/lib/services/media/media-asset.service';
@@ -70,6 +71,21 @@ describe('detectDimensions', () => {
 
   test('returns nulls for an unknown mime without throwing', () => {
     expect(detectDimensions(Buffer.alloc(50), 'image/gif')).toEqual({ width: null, height: null });
+  });
+});
+
+describe('validateDimensions', () => {
+  test('accepts unknown dimensions for formats without a parsed header', () => {
+    expect(validateDimensions(null, null).ok).toBe(true);
+  });
+
+  test('rejects extreme or invalid dimensions', () => {
+    expect(validateDimensions(8193, 100).ok).toBe(false);
+    expect(validateDimensions(0, 100).ok).toBe(false);
+  });
+
+  test('accepts normal dimensions', () => {
+    expect(validateDimensions(4096, 4096).ok).toBe(true);
   });
 });
 

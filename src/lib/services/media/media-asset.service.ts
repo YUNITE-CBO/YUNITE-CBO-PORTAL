@@ -166,6 +166,16 @@ export function detectDimensions(buf: Buffer, mime: string): { width: number | n
   return { width: null, height: null };
 }
 
+const MAX_IMAGE_DIMENSION = 8192;
+
+export function validateDimensions(width: number | null, height: number | null): { ok: boolean; error?: string } {
+  if (width == null || height == null) return { ok: true };
+  if (width < 1 || height < 1 || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+    return { ok: false, error: `Image dimensions must be between 1 and ${MAX_IMAGE_DIMENSION} pixels` };
+  }
+  return { ok: true };
+}
+
 /** Validate an external URL: protocol allowlist + reject dangerous schemes. */
 export function validateExternalUrl(url: string): { ok: boolean; error?: string } {
   let parsed: URL;
@@ -304,8 +314,10 @@ export class MediaAssetService {
       throw new Error(`MIME type ${effectiveMime} is not allowed`);
     }
 
-    // 3. Dimensions (best-effort; never fatal).
+    // 3. Reject extreme declared dimensions before storing the image.
     const { width, height } = detectDimensions(file.buffer, effectiveMime);
+    const dimensions = validateDimensions(width, height);
+    if (!dimensions.ok) throw new Error(dimensions.error);
 
     // 4. Upload to Supabase Storage. Do NOT touch the old asset first.
     const supabase = await createServiceClient();
