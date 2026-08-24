@@ -313,7 +313,7 @@ export default function AiIntelligencePage() {
   // run appears, then auto-open it. The 202 response carries no id (the
   // engine creates the row itself), so match on the newest row of the same
   // scope that appeared after the request started.
-  const waitForNewInvestigation = useCallback(async (scope: string, memberId?: string) => {
+  const waitForNewInvestigation = useCallback(async (scope: string) => {
     const deadline = Date.now() + 5 * 60 * 1000;
     // The engine's row is created within the first few seconds of the run;
     // capture the ids that already existed so we only match the NEW one.
@@ -357,7 +357,7 @@ export default function AiIntelligencePage() {
         // Background mode: the engine is creating the ai_investigations row
         // now. Poll History until it appears, then auto-open it.
         setInfo(`Investigation queued (${depth}/${dualMode}) — running in the background. This can take a few minutes; it will open automatically when ready.`);
-        await waitForNewInvestigation(scope, memberId);
+        await waitForNewInvestigation(scope);
         await loadHealth();
       } else if (json?.success && json.data?.investigation_id) {
         // Legacy synchronous success (older backend).
