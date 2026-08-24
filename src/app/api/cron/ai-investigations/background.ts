@@ -43,6 +43,12 @@ export async function runDueSchedules(due: any[]): Promise<void> {
   tickInFlight = work;
   try {
     await work;
+  } catch (error) {
+    // work already catches per-schedule errors; this is the last-resort guard.
+    // The route hands this promise to waitUntil(), which is a no-op outside
+    // Vercel — an escaped rejection would be an unhandled rejection on Render
+    // and crash the Node process.
+    console.error('[cron/ai-investigations] background tick failed:', error);
   } finally {
     tickInFlight = null;
   }

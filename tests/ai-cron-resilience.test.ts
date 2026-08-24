@@ -176,4 +176,26 @@ describe('cron/ai-investigations resilience', () => {
     await background._awaitBackgroundWork();
     expect(runInvestigation).toHaveBeenCalledTimes(1);
   });
+
+  it('never lets a background tick rejection escape, and clears the in-flight guard', async () => {
+    // @vercel/functions waitUntil() attaches no rejection handler outside
+    // Vercel, so a rejected background promise would surface on Render as an
+    // unhandled rejection and crash the Node process. runDueSchedules must
+    // swallow even a throw from the work body itself (here: non-iterable due).
+    await expect(background.runDueSchedules(null as any)).resolves.toBeUndefined();
+
+    // The in-flight guard must clear after the failed tick so later ticks run.
+    listDueSchedules.mockResolvedValue(DUE);
+    markScheduleRun.mockResolvedValue(undefined);
+    runInvestigation.mockResolvedValue({
+      investigation_id: 'inv4',
+      findings: [],
+      ai_status: 'completed',
+      overall_score: 100,
+    });
+    const res = await route.GET(req(SECRET));
+    expect(res.status).toBe(202);
+    await background._awaitBackgroundWork();
+    expect(runInvestigation).toHaveBeenCalledTimes(1);
+  });
 });
