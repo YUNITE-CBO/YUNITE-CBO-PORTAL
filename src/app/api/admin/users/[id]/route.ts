@@ -15,9 +15,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { createServiceClient } from '@/lib/supabase/server';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
+const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
 
 // Helper to verify super admin
 async function verifySuperAdmin(request: NextRequest): Promise<{

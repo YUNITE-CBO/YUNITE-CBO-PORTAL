@@ -11,9 +11,7 @@ import { jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { createServiceClient } from '@/lib/supabase/server';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
+const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
 
 // POST /api/auth/password - Change password
 export async function POST(request: NextRequest) {

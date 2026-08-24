@@ -21,12 +21,9 @@ import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getRoleLevel } from '@/lib/auth/authorization';
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 import { ApiError } from './error';
 import type { EndpointSpec } from './manifest';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
 
 export type AuthMode = 'session' | 'api_key' | 'anonymous';
 
@@ -84,7 +81,7 @@ async function resolveSession(request: NextRequest): Promise<ApiPrincipal> {
 
   let payload;
   try {
-    ({ payload } = await jwtVerify(token, JWT_SECRET));
+    ({ payload } = await jwtVerify(token, getJwtSecret()));
   } catch {
     throw ApiError.unauthorized('Invalid or expired session');
   }

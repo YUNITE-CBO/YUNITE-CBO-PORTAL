@@ -8,9 +8,7 @@
 import { jwtVerify, JWTPayload } from 'jose';
 import { NextRequest } from 'next/server';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
+const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
 
 export interface TokenPayload extends JWTPayload {
   user_id: string;

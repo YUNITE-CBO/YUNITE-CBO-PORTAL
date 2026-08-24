@@ -11,9 +11,7 @@ import { jwtVerify } from 'jose';
 import { superAdminBootstrapService, getOrCreateInitialization } from '@/lib/services';
 export const dynamic = 'force-dynamic';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
+const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
 
 /**
  * Extract authenticated user from request

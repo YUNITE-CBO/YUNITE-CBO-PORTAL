@@ -6,9 +6,7 @@ import { authService } from '@/lib/services/auth.service';
 import { authNotificationService } from '@/lib/services/notifications/auth-notification.service';
 import { createServiceClient } from '@/lib/supabase/server';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
+const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
 
 export async function POST(request: NextRequest) {
   try {

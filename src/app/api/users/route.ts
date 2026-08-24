@@ -13,9 +13,7 @@ export const dynamic = 'force-dynamic';
 import { jwtVerify } from 'jose';
 import { userManagementService, type UserRole, type UserQueryOptions } from '@/lib/services';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
+const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
 
 interface AuthUser {
   user_id: string;

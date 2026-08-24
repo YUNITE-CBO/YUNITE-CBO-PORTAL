@@ -1,22 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { applyCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
-// Public read-only API paths (dashboard frontend can access without auth)
+// API paths that intentionally accept unauthenticated requests. All other API
+// routes, including GET routes, require a valid session before reaching their handler.
 const publicReadPaths = [
   '/health',
   '/api/auth/login',
   '/api/auth/logout',
   '/api/health',
-  '/api/dashboard',
-  '/api/members',
-  '/api/members/lookup',
-  '/api/transactions',
-  '/api/fines',
-  '/api/loans',
-  '/api/contributions',
-  '/api/settings',
-  '/api/audit',
   // Public member pre-registration: prospective members submit their info
   // through /register/member. POST creates a pending submission (NO member);
   // admin list/read is gated by requirePermission inside the route handler.
@@ -68,7 +61,7 @@ export async function middleware(request: NextRequest) {
     }
 
     try {
-      const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET || 'secret');
+      const secret = getJwtSecret();
       const { jwtVerify } = await import('jose');
       await jwtVerify(token, secret);
       return NextResponse.next();
@@ -79,19 +72,13 @@ export async function middleware(request: NextRequest) {
 
   // Check if this is an API route
   if (pathname.startsWith('/api/')) {
-    // GET requests are public for read operations
-    if (request.method === 'GET') {
-      return NextResponse.next();
-    }
-
-    // For POST/PUT/DELETE, check auth token
     const token = request.cookies.get('auth_token')?.value;
     if (!token) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
 
     try {
-      const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET || 'secret');
+      const secret = getJwtSecret();
       const { jwtVerify } = await import('jose');
       await jwtVerify(token, secret);
       return NextResponse.next();

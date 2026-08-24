@@ -9,10 +9,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET || 'your-secret-key-at-least-32-chars'
-);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 const SESSION_DURATION_HOURS = 24;
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -252,7 +249,7 @@ export class AuthService {
     error?: string;
   }> {
     try {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
+      const { payload } = await jwtVerify(token, getJwtSecret());
       return {
         valid: true,
         payload: {
@@ -556,7 +553,7 @@ export class AuthService {
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime(`${SESSION_DURATION_HOURS}h`)
-      .sign(JWT_SECRET);
+      .sign(getJwtSecret());
   }
 
   private async createSession(
