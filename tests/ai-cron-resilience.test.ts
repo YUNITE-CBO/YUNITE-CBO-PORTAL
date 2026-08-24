@@ -48,6 +48,7 @@ const DUE = [
 describe('cron/ai-investigations resilience', () => {
   const SECRET = 'test-cron-secret';
   let route: typeof import('@/app/api/cron/ai-investigations/route');
+  let background: typeof import('@/app/api/cron/ai-investigations/background');
 
   beforeEach(async () => {
     jest.resetModules();
@@ -62,6 +63,8 @@ describe('cron/ai-investigations resilience', () => {
     jest.clearAllMocks();
     process.env.CRON_SECRET = SECRET;
     route = await import('@/app/api/cron/ai-investigations/route');
+    // Same registry as the route import above, so this is the same instance.
+    background = await import('@/app/api/cron/ai-investigations/background');
   });
 
   afterEach(() => {
@@ -114,7 +117,7 @@ describe('cron/ai-investigations resilience', () => {
     // mark-first: next_run_at advanced even though the run had not finished.
     expect(markScheduleRun).toHaveBeenCalledWith('s1', expect.any(String));
 
-    await route._awaitBackgroundWork();
+    await background.awaitBackgroundWork();
     expect(runInvestigation).toHaveBeenCalledWith('full_system', undefined, undefined, 'cron');
     expect(alertCriticalFindings).toHaveBeenCalledWith('inv1', [{ severity: 'critical' }]);
     expect(markScheduleRun.mock.invocationCallOrder[0]).toBeLessThan(
@@ -134,7 +137,7 @@ describe('cron/ai-investigations resilience', () => {
 
     const res = await route.GET(req(SECRET));
     expect(res.status).toBe(202);
-    await route._awaitBackgroundWork();
+    await background.awaitBackgroundWork();
     expect(alertCriticalFindings).not.toHaveBeenCalled();
   });
 
@@ -145,7 +148,7 @@ describe('cron/ai-investigations resilience', () => {
 
     const res = await route.GET(req(SECRET));
     expect(res.status).toBe(202);
-    await expect(route._awaitBackgroundWork()).resolves.toBeUndefined();
+    await expect(background.awaitBackgroundWork()).resolves.toBeUndefined();
     // mark-first still advanced the schedule so the failure does not re-fire every tick.
     expect(markScheduleRun).toHaveBeenCalledWith('s1', expect.any(String));
   });
@@ -171,7 +174,7 @@ describe('cron/ai-investigations resilience', () => {
     expect(runInvestigation).toHaveBeenCalledTimes(1); // overlap skipped
 
     release();
-    await route._awaitBackgroundWork();
+    await background.awaitBackgroundWork();
     expect(runInvestigation).toHaveBeenCalledTimes(1);
   });
 });
