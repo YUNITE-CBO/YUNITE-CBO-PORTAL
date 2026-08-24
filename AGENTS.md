@@ -13,6 +13,15 @@ Backend: Supabase (Postgres + Storage). Auth: custom JWT sessions (jose) stored 
   (run via Supabase SQL Editor at https://sprlwlxjhhmazxpflhnb.supabase.co/project/-/sql)
 
 ## Known Gotchas
+- **`@vercel/functions` `waitUntil()` is a no-op outside Vercel**: it resolves
+  to `getContext().waitUntil?.(promise)` — with no request context (Render's
+  plain Node runtime, Jest) nothing attaches a rejection handler to the
+  promise. Any promise handed to `waitUntil()` must therefore NEVER reject,
+  or it surfaces on Render as an unhandled rejection and crashes the
+  long-lived Node process (Node >= 15 default). `runDueSchedules()` in
+  `src/app/api/cron/ai-investigations/background.ts` is kept total (never
+  rejects) via a last-resort catch; keep it that way if the background work
+  is refactored. Guarded by `tests/ai-cron-resilience.test.ts`.
 - **Email delivery (Gmail API primary, SMTP fallback ‚Äî the "38 failed
   notifications" fix, migration 043)**: three defects combined to fail every
   queued email: (a) `gmailApiAdapter.isGmailApiConfigured()` used OR logic, so
