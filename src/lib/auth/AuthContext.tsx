@@ -145,13 +145,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || 'Failed to update profile' };
       }
 
-      // Update local state with response data
+      // Update local state with response data. Include the address /
+      // emergency contact fields too — dropping them here made the saved
+      // values vanish from the profile form until a full session reload.
       if (data.data) {
-        setUser(prev => prev ? { 
-          ...prev, 
+        setUser(prev => prev ? {
+          ...prev,
           full_name: data.data.full_name,
           phone: data.data.phone,
           avatar_url: data.data.avatar_url,
+          address: data.data.address,
+          emergency_contact_name: data.data.emergency_contact_name,
+          emergency_contact_phone: data.data.emergency_contact_phone,
         } : null);
       }
 

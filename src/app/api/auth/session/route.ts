@@ -33,9 +33,19 @@ export async function GET(request: NextRequest) {
       const supabase = await createServiceClient();
       const userId = payload.user_id as string;
       
+      // Select the full profile shape. The profile page, the dashboard
+      // sidebar avatar, and AuthContext all hydrate from THIS endpoint — a
+      // minimal column list here silently drops avatar_url / address /
+      // emergency contact on every page load and after every refreshSession
+      // (e.g. right after uploading a profile photo), which is why the photo
+      // + saved personal info appeared "set but not displayed".
       const { data: user, error: userError } = await supabase
         .from('users')
-        .select('id, email, full_name, role, phone, is_active, last_login, created_at, must_change_password')
+        .select(`
+          id, email, full_name, role, phone, avatar_url, address,
+          emergency_contact_name, emergency_contact_phone, is_active,
+          last_login, created_at, must_change_password
+        `)
         .eq('id', userId)
         .single();
 
@@ -55,6 +65,10 @@ export async function GET(request: NextRequest) {
             full_name: user.full_name,
             role: user.role,
             phone: user.phone,
+            avatar_url: user.avatar_url,
+            address: user.address,
+            emergency_contact_name: user.emergency_contact_name,
+            emergency_contact_phone: user.emergency_contact_phone,
             is_active: user.is_active,
             must_change_password: user.must_change_password || false,
           },
