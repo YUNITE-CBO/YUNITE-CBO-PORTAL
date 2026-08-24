@@ -1018,12 +1018,20 @@ export class UnityFundEngine {
       const sourceBalance = (viewReceipts ?? []).reduce((s, r) => s + num((r as { amount: number }).amount), 0)
         - await this.getActualExpendituresTotal();
 
-      // 3. Sum of source breakdown (should equal ledger).
+      // 3. Sum of source breakdown NET of expenditures (should equal ledger).
+      // The breakdown only carries INFLOW sources (contributions, welfare,
+      // fines, fees, interest, donations, grants, org loans) — there is no
+      // expenditure source — so its raw sum is GROSS receipts. Comparing it
+      // to the ledger (which is receipts - expenditures) failed by exactly
+      // the expenditure total every time (the false-positive the AI engine
+      // reported as UF-001). Net it before comparing.
       const sources = await this.getSourceBreakdown();
-      const sourcesSum = sources.reduce((s, b) => s + b.actual, 0);
+      const expendituresTotal = await this.getActualExpendituresTotal();
+      const sourcesGross = sources.reduce((s, b) => s + b.actual, 0);
+      const sourcesSum = sourcesGross - expendituresTotal;
 
       // 4. Dashboard path (sum of actual receipts - expenditures).
-      const dashboardBalance = (await this.getActualReceipts()) - (await this.getActualExpendituresTotal());
+      const dashboardBalance = (await this.getActualReceipts()) - expendituresTotal;
 
       const checks: ReconciliationCheck[] = [
         { label: 'Engine ledger vs DB view', expected: ledgerBalance, actual: sourceBalance, difference: ledgerBalance - sourceBalance, passed: Math.abs(ledgerBalance - sourceBalance) < 0.5 },
