@@ -117,7 +117,9 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const key = principal.authMode === 'anonymous'
     ? `anon:${principal.clientId}`
-    : `client:${principal.clientId}`;
+    : principal.authMode === 'session'
+      ? `user:${principal.userId ?? principal.clientId}`
+      : `client:${principal.keyId ?? principal.clientId}`;
 
   const limit = limitOverride ?? DEFAULT_LIMITS[principal.clientTier] ?? DEFAULT_LIMITS.standard;
 

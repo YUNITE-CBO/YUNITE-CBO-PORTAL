@@ -84,6 +84,15 @@ describe('in-memory store (REDIS_URL unset)', () => {
     expect(bAllowed.allowed).toBe(true);
   });
 
+  it('tracks session users independently even though they share the portal client', async () => {
+    const a = principal({ authMode: 'session', userId: 'user-a' });
+    const b = principal({ authMode: 'session', userId: 'user-b' });
+
+    await checkRateLimit(a, 1);
+    expect((await checkRateLimit(a, 1)).allowed).toBe(false);
+    expect((await checkRateLimit(b, 1)).allowed).toBe(true);
+  });
+
   it('applies the tier default when no override is given', async () => {
     const p = principal({ clientTier: 'public' }); // 30/min
     const r = await checkRateLimit(p);
