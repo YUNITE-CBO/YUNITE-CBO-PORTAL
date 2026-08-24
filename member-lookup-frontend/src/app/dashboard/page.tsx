@@ -47,6 +47,10 @@ export default function OverviewPage() {
         <StatCard label="Net position" value={formatMoney(netWorth)} sub="Savings − loans" accent="gold" />
       </div>
 
+      <div className="mt-6">
+        <BankAccountCard compact />
+      </div>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card>
           <SectionTitle>Account balances</SectionTitle>
@@ -74,10 +78,6 @@ export default function OverviewPage() {
             <a href="/dashboard/statement" className="btn-ghost !py-2.5 text-sm">Get statement</a>
           </div>
         </Card>
-      </div>
-
-      <div className="mt-6">
-        <BankAccountCard compact />
       </div>
     </>
   );

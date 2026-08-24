@@ -7,7 +7,7 @@ import { BANK_ACCOUNT } from '@/lib/bank-account';
  */
 export function BankAccountCard({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="card relative overflow-hidden">
+    <div className="card relative overflow-hidden ring-1 ring-brand-green/30 shadow-[0_0_40px_-10px_rgba(34,197,94,0.35)]">
       <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-gradient-to-br from-brand-green/20 to-transparent blur-2xl" />
       <div className="relative">
         <div className="flex items-center gap-2">
