@@ -2,28 +2,36 @@
  * GET  /api/cron/ai-investigations
  * POST /api/cron/ai-investigations
  *
- * The clock that wakes scheduled AI investigations. Render cron pokes this
- * endpoint (no session cookie) with the shared CRON_SECRET. Each tick:
+ * The clock that wakes scheduled AI investigations. Render cron / cron-job.org
+ * / the GitHub Actions pinger poke this endpoint (no session cookie) with the
+ * shared CRON_SECRET. Each tick:
  *   1. Reads due ai_investigation_schedules (is_enabled, next_run_at <= now).
- *   2. For each, runs runInvestigation(scope) (dual mode for full_system).
- *   3. Alerts on any CRITICAL findings (internal notification + email).
- *   4. Advances next_run_at.
+ *   2. Advances each schedule's next_run_at immediately (mark-first).
+ *   3. Returns 202, then runs each schedule's investigation in the background
+ *      (dual mode for full_system) and alerts on CRITICAL findings.
  *
- * If both AI providers are unavailable, deterministic findings are still
- * produced and the alert still fires on deterministic criticals — AI is an
- * intelligence layer, not a dependency for alerting.
+ * External pingers (cron-job.org caps requests at 30s) cannot wait for a
+ * full dual-AI investigation (minutes). The route therefore runs in two
+ * phases:
+ *   FAST PHASE (awaited, well under 30s): auth -> list due schedules ->
+ *   advance each schedule's next_run_at (mark-first, so a killed run never
+ *   re-fires on every tick) -> return 202 Accepted.
+ *   BACKGROUND PHASE (after the response): the investigations, critical
+ *   alerts. Kept alive via @vercel/functions waitUntil on Vercel; Render's
+ *   long-lived Node process keeps the promise running on its own.
  *
  * Auth: CRON_SECRET (header X-Cron-Secret OR Authorization: Bearer — Vercel
  * Cron's native form — OR ?secret=). 503 if unset.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { runInvestigation } from '@/ai';
 import { listDueSchedules, markScheduleRun } from '@/ai/persistence';
 import { alertCriticalFindings } from '@/ai/alerting.service';
 export const dynamic = 'force-dynamic';
-// Dual-provider AI investigations can take minutes. Capped at 60s to fit
-// the Vercel Hobby function limit; Render ignores this.
+// The fast phase is seconds; the background work is what can take minutes.
+// Capped at 60s to fit the Vercel Hobby function limit; Render ignores this.
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
@@ -71,34 +79,76 @@ async function runTick(request: NextRequest) {
     );
   }
 
-  const results: any[] = [];
-  let totalCritical = 0;
-  let totalAlerts = 0;
-
-  for (const schedule of due) {
-    try {
-      const result = await runInvestigation(schedule.scope, undefined, undefined, 'cron');
-      const criticals = result.findings.filter((f) => f.severity === 'critical').length;
-      totalCritical += criticals;
-      const alert = criticals > 0
-        ? await alertCriticalFindings(result.investigation_id, result.findings).catch(() => ({ notified: 0, skipped: 0 }))
-        : { notified: 0, skipped: 0 };
-      totalAlerts += alert.notified;
-      const nextRun = computeNextFromSchedule(schedule);
-      await markScheduleRun(schedule.id, nextRun);
-      results.push({ schedule: schedule.name, scope: schedule.scope, investigation_id: result.investigation_id, ai_status: result.ai_status, score: result.overall_score, criticals, alerts: alert.notified });
-    } catch (error: any) {
-      console.error(`[cron/ai-investigations] schedule ${schedule.name} failed:`, error);
-      results.push({ schedule: schedule.name, scope: schedule.scope, error: error?.message || String(error) });
-      const nextRun = computeNextFromSchedule(schedule);
-      await markScheduleRun(schedule.id, nextRun).catch(() => undefined);
-    }
+  if (due.length === 0) {
+    return NextResponse.json({
+      success: true,
+      data: { schedules_run: 0, total_critical: 0, total_alerts: 0, results: [] },
+    });
   }
 
-  return NextResponse.json({
-    success: true,
-    data: { schedules_run: results.length, total_critical: totalCritical, total_alerts: totalAlerts, results },
-  });
+  // MARK-FIRST: advance every due schedule BEFORE starting any work. A dual
+  // AI investigation outlives every external pinger's timeout (cron-job.org
+  // cuts at 30s), so the old order (run -> then advance) meant a run that
+  // outlived the request retried on every tick forever.
+  for (const schedule of due) {
+    await markScheduleRun(schedule.id, computeNextFromSchedule(schedule)).catch((e) =>
+      console.warn('[cron/ai-investigations] failed to advance schedule', schedule.name, e),
+    );
+  }
+
+  // Background phase: after the 202, the client is done. waitUntil keeps the
+  // work alive on Vercel; Render's long-lived process keeps it running anyway.
+  waitUntil(runDueSchedules(due));
+
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        accepted: true,
+        schedules_queued: due.map((s) => ({ name: s.name, scope: s.scope })),
+        note: 'Investigations run in the background; results land in ai_investigations and the AI Intelligence dashboard.',
+      },
+    },
+    { status: 202 },
+  );
+}
+
+let tickInFlight: Promise<void> | null = null;
+
+/** Test hook: resolves when the current background tick settles. */
+export function _awaitBackgroundWork(): Promise<void> {
+  return tickInFlight ?? Promise.resolve();
+}
+
+async function runDueSchedules(due: any[]): Promise<void> {
+  // A warm long-lived instance can receive the next tick while the previous
+  // background run is still going; skip rather than double-run the schedules.
+  if (tickInFlight) {
+    console.warn('[cron/ai-investigations] previous background tick still running; skipping overlap');
+    return;
+  }
+  const work = (async () => {
+    for (const schedule of due) {
+      try {
+        const result = await runInvestigation(schedule.scope, undefined, undefined, 'cron');
+        const criticals = result.findings.filter((f) => f.severity === 'critical').length;
+        if (criticals > 0) {
+          await alertCriticalFindings(result.investigation_id, result.findings).catch(() => undefined);
+        }
+        console.log(
+          `[cron/ai-investigations] ${schedule.name}: investigation ${result.investigation_id} ai_status=${result.ai_status} score=${result.overall_score} criticals=${criticals}`,
+        );
+      } catch (error: any) {
+        console.error(`[cron/ai-investigations] schedule ${schedule.name} failed:`, error);
+      }
+    }
+  })();
+  tickInFlight = work;
+  try {
+    await work;
+  } finally {
+    tickInFlight = null;
+  }
 }
 
 function computeNextFromSchedule(s: any): string | null {
