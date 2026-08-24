@@ -3,6 +3,7 @@
 import { useApi } from '@/components/dashboard/useApi';
 import { useRouter } from 'next/navigation';
 import { BalanceRow, Card, ErrorState, Loading, PageHeader, Pill, SectionTitle, StatCard } from '@/components/dashboard/ui';
+import { BankAccountCard } from '@/components/BankAccountCard';
 import { formatMoney } from '@/lib/format';
 import type { Member, MemberBalances } from '@/lib/api/types';
 
@@ -73,6 +74,10 @@ export default function OverviewPage() {
             <a href="/dashboard/statement" className="btn-ghost !py-2.5 text-sm">Get statement</a>
           </div>
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <BankAccountCard compact />
       </div>
     </>
   );
