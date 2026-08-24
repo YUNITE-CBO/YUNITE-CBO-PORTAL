@@ -6,7 +6,7 @@
  * system intelligence score. Powers the top of the AI Intelligence dashboard.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '../_guard';
 import { getHealth } from '@/ai';
 import { geminiProvider, openRouterProvider } from '@/ai';
@@ -14,9 +14,28 @@ import { getLatestHealth, listProviderRuns } from '@/ai/persistence';
 import { readAiSettings } from '@/ai/settings';
 import { createServiceClient } from '@/lib/supabase/server';
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
   const auth = await requireAdminAuth();
   if (!auth.ok) return auth.response!;
+
+  // ?probe=true actively pings both providers (cheap list-models calls) and
+  // returns the REAL reachability error per provider. This is the diagnostic
+  // for "the dashboard says unavailable but my env var is set":
+  //   configured=false            -> the runtime cannot see the key at all
+  //                                  (set on the wrong platform, or the
+  //                                  service was not redeployed after setting)
+  //   configured=true, probe 401  -> key present but invalid/revoked
+  //   configured=true, probe 404  -> key fine, the configured MODEL is wrong
+  //   configured=true, probe ok   -> provider reachable; check recent run errors
+  const probe = request.nextUrl.searchParams.get('probe') === 'true';
+  const probes = probe
+    ? {
+        gemini: await geminiProvider.ping().catch((e) => ({ ok: false, latency_ms: 0, error: e instanceof Error ? e.message : String(e) })),
+        openrouter: await openRouterProvider.ping().catch((e) => ({ ok: false, latency_ms: 0, error: e instanceof Error ? e.message : String(e) })),
+      }
+    : null;
 
   const [gemini, openrouter, latestSnapshots, recentRuns, aiSettings] = await Promise.all([
     getHealth(geminiProvider).catch(() => ({ provider: 'gemini' as const, status: 'unknown' as const, availability_pct: 0, success_count: 0, failure_count: 0, timeout_count: 0, rate_limited_count: 0, fallback_count: 0 })),
@@ -94,12 +113,18 @@ export async function GET() {
         primary: process.env.AI_PROVIDER || 'gemini',
         gemini_model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
         openrouter_model: process.env.OPENROUTER_MODEL || '(unset)',
+        // Whether the RUNTIME actually sees each API key (never the key
+        // itself). This is the ground truth behind "unavailable": the health
+        // monitor reports 'unavailable' only when isConfigured() is false.
+        gemini_key_present: geminiProvider.isConfigured(),
+        openrouter_key_present: openRouterProvider.isConfigured(),
         // DB `ai.dual_mode` is the source of truth (migration 033); fall back to
         // the AI_DUAL_MODE env var when the setting row is absent.
         dual_mode: aiSettings['ai.dual_mode'] === 'true' || (aiSettings['ai.dual_mode'] == null && process.env.AI_DUAL_MODE === 'true'),
         dual_mode_source: aiSettings['ai.dual_mode'] != null ? 'setting' : 'env',
       },
       ai_settings: aiSettings,
+      ...(probes ? { probes } : {}),
     },
   });
 }

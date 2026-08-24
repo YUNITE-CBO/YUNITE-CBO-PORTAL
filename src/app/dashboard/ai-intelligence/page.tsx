@@ -38,8 +38,23 @@ interface HealthData {
   accumulated_totals?: { critical: number; high: number; medium: number; low: number; unresolved: number };
   latest_investigation?: { id: string; investigation_number: string; scope: string; started_at: string } | null;
   recent_provider_runs: any[];
-  configured: { primary: string; gemini_model: string; openrouter_model: string; dual_mode: boolean; dual_mode_source?: string };
+  configured: {
+    primary: string;
+    gemini_model: string;
+    openrouter_model: string;
+    dual_mode: boolean;
+    dual_mode_source?: string;
+    gemini_key_present?: boolean;
+    openrouter_key_present?: boolean;
+  };
   ai_settings?: Record<string, string>;
+  probes?: { gemini: ProbeResult; openrouter: ProbeResult };
+}
+
+interface ProbeResult {
+  ok: boolean;
+  latency_ms: number;
+  error?: string;
 }
 
 interface Investigation {
@@ -631,6 +646,131 @@ function ActionButton({ label, onClick, running, primary }: { label: string; onC
   );
 }
 
+function ProviderDiagnostics({ health }: { health: HealthData }) {
+  const [probing, setProbing] = useState(false);
+  const [probes, setProbes] = useState<HealthData['probes'] | null>(health.probes ?? null);
+  const [probeError, setProbeError] = useState<string | null>(null);
+
+  const runProbe = async () => {
+    setProbing(true);
+    setProbeError(null);
+    try {
+      const res = await fetch('/api/ai/health?probe=true', { credentials: 'include' });
+      const body = await res.json();
+      if (!res.ok || !body?.data?.probes) throw new Error(body?.error || `HTTP ${res.status}`);
+      setProbes(body.data.probes);
+    } catch (e: any) {
+      setProbeError(e?.message || 'Probe failed');
+    } finally {
+      setProbing(false);
+    }
+  };
+
+  const lastErrorFor = (provider: string): string | null => {
+    const run = (health.recent_provider_runs ?? []).find(
+      (r: any) => r.provider === provider && r.status !== 'success' && (r.error_message || r.fallback_reason),
+    );
+    return run ? `${run.error_message || run.fallback_reason}${run.started_at ? ` (${fmt(run.started_at)})` : ''}` : null;
+  };
+
+  const rows: Array<{
+    provider: 'gemini' | 'openrouter';
+    label: string;
+    envVar: string;
+    keyPresent: boolean;
+    model: string;
+    status?: string;
+  }> = [
+    {
+      provider: 'gemini',
+      label: 'Gemini',
+      envVar: 'GEMINI_API_KEY',
+      keyPresent: health.configured.gemini_key_present !== false,
+      model: health.configured.gemini_model,
+      status: health.providers.gemini.live.status,
+    },
+    {
+      provider: 'openrouter',
+      label: 'OpenRouter',
+      envVar: 'OPENROUTER_API_KEY',
+      keyPresent: health.configured.openrouter_key_present !== false,
+      model: health.configured.openrouter_model,
+      status: health.providers.openrouter.live.status,
+    },
+  ];
+
+  const investigationsEnabled = health.ai_settings?.['ai.investigations.enabled'];
+  const masterSwitchOff = investigationsEnabled === 'false';
+  const anyProblem = masterSwitchOff || rows.some((r) => !r.keyPresent || r.status === 'unavailable' || r.status === 'degraded');
+  if (!anyProblem && !probes) return null;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-700">Provider Diagnostics — why a provider shows UNAVAILABLE</h3>
+        <button
+          onClick={runProbe}
+          disabled={probing}
+          className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          {probing ? 'Probing…' : 'Run live probe'}
+        </button>
+      </div>
+
+      {masterSwitchOff && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          The master switch <code>ai.investigations.enabled</code> is OFF. Every investigation is marked
+          &quot;AI unavailable&quot; regardless of API keys. Turn it back on in the AI Intelligence settings toggle above
+          or Settings → System Configuration → AI Intelligence.
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {rows.map((r) => {
+          const probe = probes?.[r.provider];
+          const lastError = lastErrorFor(r.provider);
+          return (
+            <div key={r.provider} className="rounded-md border border-slate-100 bg-slate-50 p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="font-semibold text-slate-800">{r.label}</span>
+                <span className={r.keyPresent ? 'text-green-700' : 'font-semibold text-red-700'}>
+                  {r.envVar}: {r.keyPresent ? 'seen by runtime' : 'NOT seen by runtime'}
+                </span>
+                <span className="text-slate-500">model: {r.model}</span>
+                {probe && (
+                  <span className={probe.ok ? 'text-green-700' : 'font-semibold text-red-700'}>
+                    probe: {probe.ok ? `reachable (${probe.latency_ms}ms)` : `FAILED — ${probe.error || 'unknown'}`}
+                  </span>
+                )}
+              </div>
+              {!r.keyPresent && (
+                <p className="mt-2 text-red-700">
+                  The running server cannot see {r.envVar}. This is exactly what &quot;UNAVAILABLE&quot; means here.
+                  If you already set it in your hosting dashboard, you must <strong>redeploy</strong> — env vars are
+                  only read when the server process starts. If you set it on a different platform than the one
+                  serving this app (e.g. set on Render but deployed on Vercel, or vice versa), set it on the
+                  platform actually running the app, then redeploy.
+                </p>
+              )}
+              {r.keyPresent && probe && !probe.ok && (
+                <p className="mt-2 text-amber-700">
+                  The key IS reaching the runtime, but the provider rejected the probe: {probe.error}.
+                  HTTP 401/403 = invalid or revoked key (regenerate it). HTTP 404 = the configured model
+                  ({r.model}) does not exist — check the model name. Timeout = network egress blocked.
+                </p>
+              )}
+              {r.keyPresent && lastError && (
+                <p className="mt-2 text-slate-600">Last run error: {lastError}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {probeError && <p className="mt-2 text-xs text-red-600">Probe request failed: {probeError}</p>}
+    </div>
+  );
+}
+
 function OverviewSection({ health, investigations, moduleHealth, onRun, running, onOpen, detail }: {
   health: HealthData | null;
   investigations: Investigation[];
@@ -654,6 +794,10 @@ function OverviewSection({ health, investigations, moduleHealth, onRun, running,
         <StatCard label="Configured Primary" value={health?.configured.primary ?? 'gemini'} />
         <StatCard label="Dual Mode" value={health?.configured.dual_mode ? 'ENABLED' : 'OFF'} color={health?.configured.dual_mode ? '#7C3AED' : '#6b7280'} />
       </div>
+
+      {/* Provider diagnostics — answers "why does it say UNAVAILABLE when my
+          env var is set?" with the runtime ground truth instead of a guess. */}
+      {health && <ProviderDiagnostics health={health} />}
 
       {/* Current-state severity cards. These reflect the LATEST investigation
           only (not an accumulated sum), so they update when problems are fixed. */}
