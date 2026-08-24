@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       return NextResponse.json(
-        { success: false, error: result.error },
-        { status: result.error_code === 'ACCOUNT_LOCKED' ? 423 : 401 }
+        { success: false, error: 'Invalid email or password' },
+        { status: 401 }
       );
     }
 
