@@ -8,7 +8,7 @@
 import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 export interface AuthenticatedUser {
   user_id: string;
@@ -29,7 +29,7 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<Authen
       return null;
     }
 
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     
     return {
       user_id: payload.user_id as string,

@@ -14,6 +14,10 @@ const publicReadPaths = [
   // through /register/member. POST creates a pending submission (NO member);
   // admin list/read is gated by requirePermission inside the route handler.
   '/api/member-registration-submissions',
+  // Public document authenticity verification: external parties (banks,
+  // employers) holding a printed document verify it by doc_ref without a
+  // session. Read-only; exposes only the audit-ledger entry for that ref.
+  '/api/reports/verify',
   // The automation cron route authenticates via CRON_SECRET (header/query),
   // not a session cookie (Render cron cannot carry one). Listed here so the
   // cookie-based auth check below does not 401 it before it can verify the

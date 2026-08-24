@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { createServiceClient } from '@/lib/supabase/server';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 // Role hierarchy (higher number = more privileges)
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -142,7 +142,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthResult> {
   }
 
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     
     const user: AuthenticatedUser = {
       user_id: payload.user_id as string,

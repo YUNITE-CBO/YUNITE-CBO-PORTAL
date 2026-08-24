@@ -16,6 +16,7 @@ const nextConfig = {
     ];
   },
   experimental: {
+    instrumentationHook: true,
     serverComponentsExternalPackages: ['@supabase/supabase-js', 'ioredis'],
   },
   images: {

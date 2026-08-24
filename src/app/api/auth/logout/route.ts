@@ -6,7 +6,7 @@ import { authService } from '@/lib/services/auth.service';
 import { authNotificationService } from '@/lib/services/notifications/auth-notification.service';
 import { createServiceClient } from '@/lib/supabase/server';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     if (token) {
       try {
-        const { payload } = await jwtVerify(token, JWT_SECRET);
+        const { payload } = await jwtVerify(token, getJwtSecret());
         userId = payload.user_id as string;
         userEmail = payload.email as string;
         userRole = payload.role as string;

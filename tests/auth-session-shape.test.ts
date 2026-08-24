@@ -14,6 +14,10 @@ import { NextRequest } from 'next/server';
 
 export {};
 
+// The route now resolves the JWT secret via getJwtSecret(), which fails
+// closed when SUPABASE_JWT_SECRET is unset — the test env must provide one.
+process.env.SUPABASE_JWT_SECRET = 'test-secret-that-is-at-least-32-characters-long';
+
 const SINGLE_RESULT = {
   data: {
     id: 'u1',

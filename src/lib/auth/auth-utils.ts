@@ -8,7 +8,7 @@
 import { jwtVerify, JWTPayload } from 'jose';
 import { NextRequest } from 'next/server';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 export interface TokenPayload extends JWTPayload {
   user_id: string;
@@ -28,7 +28,7 @@ export interface AuthResult {
  */
 export async function verifyToken(token: string): Promise<AuthResult> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return {
       valid: true,
       payload: payload as TokenPayload,

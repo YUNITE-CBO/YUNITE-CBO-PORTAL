@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 import { jwtVerify } from 'jose';
 import { userManagementService, type UserRole, type UserQueryOptions } from '@/lib/services';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 interface AuthUser {
   user_id: string;
@@ -31,7 +31,7 @@ async function getAuthUser(request: NextRequest): Promise<AuthUser | null> {
   if (!token) return null;
 
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return {
       user_id: payload.user_id as string,
       email: payload.email as string,

@@ -10,7 +10,7 @@ import { jwtVerify } from 'jose';
 // This route reads cookies at request time — never static.
 export const dynamic = 'force-dynamic';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      await jwtVerify(token, JWT_SECRET);
+      await jwtVerify(token, getJwtSecret());
       
       return NextResponse.json({
         success: true,

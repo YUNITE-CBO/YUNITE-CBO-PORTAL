@@ -1565,3 +1565,29 @@ exist: **Archive** (pre-existing `DELETE /api/members/[id]` ‚Üí status
   `Array<{ input: RequestInfo | URL; init?: RequestInit }>`. `tsc --noEmit`
   is fully clean again.
 - **Deploy step**: run migration 042 in Supabase SQL Editor.
+
+## Auth hardening follow-up (post-670ee05 security sweep)
+- **All JWT secret access goes through `getJwtSecret()`** (`src/lib/auth/jwt-secret.ts`)
+  — never `process.env.SUPABASE_JWT_SECRET!` or a module-level const. The helper
+  throws if the secret is missing or < 32 chars (fail closed). 14 route/lib files
+  were migrated from the `SUPABASE_JWT_SECRET!` non-null-assertion pattern.
+- **Startup validation**: `src/instrumentation.ts` `register()` (enabled via
+  `experimental.instrumentationHook` in `next.config.js`) throws at server boot
+  when the secret is missing/short — a misconfigured deploy fails fast with a
+  clear boot error instead of request-time auth failures. NOTE: Next catches the
+  error and serves 500s rather than exiting; the boot log names the exact fix.
+- **Middleware is fail-closed for every `/api/*` route** (GET included) except an
+  explicit `publicReadPaths` allowlist: health, auth/login+logout,
+  `/api/member-registration-submissions` (public pre-registration),
+  `/api/reports/verify` (PUBLIC document verification for external parties —
+  banks/employers verifying a printed doc by ref; adding this was a regression
+  fix after 670ee05 broke it), and the two CRON_SECRET cron routes. `/api/v1/*`
+  bypasses the middleware cookie check entirely (gateway self-authenticates).
+- **Gotcha — route handler tests**: any test importing an API route that verifies
+  JWTs must set `process.env.SUPABASE_JWT_SECRET` (>=32 chars) or getJwtSecret()
+  throws before the handler logic runs (fixed in `tests/auth-session-shape.test.ts`).
+- **Tests**: `tests/middleware-auth.test.ts` (13: fail-closed 401s, forged token
+  with the old public fallback secret rejected, public allowlist passes,
+  `/api/reports` NOT public while `/api/reports/verify` is, getJwtSecret rules).
+  Live-probed against `next start`: unauthenticated data APIs -> 401, public
+  paths pass, boot without the secret fails loud.

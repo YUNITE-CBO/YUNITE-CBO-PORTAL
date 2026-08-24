@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 import { jwtVerify } from 'jose';
 import { createServiceClient } from '@/lib/supabase/server';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
+      const { payload } = await jwtVerify(token, getJwtSecret());
       
       // Get full user profile from database
       const supabase = await createServiceClient();

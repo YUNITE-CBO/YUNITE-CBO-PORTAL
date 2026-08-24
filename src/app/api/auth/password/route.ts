@@ -11,7 +11,7 @@ import { jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { createServiceClient } from '@/lib/supabase/server';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
+import { getJwtSecret } from '@/lib/auth/jwt-secret';
 
 // POST /api/auth/password - Change password
 export async function POST(request: NextRequest) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     let userId: string;
     try {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
+      const { payload } = await jwtVerify(token, getJwtSecret());
       userId = payload.user_id as string;
     } catch {
       return NextResponse.json(
