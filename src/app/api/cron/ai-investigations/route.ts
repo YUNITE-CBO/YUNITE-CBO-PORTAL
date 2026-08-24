@@ -26,9 +26,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import { runInvestigation } from '@/ai';
 import { listDueSchedules, markScheduleRun } from '@/ai/persistence';
-import { alertCriticalFindings } from '@/ai/alerting.service';
+import { runDueSchedules } from './background';
 export const dynamic = 'force-dynamic';
 // The fast phase is seconds; the background work is what can take minutes.
 // Capped at 60s to fit the Vercel Hobby function limit; Render ignores this.
@@ -111,44 +110,6 @@ async function runTick(request: NextRequest) {
     },
     { status: 202 },
   );
-}
-
-let tickInFlight: Promise<void> | null = null;
-
-/** Test hook: resolves when the current background tick settles. */
-export function _awaitBackgroundWork(): Promise<void> {
-  return tickInFlight ?? Promise.resolve();
-}
-
-async function runDueSchedules(due: any[]): Promise<void> {
-  // A warm long-lived instance can receive the next tick while the previous
-  // background run is still going; skip rather than double-run the schedules.
-  if (tickInFlight) {
-    console.warn('[cron/ai-investigations] previous background tick still running; skipping overlap');
-    return;
-  }
-  const work = (async () => {
-    for (const schedule of due) {
-      try {
-        const result = await runInvestigation(schedule.scope, undefined, undefined, 'cron');
-        const criticals = result.findings.filter((f) => f.severity === 'critical').length;
-        if (criticals > 0) {
-          await alertCriticalFindings(result.investigation_id, result.findings).catch(() => undefined);
-        }
-        console.log(
-          `[cron/ai-investigations] ${schedule.name}: investigation ${result.investigation_id} ai_status=${result.ai_status} score=${result.overall_score} criticals=${criticals}`,
-        );
-      } catch (error: any) {
-        console.error(`[cron/ai-investigations] schedule ${schedule.name} failed:`, error);
-      }
-    }
-  })();
-  tickInFlight = work;
-  try {
-    await work;
-  } finally {
-    tickInFlight = null;
-  }
 }
 
 function computeNextFromSchedule(s: any): string | null {
