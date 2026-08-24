@@ -34,6 +34,7 @@ const SINGLE_RESULT = {
 };
 
 let capturedSelect: string | null = null;
+let mockResult: { data: unknown; error: unknown } = SINGLE_RESULT;
 
 jest.mock('jose', () => ({
   jwtVerify: jest.fn().mockResolvedValue({ payload: { user_id: 'u1' } }),
@@ -43,7 +44,7 @@ jest.mock('@/lib/supabase/server', () => ({
     from: () => ({
       select: (cols: string) => {
         capturedSelect = cols;
-        return { eq: () => ({ single: () => Promise.resolve(SINGLE_RESULT) }) };
+        return { eq: () => ({ maybeSingle: () => Promise.resolve(mockResult) }) };
       },
     }),
   }),
@@ -61,6 +62,7 @@ describe('GET /api/auth/session profile shape', () => {
   beforeEach(async () => {
     jest.resetModules();
     capturedSelect = null;
+    mockResult = SINGLE_RESULT;
     route = await import('@/app/api/auth/session/route');
   });
 
@@ -98,5 +100,19 @@ describe('GET /api/auth/session profile shape', () => {
   it('returns 401 without a session cookie', async () => {
     const res = await route.GET(req(false));
     expect(res.status).toBe(401);
+  });
+
+  it('returns 500 (not a misleading 401/404) when the user lookup fails', async () => {
+    mockResult = { data: null, error: { message: 'connection failed' } };
+    const res = await route.GET(req());
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe('Failed to get session');
+  });
+
+  it('returns 404 when the session user no longer exists', async () => {
+    mockResult = { data: null, error: null };
+    const res = await route.GET(req());
+    expect(res.status).toBe(404);
   });
 });
