@@ -2,6 +2,7 @@ import { getUpcomingMeetings, getOrganizationSettings } from '@/lib/api/meeting.
 import LiveClock from '@/components/LiveClock';
 import { MemberAccessCard } from '@/components/MemberAccessCard';
 import { BankAccountCard } from '@/components/BankAccountCard';
+import { BankAnnouncementBanner } from '@/components/BankAnnouncementBanner';
 import { MOTIVATIONAL, ORG_MESSAGES, getMeetingWhen } from '@/lib/home-content';
 
 export default async function Home() {
@@ -29,6 +30,9 @@ export default async function Home() {
         </div>
         <LiveClock />
       </header>
+
+      {/* Floating bank announcement — first thing every visitor sees */}
+      <BankAnnouncementBanner />
 
       {/* Hero */}
       <section className="mt-2 grid gap-6 lg:grid-cols-[1.15fr_1fr] lg:items-center">
@@ -61,9 +65,8 @@ export default async function Home() {
           </div>
         </div>
 
-        {/* Bank account (hero — first thing visitors see) + meetings + org message */}
+        {/* Meetings + org message card */}
         <div className="animate-slide-in flex flex-col gap-4">
-          <BankAccountCard />
           <div className="card">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-white/70">Upcoming meetings</h2>
@@ -131,6 +134,23 @@ export default async function Home() {
         <div className="card flex flex-col items-center gap-2 px-6 py-5 text-center">
           <p className="text-base font-medium text-white/85">“{motivation.text}”</p>
           <p className="text-xs uppercase tracking-[0.16em] text-brand-green-soft">{motivation.label}</p>
+        </div>
+      </section>
+
+      {/* Official bank account details (anchor target of the top banner) */}
+      <section id="bank-details" className="mt-10 grid scroll-mt-6 gap-6 lg:grid-cols-2 lg:items-start">
+        <BankAccountCard />
+        <div className="card">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-white/70">To every member, leader, supporter &amp; friend</h2>
+          <p className="mt-3 text-sm leading-relaxed text-white/80">
+            It is an honour to have you as part of the YUNITE PAMOJA family. ❤️
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-white/80">
+            Together, we build. Together, we grow.
+          </p>
+          <p className="mt-3 bg-gradient-to-r from-brand-green-soft to-brand-green bg-clip-text text-lg font-extrabold tracking-tight text-transparent">
+            WE ARE YUNITE PAMOJA. 💙
+          </p>
         </div>
       </section>
 
