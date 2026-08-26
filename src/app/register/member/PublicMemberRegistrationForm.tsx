@@ -76,11 +76,13 @@ export default function PublicMemberRegistrationForm() {
     | { type: 'error'; text: string; duplicate?: boolean }
     | null
   >(null);
-  // Existing-member ("pre-edit") state: when the ID/phone lookup finds a
-  // record, the form is pre-filled with the on-file data and submits an
-  // UPDATE request linked to that member instead of a new registration.
+  // Existing-member ("update") state: when the ID/phone lookup finds a
+  // record, the form switches to submitting an UPDATE request linked to that
+  // member instead of a new registration. The lookup response is privacy-
+  // minimized (name + member number only), so the applicant re-enters the
+  // fields they want changed.
   const [existingMember, setExistingMember] = useState<{ id: string; member_number: string; status: string } | null>(null);
-  const [lookupState, setLookupState] = useState<'idle' | 'checking' | 'found' | 'not_found'>('idle');
+  const [lookupState, setLookupState] = useState<'idle' | 'checking' | 'found' | 'not_found' | 'rate_limited'>('idle');
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -91,8 +93,8 @@ export default function PublicMemberRegistrationForm() {
 
   /**
    * Look up the applicant's existing record by ID number (falling back to
-   * phone). On a match, pre-fill the whole form with the on-file data and
-   * switch the form into "update" mode.
+   * phone). On a match, switch the form into "update" mode — the lookup API
+   * is privacy-minimized, so only the name is pre-filled.
    */
   const runLookup = async () => {
     const idNumber = formData.id_number.trim();
@@ -107,17 +109,26 @@ export default function PublicMemberRegistrationForm() {
       if (idNumber) params.set('id_number', idNumber);
       else if (phone) params.set('phone', phone);
       const res = await fetch(`/api/member-registration-submissions/lookup?${params.toString()}`);
+      if (res.status === 429) {
+        setExistingMember(null);
+        setLookupState('rate_limited');
+        return;
+      }
       const data = await res.json();
 
       if (data.success && data.data?.exists && data.data?.member) {
         const m = data.data.member as Record<string, string | null>;
-        const prefill: Record<string, string> = {};
-        (Object.keys(EMPTY_FORM) as (keyof RegistrationForm)[]).forEach((k) => {
-          const v = m[k];
-          prefill[k] = v === null || v === undefined ? (k === 'gender' ? 'male' : '') : String(v);
-        });
-        if (!['male', 'female', 'other'].includes(prefill.gender)) prefill.gender = 'male';
-        setFormData({ ...EMPTY_FORM, ...prefill } as RegistrationForm);
+        // The lookup API is deliberately minimized (privacy): it returns only
+        // name + member number. Prefill those and KEEP the identifier the
+        // applicant typed; the rest of the form is filled in by the applicant
+        // themselves (it is their own data).
+        setFormData({
+          ...EMPTY_FORM,
+          first_name: m.first_name ?? '',
+          last_name: m.last_name ?? '',
+          id_number: idNumber,
+          phone,
+        } as RegistrationForm);
         setExistingMember({ id: m.id as string, member_number: m.member_number as string, status: m.status as string });
         setLookupState('found');
       } else {
@@ -251,7 +262,7 @@ export default function PublicMemberRegistrationForm() {
         {existingMember && (
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
             <span>
-              ✓ Existing record found (member no. <strong>{existingMember.member_number}</strong>, status: {existingMember.status}). The form below is pre-filled with your on-file data — review and update it.
+              ✓ Existing record found (member no. <strong>{existingMember.member_number}</strong>, status: {existingMember.status}). For your privacy we do not display your on-file data here — please re-enter the details you want to update below and submit.
             </span>
             <button
               type="button"
@@ -309,6 +320,11 @@ export default function PublicMemberRegistrationForm() {
                 {lookupState === 'not_found' && (
                   <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
                     No existing record for this ID/phone — continue as a new registration.
+                  </p>
+                )}
+                {lookupState === 'rate_limited' && (
+                  <p style={{ fontSize: 11, color: '#B45309', marginTop: 4 }}>
+                    Too many lookup attempts — please wait a minute and try again.
                   </p>
                 )}
               </Field>

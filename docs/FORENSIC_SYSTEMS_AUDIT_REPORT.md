@@ -93,29 +93,49 @@ Cache:           Redis (ioredis 5.4.1)
 
 ### 2.2 Critical Environment Findings
 
-#### 🔴 CRITICAL: Exposed Sensitive Credentials
+#### 🔴 CRITICAL: Exposed Sensitive Credentials — REMEDIATED 2026-08-26
 
-**Evidence from `.env`:**
+> **⚠️ The real credential values previously embedded in this section were
+> removed from the repository on 2026-08-26. They remain in git history and
+> MUST be considered compromised. Rotation checklist (operator action):
+> 1. Postgres password for `postgres.sprlwlxjhhmazxpflhnb` — rotate in the
+>    Supabase Dashboard (Project Settings → Database → Reset password), then
+>    update `DATABASE_URL` / direct-connection secrets in Render.
+> 2. Redis password — rotate in the Redis Cloud console for the
+>    `playground-carob-talk-92024` database, update `REDIS_URL` in Render.
+> 3. Gmail app password used as `SMTP_PASS` — revoke it in the Google account
+>    (myaccount.google.com/apppasswords) and issue a new one.
+> 4. `SUPABASE_SERVICE_ROLE_KEY` — rotate the project's API keys in Supabase
+>    (Project Settings → API), update Render + Vercel env vars.
+> 5. `SUPABASE_ACCESS_TOKEN` (`sbp_…`) — revoke in Supabase → Account →
+>    Access Tokens and generate a new one.
+> 6. Purge this file's history (`git filter-repo --invert-paths --path
+>    docs/FORENSIC_SYSTEMS_AUDIT_REPORT.md` or equivalent) AFTER rotation.**
+
+**Evidence from `.env` (values redacted):**
 ```
-Line 7:  DATABASE_URL="postgresql://postgres.sprlwlxjhhmazxpflhnb:Yuniteke2026.@aws-0-us-east-2.pooler.supabase.com:6543/postgres?pgbouncer=true"
-Line 11: REDIS_URL=redis://default:TtO8PKoOPadVAMJnCaUiAxk0zot8W1Z0@playground-carob-talk-92024.db.redis.io:19389
-Line 17: SMTP_PASS=yuxh yrfi drsj prcg
-Line 22: SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Line 24: SUPABASE_ACCESS_TOKEN=sbp_d4e6df28cc7914f9e96735874f3904474298a477
+Line 7:  DATABASE_URL="postgresql://postgres.sprlwlxjhhmazxpflhnb:[REDACTED]@aws-0-us-east-2.pooler.supabase.com:6543/postgres?pgbouncer=true"
+Line 11: REDIS_URL=redis://default:[REDACTED]@playground-carob-talk-92024.db.redis.io:19389
+Line 17: SMTP_PASS=[REDACTED]
+Line 22: SUPABASE_SERVICE_ROLE_KEY=[REDACTED]
+Line 24: SUPABASE_ACCESS_TOKEN=[REDACTED]
 ```
 
 **Risk Assessment:**
-- Database credentials exposed with plain-text password
-- Redis credentials exposed
-- Gmail SMTP password (app-specific password) exposed
-- Supabase service role key exposed (allows full database access)
-- Supabase access token exposed
+- Database credentials were exposed with plain-text password
+- Redis credentials were exposed
+- Gmail SMTP password (app-specific password) was exposed
+- Supabase service role key was exposed (allows full database access)
+- Supabase access token was exposed
 
-**Impact:** CRITICAL - Any person with access to this repository can:
+**Impact:** CRITICAL - Because these values sat in git history, any person with
+access to this repository could:
 1. Access the production database directly
 2. Read/write all data
 3. Send emails through the configured SMTP server
 4. Access Redis cache/data
+
+→ Rotation of all five credentials is mandatory; redaction alone is not sufficient.
 
 #### 🟠 HIGH: Variable Inconsistencies
 

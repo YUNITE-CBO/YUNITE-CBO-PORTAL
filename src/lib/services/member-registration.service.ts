@@ -7,6 +7,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { notificationEventService } from './notifications';
+import { escapeOrFilterValue } from '@/lib/utils/postgrest';
 
 export interface MemberRegistrationData {
   first_name: string;
@@ -219,7 +220,10 @@ export class MemberRegistrationService {
     let query = supabase.from('members').select('*', { count: 'exact' });
 
     if (params.query) {
-      query = query.or(`first_name.ilike.%${params.query}%,last_name.ilike.%${params.query}%,member_number.ilike.%${params.query}%,phone.ilike.%${params.query}%`);
+      // Sanitize BEFORE interpolation into the raw PostgREST logic string —
+      // unescaped `,` `(` `)` `.` would let the query break out of the OR group.
+      const q = escapeOrFilterValue(params.query);
+      query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,member_number.ilike.%${q}%,phone.ilike.%${q}%`);
     }
     if (params.status) query = query.eq('status', params.status);
 

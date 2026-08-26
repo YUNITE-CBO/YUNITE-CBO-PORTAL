@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transactionEngine } from '@/lib/services';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/auth/authorization';
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/transactions/reverse
@@ -9,6 +11,14 @@ import { createServiceClient } from '@/lib/supabase/server';
  * Financial records are never deleted, only reversed.
  */
 export async function POST(request: NextRequest) {
+  const auth = await requirePermission(request, 'transactions', 'reverse');
+  if (!auth.success || !auth.user) {
+    return NextResponse.json(
+      { success: false, error: auth.error || 'Access denied' },
+      { status: auth.status || 403 }
+    );
+  }
+
   try {
     const body = await request.json();
     
@@ -28,7 +38,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = body.user_id || '00000000-0000-0000-0000-000000000000';
+    const userId = auth.user.user_id;
 
     // Get original transaction to know the member
     const supabase = await createServiceClient();

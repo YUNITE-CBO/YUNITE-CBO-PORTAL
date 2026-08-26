@@ -5,6 +5,7 @@ import {
   DuplicateMemberError,
 } from '@/lib/services/member-registration-submission.service';
 import { getClientIP, getUserAgent, requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
+import { checkSimpleRateLimit, getRateLimitIp } from '@/lib/api/simple-rate-limit';
 export const dynamic = 'force-dynamic';
 
 // PUBLIC submission schema — mirrors src/app/api/members/route.ts
@@ -51,6 +52,17 @@ const submissionSchema = z.object({
  * exposes no list/read surface to the public.
  */
 export async function POST(request: NextRequest) {
+  // Abuse guard: this PUBLIC endpoint writes rows and queues emails. Limit
+  // submissions per IP to blunt spam / email-bombing through the applicant
+  // confirmation flow.
+  const rl = checkSimpleRateLimit(`member-registration:${getRateLimitIp(request)}`, 5, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many submissions. Please wait a minute and try again.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+    );
+  }
+
   try {
     const body = await request.json();
     // Strip empty strings / nulls (mirrors /api/members route handling).

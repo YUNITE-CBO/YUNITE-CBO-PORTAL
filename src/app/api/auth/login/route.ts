@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authService, DeviceInfo, parseDeviceInfo } from '@/lib/services/auth.service';
 import { authNotificationService } from '@/lib/services/notifications/auth-notification.service';
+import { checkSimpleRateLimit, getRateLimitIp } from '@/lib/api/simple-rate-limit';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  // Abuse guard: per-IP limit on login attempts. The per-ACCOUNT lockout in
+  // AuthService does not stop password spraying across many accounts from one
+  // source — this does. Mirrors the v1 gateway login limit (20/min).
+  const rl = checkSimpleRateLimit(`login:${getRateLimitIp(request)}`, 20, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many login attempts. Please wait a minute and try again.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+    );
+  }
+
   try {
     const { email, password } = await request.json();
 

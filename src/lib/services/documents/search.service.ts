@@ -14,6 +14,7 @@ import {
   ModuleType,
   DocumentStatus,
 } from './types';
+import { escapeOrFilterValue } from '@/lib/utils/postgrest';
 
 export class DocumentSearchService {
   /**
@@ -230,11 +231,14 @@ export class DocumentSearchService {
   ): Promise<DocumentSearchResult> {
     const supabase = await createServiceClient();
 
+    // Sanitize BEFORE interpolation into the raw PostgREST logic string.
+    const safeName = escapeOrFilterValue(name);
+
     // Get member IDs matching the name
     const { data: members } = await supabase
       .from('members')
       .select('id')
-      .or(`first_name.ilike.%${name}%,last_name.ilike.%${name}%,email.ilike.%${name}%`);
+      .or(`first_name.ilike.%${safeName}%,last_name.ilike.%${safeName}%,email.ilike.%${safeName}%`);
 
     const memberIds = members?.map(m => m.id) || [];
 

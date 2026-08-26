@@ -16,6 +16,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import { escapeOrFilterValue } from '@/lib/utils/postgrest';
 import {
   ModuleType,
   DocumentStatus,
@@ -556,11 +557,13 @@ export class EnterpriseDocumentService {
     const doc = await this.getById(documentId);
     if (!doc) return [];
 
-    // Get all versions (same parent or same root)
+    // Get all versions (same parent or same root). The id is route-derived;
+    // sanitize before interpolation into the raw PostgREST logic string.
+    const safeId = escapeOrFilterValue(documentId);
     const { data, error } = await supabase
       .from('documents')
       .select('*')
-      .or(`parent_document_id.eq.${documentId},id.eq.${documentId}`)
+      .or(`parent_document_id.eq.${safeId},id.eq.${safeId}`)
       .order('version', { ascending: true });
 
     if (error) {

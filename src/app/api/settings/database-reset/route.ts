@@ -16,15 +16,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { databaseResetService, ResetLevel } from '@/lib/services/database-admin/database-reset.service';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin, requireSuperAdmin } from '@/lib/auth/authorization';
+import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/settings/database-reset
- * 
- * Get reset options, current database statistics, and system state
+ *
+ * Get reset options, current database statistics, and system state.
+ * Admin+ only — the response exposes dataset sizes and reset capabilities.
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.success || !auth.user) {
+    return NextResponse.json(
+      { success: false, error: auth.error || 'Access denied' },
+      { status: auth.status || 403 }
+    );
+  }
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const level = searchParams.get('level') as ResetLevel | null;
@@ -99,18 +110,33 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/settings/database-reset
- * 
- * Execute database reset with comprehensive safety checks
+ *
+ * Execute database reset with comprehensive safety checks.
+ *
+ * Security: the caller's identity and role come from the verified session
+ * JWT (requireSuperAdmin) — NEVER from the request body. Level 3
+ * (organization wipe) additionally requires the caller's real account
+ * password, verified server-side against users.password_hash.
  */
 export async function POST(request: NextRequest) {
   let body: any;
   let supabase: Awaited<ReturnType<typeof createServiceClient>>;
   let userIdForAudit: string = 'unknown';
 
+  // Verified-session authorization: super_admin only.
+  const auth = await requireSuperAdmin(request);
+  if (!auth.success || !auth.user) {
+    return NextResponse.json(
+      { success: false, error: auth.error || 'Only Super Administrators can perform database reset' },
+      { status: auth.status || 403 }
+    );
+  }
+  const user_id = auth.user.user_id;
+
   try {
     body = await request.json();
     supabase = await createServiceClient();
-    userIdForAudit = body.user_id || 'unknown';
+    userIdForAudit = user_id;
 
     // =========================================================================
     // SAFETY VALIDATION
@@ -118,7 +144,6 @@ export async function POST(request: NextRequest) {
 
     const {
       level,
-      user_id,
       confirmation_phrase,
       backup_verified,
       archive_instead_of_delete = true,
@@ -130,29 +155,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Invalid reset level specified' },
         { status: 400 }
-      );
-    }
-
-    // Require user_id
-    if (!user_id) {
-      return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // Verify user is super_admin
-    const { data: user } = await supabase
-      .from('users')
-      .select('id, role, email')
-      .eq('id', user_id)
-      .eq('role', 'super_admin')
-      .single();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Only Super Administrators can perform database reset' },
-        { status: 403 }
       );
     }
 
@@ -176,19 +178,39 @@ export async function POST(request: NextRequest) {
     // LEVEL-SPECIFIC SAFETY REQUIREMENTS
     // =========================================================================
 
+    let passwordVerified = false;
+
     if (level === 'level_3_organization') {
-      // Level 3 requires additional confirmation
-      if (!body.password_verified) {
+      // Level 3 requires the caller's REAL account password, verified
+      // server-side — a client-supplied boolean is not proof of anything.
+      const providedPassword = typeof body.password === 'string' ? body.password : '';
+      if (!providedPassword) {
         return NextResponse.json(
-          { 
-            success: false, 
+          {
+            success: false,
             error: 'Password verification required for Organization Reset',
             requires_password: true,
           },
           { status: 403 }
         );
       }
+
+      const { data: credUser } = await supabase
+        .from('users')
+        .select('password_hash')
+        .eq('id', user_id)
+        .single();
+
+      if (!credUser?.password_hash || !(await bcrypt.compare(providedPassword, credUser.password_hash))) {
+        return NextResponse.json(
+          { success: false, error: 'Incorrect password for Organization Reset' },
+          { status: 403 }
+        );
+      }
+      passwordVerified = true;
     }
+
+    const user = { id: user_id, email: auth.user.email };
 
     // =========================================================================
     // LOG THE ATTEMPT
@@ -220,7 +242,7 @@ export async function POST(request: NextRequest) {
       delete_audit_logs,
       backup_verified,
       user_id,
-      password_verified: body.password_verified || false,
+      password_verified: passwordVerified,
       two_factor_verified: body.two_factor_verified,
       confirmation_phrase,
     });

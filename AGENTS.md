@@ -1591,3 +1591,47 @@ exist: **Archive** (pre-existing `DELETE /api/members/[id]` ‚Üí status
   `/api/reports` NOT public while `/api/reports/verify` is, getJwtSecret rules).
   Live-probed against `next start`: unauthenticated data APIs -> 401, public
   paths pass, boot without the secret fails loud.
+
+## Critical-vulnerability sweep (2026-08-26) — six verified findings fixed
+- **Credential hygiene**: live DB URL+password, Redis password, Gmail SMTP app
+  password, Supabase service-role key/access token, and the default admin
+  password were committed in `docs/FORENSIC_SYSTEMS_AUDIT_REPORT.md` +
+  `docs/DEVELOPER_INSTRUCTIONS.md`, and the live admin password was hardcoded
+  in `tests/auth.test.ts`/`tests/integration.test.ts`. All redacted. ROTATION
+  of those credentials is an OPERATOR action (Supabase/Upstash/Gmail
+  dashboards) — the repo purge alone does not invalidate them.
+- **Destructive routes now session-guarded**: `POST /api/settings/reset-data`
+  requires `requireSuperAdmin` (GET stats `requireAdmin`); the audit log actor
+  is the session user, never `body.user_id`. `POST /api/settings/database-reset`
+  derives identity/role from the verified JWT (the old body `user_id` lookup
+  was spoofable) and level_3 requires the caller's REAL password verified
+  server-side with bcrypt against `users.password_hash` (the old
+  `password_verified` body boolean was client-controlled). The settings page
+  wizard collects the password for level 3.
+- **`POST /api/transactions/reverse`** requires `transactions.reverse`
+  (admin+) — previously any authenticated user could reverse any transaction.
+- **`/api/notifications/email`** (GET+POST, all actions) requires
+  `notifications.send_email` (admin+) — previously any authenticated user had
+  an arbitrary email relay through the org's Gmail/SMTP identity. Staff/viewer
+  no longer see queue stats (the notifications page silently skips the panel).
+- **Public member lookup minimized + rate-limited**:
+  `GET /api/member-registration-submissions/lookup` now returns ONLY
+  id/member_number/status/first_name/last_name (never KRA PIN, ID number, DOB,
+  addresses, next-of-kin, emergency contacts) and is limited to 10/min/IP.
+  The public form no longer pre-fills on-file PII — the applicant re-enters
+  the fields they want to update.
+- **Legacy-route rate limiter** (`src/lib/api/simple-rate-limit.ts`):
+  in-memory fixed-window limiter for non-gateway routes (the v1 gateway keeps
+  its Redis limiter). Applied: login 20/min/IP, public registration POST
+  5/min/IP, public lookup 10/min/IP. `_resetSimpleRateLimit()` is the test
+  hook — call it in beforeEach of any test hitting these routes.
+- **PostgREST .or() filter injection**: `escapeOrFilterValue()`
+  (`src/lib/utils/postgrest.ts`) strips `, ( ) . " ' \` before interpolating
+  user input into raw `.or()` logic strings. Applied in
+  `member-registration.service.ts` (member search), `documents/search.service.ts`
+  (member name search), `documents/core.service.ts` (version history id).
+  ANY new `.or()` with interpolated input MUST sanitize first.
+- **Tests**: `tests/security-hardening.test.ts` (30: auth matrix for all four
+  hardened routes incl. the body-spoof regression, lookup PII minimization,
+  rate limits, sanitizer, credential hygiene, static source guards).
+  Run: `npx jest tests/security-hardening --forceExit`.

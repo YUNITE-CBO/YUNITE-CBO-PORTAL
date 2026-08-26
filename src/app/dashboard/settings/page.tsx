@@ -157,7 +157,7 @@ export default function EnhancedSettingsPage() {
   const [backupVerified, setBackupVerified] = useState(false);
   const [archiveInsteadOfDelete, setArchiveInsteadOfDelete] = useState(true);
   const [deleteAuditLogs, setDeleteAuditLogs] = useState(false);
-  const [passwordVerified, setPasswordVerified] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
   const [countdown, setCountdown] = useState(10);
   const [resetProgress, setResetProgress] = useState<ResetProgress | null>(null);
   const [resetResult, setResetResult] = useState<any>(null);
@@ -191,8 +191,8 @@ export default function EnhancedSettingsPage() {
       const res = await fetch('/api/settings/database-reset');
       const data = await res.json();
       if (data.success) {
-        setDataStats(data.data.stats);
-        setSystemState(data.data.systemState);
+        setDataStats(data.data.database_stats ?? data.data.stats);
+        setSystemState(data.data.system_state ?? data.data.systemState);
       }
     } catch (err) {
       console.error('Failed to fetch database reset info:', err);
@@ -285,11 +285,11 @@ export default function EnhancedSettingsPage() {
   };
 
   const handleProceedToBackup = async () => {
-    if (!passwordVerified) {
-      setError('Please confirm you are a Super Administrator');
+    if (selectedLevel?.id === 'level_3_organization' && !resetPassword) {
+      setError('Enter your account password to authorize an Organization Reset');
       return;
     }
-    
+
     setResetStep('backup_confirm');
   };
 
@@ -328,8 +328,13 @@ export default function EnhancedSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           level: selectedLevel.id,
-          archive: archiveInsteadOfDelete,
-          deleteAuditLogs: deleteAuditLogs,
+          confirmation_phrase: confirmationPhrase,
+          backup_verified: backupVerified,
+          archive_instead_of_delete: archiveInsteadOfDelete,
+          delete_audit_logs: deleteAuditLogs,
+          // Sent only for level_3_organization; verified server-side
+          // against the caller's own password hash. Never stored.
+          password: resetPassword || undefined,
         }),
       });
       
@@ -359,7 +364,7 @@ export default function EnhancedSettingsPage() {
     setSelectedLevel(null);
     setConfirmationPhrase('');
     setBackupVerified(false);
-    setPasswordVerified(false);
+    setResetPassword('');
     setError(null);
     fetchDatabaseResetInfo();
   };
@@ -1109,18 +1114,30 @@ export default function EnhancedSettingsPage() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="simulateVerify"
-                        checked={passwordVerified}
-                        onChange={(e) => setPasswordVerified(e.target.checked)}
-                        className="w-4 h-4 text-red-600"
-                      />
-                      <label htmlFor="simulateVerify" className="text-sm text-gray-700">
-                        I confirm I am a Super Administrator
-                      </label>
-                    </div>
+                    {selectedLevel?.id === 'level_3_organization' ? (
+                      <div>
+                        <label htmlFor="resetPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                          Your account password <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          id="resetPassword"
+                          value={resetPassword}
+                          onChange={(e) => setResetPassword(e.target.value)}
+                          placeholder="Enter your password to authorize this reset"
+                          autoComplete="current-password"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Organization Reset is irreversible — it is verified server-side against your own account credentials.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="text-green-600">✓</span>
+                        Your Super Administrator session authorizes this reset level.
+                      </div>
+                    )}
                   </div>
 
                   {error && (

@@ -1,17 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { memberRegistrationSubmissionService } from '@/lib/services/member-registration-submission.service';
+import { checkSimpleRateLimit, getRateLimitIp } from '@/lib/api/simple-rate-limit';
 export const dynamic = 'force-dynamic';
 
 /**
- * PUBLIC lookup: given an ID number and/or phone, return the matching member
- * record so the public pre-registration form can open in "pre-edit" mode with
- * the applicant's on-file data (instead of them creating a duplicate profile
- * by accident).
+ * PUBLIC lookup: given an ID number and/or phone, confirm whether a matching
+ * member record exists so the public pre-registration form can open in
+ * "update my record" mode (instead of the applicant creating a duplicate).
  *
- * Exact, case-insensitive, single-record match only — no fuzzy search. There
- * is deliberately no list/search surface here.
+ * Exact, case-insensitive, single-record match only — no fuzzy search. The
+ * response is deliberately MINIMIZED (name + member number only): knowing a
+ * person's phone number must not unlock the rest of their file. Rate-limited
+ * per IP to blunt phone/ID enumeration.
  */
 export async function GET(request: NextRequest) {
+  // Abuse guard: this is a PUBLIC endpoint that confirms whether a phone
+  // number or national ID belongs to a member. Without a limit it is a
+  // membership-enumeration oracle.
+  const rl = checkSimpleRateLimit(`member-lookup:${getRateLimitIp(request)}`, 10, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many lookup attempts. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+    );
+  }
+
   try {
     const sp = request.nextUrl.searchParams;
     const id_number = sp.get('id_number') || undefined;
@@ -31,6 +44,12 @@ export async function GET(request: NextRequest) {
     }
 
     const m = member as Record<string, unknown>;
+
+    // MINIMIZED RESPONSE: the caller already proved knowledge of the lookup
+    // identifier, so the response must not hand back any ADDITIONAL personal
+    // data an attacker could be missing. Identity fields (KRA PIN, ID number,
+    // date of birth, addresses, next of kin, emergency contacts) are NEVER
+    // returned here — the applicant re-enters their own data in the form.
     return NextResponse.json({
       success: true,
       data: {
@@ -41,27 +60,6 @@ export async function GET(request: NextRequest) {
           status: m.status,
           first_name: m.first_name,
           last_name: m.last_name,
-          email: m.email ?? null,
-          phone: m.phone ?? null,
-          alt_phone: m.alt_phone ?? null,
-          alt_email: m.alt_email ?? null,
-          id_number: m.id_number ?? null,
-          kra_pin: m.kra_pin ?? null,
-          date_of_birth: m.date_of_birth ?? null,
-          gender: m.gender ?? null,
-          marital_status: m.marital_status ?? null,
-          nationality: m.nationality ?? null,
-          physical_address: m.physical_address ?? null,
-          postal_address: m.postal_address ?? null,
-          occupation: m.occupation ?? null,
-          employer: m.employer ?? null,
-          employer_address: m.employer_address ?? null,
-          next_of_kin_name: m.next_of_kin_name ?? null,
-          next_of_kin_phone: m.next_of_kin_phone ?? null,
-          next_of_kin_relationship: m.next_of_kin_relationship ?? null,
-          emergency_contact_name: m.emergency_contact_name ?? null,
-          emergency_contact_phone: m.emergency_contact_phone ?? null,
-          emergency_contact_relationship: m.emergency_contact_relationship ?? null,
         },
       },
     });

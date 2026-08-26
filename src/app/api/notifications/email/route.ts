@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { emailService } from '@/lib/services/notifications';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/auth/authorization';
 import { z } from 'zod';
 export const dynamic = 'force-dynamic';
+
+/**
+ * Security: EVERY action on this route (stats, connection test, send, queue
+ * processing, retry) requires the notifications.send_email permission
+ * (admin+). Without the guard the 'send' action was an open relay: any
+ * authenticated user could send arbitrary email through the organization's
+ * Gmail/SMTP identity.
+ */
+async function requireEmailAdmin(request: NextRequest) {
+  const auth = await requirePermission(request, 'notifications', 'send_email');
+  if (!auth.success || !auth.user) {
+    return NextResponse.json(
+      { success: false, error: auth.error || 'Access denied' },
+      { status: auth.status || 403 }
+    );
+  }
+  return null;
+}
 
 const sendEmailSchema = z.object({
   to: z.string().email(),
@@ -19,6 +38,9 @@ const sendEmailSchema = z.object({
 
 // GET /api/notifications/email
 export async function GET(request: NextRequest) {
+  const denied = await requireEmailAdmin(request);
+  if (denied) return denied;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const action = searchParams.get('action');
@@ -56,6 +78,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/notifications/email
 export async function POST(request: NextRequest) {
+  const denied = await requireEmailAdmin(request);
+  if (denied) return denied;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const action = searchParams.get('action');

@@ -7,7 +7,7 @@ export {};
 
 const API_BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000';
 const TEST_EMAIL = 'info.yunite.ke@gmail.com';
-const TEST_PASSWORD = 'Yuniteke2026.';
+const TEST_PASSWORD = process.env.TEST_ADMIN_PASSWORD || 'test-only-password';
 
 // Simple cookie jar for testing
 class CookieJar {

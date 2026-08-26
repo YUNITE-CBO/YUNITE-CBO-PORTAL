@@ -1,58 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireSuperAdmin, requireAdmin } from '@/lib/auth/authorization';
 import { v4 as uuidv4 } from 'uuid';
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/settings/reset-data
- * 
+ *
  * WARNING: This is a destructive operation!
- * 
+ *
  * Resets all financial data:
  * - Deletes all transactions
  * - Deletes all loans
  * - Deletes all fines
  * - Resets all campaign contributions to 0
  * - Deletes all accounts (member financial records)
- * 
+ *
  * Preserves:
  * - Members (financial records will be reset)
  * - Users
  * - Settings
  * - Audit logs (for history)
- * 
+ *
  * This operation CANNOT be undone!
+ *
+ * Security: super_admin only, verified from the session JWT — the caller's
+ * identity is NEVER taken from the request body.
  */
 export async function POST(request: NextRequest) {
   let body: any;
   let supabase: Awaited<ReturnType<typeof createServiceClient>>;
   let userIdForAudit: string = 'system';
 
+  // Verified-session authorization: only a super_admin may wipe financial data.
+  const auth = await requireSuperAdmin(request);
+  if (!auth.success || !auth.user) {
+    return NextResponse.json(
+      { success: false, error: auth.error || 'Access denied' },
+      { status: auth.status || 403 }
+    );
+  }
+  const user_id = auth.user.user_id;
+
   try {
     body = await request.json();
     supabase = await createServiceClient();
-    userIdForAudit = body.user_id || 'system';
-    
+    userIdForAudit = user_id;
+
     // Require explicit confirmation
-    const { confirm_reset, user_id } = body;
-    
+    const { confirm_reset } = body;
+
     if (!confirm_reset) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Reset confirmation required. Set confirm_reset to true.' 
+        {
+          success: false,
+          error: 'Reset confirmation required. Set confirm_reset to true.'
         },
         { status: 400 }
       );
     }
 
-    console.log('🔴 DATA RESET INITIATED by user:', user_id || 'system');
+    console.log('🔴 DATA RESET INITIATED by user:', user_id);
 
     // Log the reset attempt
     await supabase.from('audit_logs').insert({
       id: uuidv4(),
       action: 'system.data_reset_started',
       record_id: 'system',
-      user_id: user_id || 'system',
+      user_id,
       before_value: { timestamp: new Date().toISOString() },
       after_value: { status: 'initiated' },
       created_at: new Date().toISOString(),
@@ -164,7 +179,7 @@ export async function POST(request: NextRequest) {
       id: uuidv4(),
       action: 'system.data_reset_completed',
       record_id: 'system',
-      user_id: user_id || 'system',
+      user_id,
       after_value: { 
         status: 'completed', 
         timestamp: new Date().toISOString(),
@@ -217,10 +232,19 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/settings/reset-data
- * 
- * Get data statistics before reset
+ *
+ * Get data statistics before reset. Admin+ only: the counts reveal the size
+ * of the organization's financial dataset.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.success || !auth.user) {
+    return NextResponse.json(
+      { success: false, error: auth.error || 'Access denied' },
+      { status: auth.status || 403 }
+    );
+  }
+
   try {
     const supabase = await createServiceClient();
     

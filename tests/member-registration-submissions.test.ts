@@ -176,6 +176,9 @@ describe('Member pre-registration submission service', () => {
     usersTable = [];
     templatesTable = [];
     processQueueCalls = 0;
+    // The public POST route is rate-limited per IP; clear buckets so tests
+    // never trip the limiter across cases sharing the 'unknown' IP key.
+    require('@/lib/api/simple-rate-limit')._resetSimpleRateLimit();
   });
 
   it('create() stores a pending submission and does NOT create a member', async () => {
@@ -475,6 +478,7 @@ describe('POST /api/member-registration-submissions (public)', () => {
   beforeEach(() => {
     insertedSubmissions = [];
     membersTable = [];
+    require('@/lib/api/simple-rate-limit')._resetSimpleRateLimit();
   });
 
   it('accepts a public submission and returns the reference (201)', async () => {
