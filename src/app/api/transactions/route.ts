@@ -1,42 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { transactionEngine, AccountType } from '@/lib/services';
+import { transactionEngine, transactionPostingService } from '@/lib/services';
 import { requirePermission, unauthorizedResponse, forbiddenResponse } from '@/lib/auth';
 import { z } from 'zod';
 export const dynamic = 'force-dynamic';
 
-// Map simplified client transaction types to internal types
-const TRANSACTION_TYPE_MAP: Record<string, string> = {
-  // Savings
+/**
+ * POST /api/transactions — controlled financial transaction posting.
+ *
+ * The client now sends the THREE controlled dimensions (category, sub_type,
+ * ledger) plus amount / payment / reference / date. The Transaction Rules
+ * Engine is the single source of truth: invalid (category, sub-type, ledger)
+ * combinations are REJECTED here even if the UI is bypassed (spec §6). The
+ * legacy engine still performs the authoritative ledger movement + balance
+ * snapshots; the new controlled columns are written alongside.
+ *
+ * Legacy free-form postings (old field names) are still accepted and mapped
+ * via TRANSACTION_TYPE_MAP for backward compatibility — but only down the
+ * legacy path, never combining a new category with an invalid ledger.
+ */
+const LEGACY_TYPE_MAP: Record<string, string> = {
   deposit: 'savings_deposit',
   withdrawal: 'savings_withdrawal',
   adjustment: 'savings_adjustment',
-  // Contributions
   contribution: 'contribution_monthly',
   contribution_monthly: 'contribution_monthly',
   contribution_special: 'contribution_special',
   contribution_development: 'contribution_development',
-  // Welfare
   welfare_deposit: 'welfare_deposit',
   welfare_disbursement: 'welfare_disbursement',
-  // Fines
   fine: 'fine_payment',
   fine_payment: 'fine_payment',
-  // Loans
   loan_repayment: 'loan_repayment',
-  // Shares
-  share_purchase: 'savings_adjustment', // Maps to savings adjustment for simplicity
-  // Transfer
-  transfer: 'savings_adjustment', // Maps to savings adjustment for simplicity
-  fee: 'fine_payment', // Maps to fine payment for simplicity
+  share_purchase: 'savings_adjustment',
+  transfer: 'savings_adjustment',
+  fee: 'fine_payment',
 };
 
 const transactionSchema = z.object({
   member_id: z.string().uuid(),
-  account_type: z.enum(['savings', 'shares', 'contributions', 'welfare', 'fines']),
-  transaction_type: z.string(),
+  // New controlled-posting field names:
+  category: z.string().optional(),
+  sub_type: z.string().optional(),
+  ledger: z.string().optional(),
+  // Legacy field names (backward compatible):
+  account_type: z.enum(['savings', 'shares', 'contributions', 'welfare', 'fines']).optional(),
+  transaction_type: z.string().optional(),
+  // Common:
   amount: z.number().positive(),
   description: z.string().optional(),
   reference_number: z.string().optional(),
+  payment_method: z.string().optional(),
+  transaction_date: z.string().optional(),
+  confirm_duplicate: z.boolean().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 
@@ -54,51 +69,31 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const memberId = searchParams.get('member_id');
 
-    // If member_id is provided, use transaction engine for that member
-    if (memberId) {
-      const result = await transactionEngine.getHistory({
-        member_id: memberId,
-        account_type: searchParams.get('account_type') as AccountType | undefined,
-        start_date: searchParams.get('start_date') || undefined,
-        end_date: searchParams.get('end_date') || undefined,
-        page: parseInt(searchParams.get('page') || '1'),
-        limit: parseInt(searchParams.get('limit') || '50'),
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: result.transactions,
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          totalPages: result.totalPages,
-        },
-      });
-    }
-
-    // If no member_id, fetch all transactions directly
-    const { createServiceClient } = await import('@/lib/supabase/server');
-    const supabase = await createServiceClient();
-
-    const { data: transactions, count } = await supabase
-      .from('transactions')
-      .select(`
-        *,
-        member:members(first_name, last_name, member_number)
-      `, { count: 'exact' })
-      .eq('reversed', false)
-      .order('created_at', { ascending: false })
-      .limit(50);
+    // New controlled-posting filters (spec §12): category, sub-type, ledger,
+    // payment method, status, reference, posted-by, search, date range.
+    const result = await transactionPostingService.listTransactions({
+      member_id: memberId || undefined,
+      category: searchParams.get('category') || undefined,
+      sub_type: searchParams.get('sub_type') || undefined,
+      ledger: searchParams.get('ledger') || undefined,
+      payment_method: searchParams.get('payment_method') || undefined,
+      status: searchParams.get('status') || undefined,
+      reference_number: searchParams.get('reference_number') || undefined,
+      search: searchParams.get('search') || undefined,
+      start_date: searchParams.get('start_date') || undefined,
+      end_date: searchParams.get('end_date') || undefined,
+      page: parseInt(searchParams.get('page') || '1'),
+      limit: parseInt(searchParams.get('limit') || '25'),
+    });
 
     return NextResponse.json({
       success: true,
-      data: transactions || [],
+      data: result.transactions,
       pagination: {
-        page: 1,
-        limit: 50,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / 50),
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
       },
     });
   } catch (error) {
@@ -124,17 +119,66 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = transactionSchema.parse(body);
 
-    // Map client transaction type to internal type
-    const internalTransactionType = TRANSACTION_TYPE_MAP[validated.transaction_type];
+    // Use the authenticated user's ID.
+    const userId = authResult.user!.user_id;
+
+    const isControlled = !!(validated.category && validated.sub_type && validated.ledger);
+
+    // --- Controlled posting path (new) --------------------------------------
+    if (isControlled) {
+      const result = await transactionPostingService.post({
+        member_id: validated.member_id,
+        category: validated.category!,
+        sub_type: validated.sub_type!,
+        ledger: validated.ledger!,
+        amount: validated.amount,
+        payment_method: validated.payment_method,
+        reference_number: validated.reference_number,
+        transaction_date: validated.transaction_date,
+        description: validated.description,
+        confirm_duplicate: validated.confirm_duplicate,
+        metadata: { user_id: userId, ...(validated.metadata ?? {}) },
+      });
+
+      if (!result.ok) {
+        // Possible-duplicate: ask the caller to confirm (409).
+        if (result.warning) {
+          return NextResponse.json(
+            { success: false, warning: result.warning },
+            { status: 409 }
+          );
+        }
+        // Invalid combination — reject with the rule-engine explanation (422).
+        const status = result.validation ? 422 : 400;
+        return NextResponse.json(
+          { success: false, error: result.error || 'Transaction rejected', validation: result.validation },
+          { status }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Transaction posted successfully',
+        data: result,
+      }, { status: 201 });
+    }
+
+    // --- Legacy free-form path (backward compatibility) ----------------------
+    const internalTransactionType = validated.transaction_type
+      ? LEGACY_TYPE_MAP[validated.transaction_type]
+      : undefined;
     if (!internalTransactionType) {
       return NextResponse.json(
-        { success: false, error: `Invalid transaction type: ${validated.transaction_type}` },
+        { success: false, error: 'Invalid transaction type. Use the controlled workflow (category, sub_type, ledger) or a valid legacy type.' },
         { status: 400 }
       );
     }
-
-    // Use the authenticated user's ID
-    const userId = authResult.user!.user_id;
+    if (!validated.account_type) {
+      return NextResponse.json(
+        { success: false, error: 'account_type is required for legacy posting' },
+        { status: 400 }
+      );
+    }
 
     const result = await transactionEngine.execute({
       member_id: validated.member_id,
@@ -143,7 +187,7 @@ export async function POST(request: NextRequest) {
       amount: validated.amount,
       description: validated.description,
       reference_number: validated.reference_number,
-      metadata: validated.metadata,
+      metadata: { user_id: userId, ...(validated.metadata ?? {}) },
       user_id: userId,
     });
 

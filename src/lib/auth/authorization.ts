@@ -49,6 +49,13 @@ const PERMISSIONS: Record<string, Record<string, string[]>> = {
     update: ['super_admin', 'admin'],
     delete: ['super_admin', 'admin'], // Deletion = reversal
     reverse: ['super_admin', 'admin'],
+    // Controlled posting workflow (spec §18): posting/reversing/voiding and
+    // configuring the transaction rules engine require elevated permissions.
+    post: ['super_admin', 'admin', 'staff'],
+    void: ['super_admin', 'admin'],
+    approve: ['super_admin', 'admin'],
+    export: ['super_admin', 'admin', 'staff'],
+    configure_rules: ['super_admin'], // Only super admin may change rule behaviour settings
   },
   // Loans module
   loans: {

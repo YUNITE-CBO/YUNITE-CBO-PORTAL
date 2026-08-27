@@ -8,6 +8,11 @@
 export { transactionEngine } from './transaction.engine';
 export type { TransactionType, AccountType, TransactionRequest, CalculatedBalances } from './transaction.engine';
 
+// Controlled transaction posting subsystem (Transaction Rules Engine).
+export { transactionPostingService } from './transactions/transaction-posting.service';
+export type { PostTransactionInput, PostTransactionResult } from './transactions/transaction-posting.service';
+export * from './transactions/transaction-rules';
+
 export { memberRegistrationService } from './member-registration.service';
 export type { MemberRegistrationData } from './member-registration.service';
 
