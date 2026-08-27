@@ -45,6 +45,7 @@ import {
   LEGACY_TYPE_TRANSACTION_TYPE_MAP,
 } from './transaction-rules';
 import type { TransactionType as RuleTransactionType } from './transaction-rules';
+import type { AccountType, CalculatedBalances } from '@/lib/services/transaction.engine';
 
 export interface PostTransactionInput {
   member_id: string;
@@ -65,7 +66,7 @@ export interface PostTransactionInput {
 export interface PostTransactionResult {
   ok: boolean;
   transaction?: Record<string, unknown>;
-  balances?: Record<string, number>;
+  balances?: CalculatedBalances;
   warning?: string;
   error?: string;
   /** Set when an invalid combination is rejected (spec §6). */
@@ -302,7 +303,7 @@ export class TransactionPostingService {
         console.warn('Audit insert failed (best-effort):', err);
       }
 
-      const balances = result.balances ?? {};
+      const balances = result.balances ?? ({} as CalculatedBalances);
       return { ok: true, transaction: tx, balances };
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Transaction failed';
@@ -311,7 +312,7 @@ export class TransactionPostingService {
     }
   }
 
-  private accountTypeForLedger(ledger: LedgerCode): string {
+  private accountTypeForLedger(ledger: LedgerCode): AccountType {
     return getLedger(ledger)?.accountType ?? 'contributions';
   }
 

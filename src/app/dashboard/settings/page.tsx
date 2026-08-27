@@ -17,6 +17,7 @@ import WorkflowsSettingsSection from '@/components/settings/WorkflowsSettingsSec
 import AiSettingsSection from '@/components/settings/AiSettingsSection';
 import { MediaSettingsSection } from '@/components/settings/MediaSettingsSection';
 import RegistrationSettingsSection from '@/components/settings/RegistrationSettingsSection';
+import TransactionsSettingsSection from '@/components/settings/TransactionsSettingsSection';
 import { YuniteImageUploader } from '@/components/media/YuniteImageUploader';
 
 interface Setting {
@@ -120,7 +121,7 @@ type ResetStep =
   | 'complete'
   | 'failed';
 
-type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'savings' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'branding' | 'integrations' | 'system' | 'membership' | 'workflow' | 'history' | 'api' | 'ai' | 'media' | 'registration' | 'unity_fund';
+type ActiveSection = 'overview' | 'organization' | 'financial' | 'loan' | 'savings' | 'security' | 'smtp' | 'notifications' | 'welfare' | 'contributions' | 'compliance' | 'branding' | 'integrations' | 'system' | 'membership' | 'workflow' | 'history' | 'api' | 'ai' | 'media' | 'registration' | 'transactions' | 'unity_fund';
 
 export default function EnhancedSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -590,8 +591,9 @@ export default function EnhancedSettingsPage() {
                   {category.code === 'ai' && '🧠'}
                   {category.code === 'media' && '🖼️'}
                   {category.code === 'registration' && '📝'}
+                  {category.code === 'transactions' && '💹'}
                   {category.code === 'unity_fund' && '🏦'}
-                  {!['organization', 'financial', 'loan', 'savings', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'integrations', 'system', 'membership', 'workflow', 'api', 'ai', 'media', 'registration', 'unity_fund'].includes(category.code) && '⚙️'}
+                  {!['organization', 'financial', 'loan', 'savings', 'security', 'smtp', 'notifications', 'welfare', 'contributions', 'compliance', 'branding', 'integrations', 'system', 'membership', 'workflow', 'api', 'ai', 'media', 'registration', 'transactions', 'unity_fund'].includes(category.code) && '⚙️'}
                 </span>
               </div>
               {getStatusBadge(category.configuration_status)}
@@ -1555,6 +1557,12 @@ export default function EnhancedSettingsPage() {
             />
           );
         })()
+      ) : activeSection === 'transactions' ? (
+        <TransactionsSettingsSection
+          onBack={() => setActiveSection('overview')}
+          isAdmin={isAdmin}
+          canConfigureRules={isSuperAdmin}
+        />
       ) : activeSection === 'system' ? (
         renderSystemSection()
       ) : activeSection === 'smtp' && currentCategory ? (
