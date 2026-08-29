@@ -12,20 +12,26 @@
 -- Idempotent: only touches rows still in 'failed' state.
 -- ============================================================================
 
-UPDATE email_queue
-SET
-  status = 'pending',
-  retry_count = 0,
-  error_message = NULL,
-  scheduled_for = NOW(),
-  updated_at = NOW()
-WHERE status = 'failed';
-
 -- Notifications that were flipped to 'failed' purely by the email channel
 -- (before the status decoupling fix) are moved back to 'queued' so a
 -- successful resend can advance them to 'delivered'. In-app visibility is
 -- unaffected: 'queued' notifications render the same as 'sent'.
+-- Done in ONE statement so the notification update is scoped to the exact
+-- email_queue rows being requeued — a subquery over the whole email_queue
+-- table would also match notifications linked to sent/cancelled rows and
+-- reset notifications that legitimately failed on another channel.
+WITH requeued AS (
+  UPDATE email_queue
+  SET
+    status = 'pending',
+    retry_count = 0,
+    error_message = NULL,
+    scheduled_for = NOW(),
+    updated_at = NOW()
+  WHERE status = 'failed'
+  RETURNING notification_id
+)
 UPDATE notifications
 SET status = 'queued'
 WHERE status = 'failed'
-  AND id IN (SELECT notification_id FROM email_queue WHERE notification_id IS NOT NULL);
+  AND id IN (SELECT notification_id FROM requeued WHERE notification_id IS NOT NULL);

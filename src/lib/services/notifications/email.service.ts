@@ -300,11 +300,14 @@ export class EmailService {
     // Get pending emails that are due now. Without the scheduled_for filter a
     // retry scheduled 30 minutes out is re-processed on the next 5-minute cron
     // tick, burning all retry attempts within minutes of the first failure.
+    // Rows with NULL scheduled_for are treated as due immediately — a plain
+    // .lte() comparison against NULL yields NULL in Postgres, which would
+    // silently exclude those rows from every queue run forever.
     const { data: emails } = await supabase
       .from('email_queue')
       .select('*')
       .eq('status', 'pending')
-      .lte('scheduled_for', new Date().toISOString())
+      .or(`scheduled_for.is.null,scheduled_for.lte.${new Date().toISOString()}`)
       .order('priority', { ascending: false })
       .order('scheduled_for', { ascending: true })
       .limit(batchSize);
