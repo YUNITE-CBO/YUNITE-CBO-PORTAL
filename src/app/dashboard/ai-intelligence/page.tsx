@@ -312,26 +312,30 @@ export default function AiIntelligencePage() {
   // Poll the History list until the investigation created by the background
   // run appears, then auto-open it. The 202 response carries no id (the
   // engine creates the row itself), so match on the newest row of the same
-  // scope (and member) that appeared after the request started.
-  const waitForNewInvestigation = useCallback(async (scope: string, memberId?: string) => {
-    const startedAt = Date.now();
-    const deadline = startedAt + 5 * 60 * 1000;
+  // scope that appeared after the request started.
+  const waitForNewInvestigation = useCallback(async (scope: string) => {
+    const deadline = Date.now() + 5 * 60 * 1000;
     // The engine's row is created within the first few seconds of the run;
     // capture the ids that already existed so we only match the NEW one.
     const before = new Set(investigations.map((i) => i.id));
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 4000));
-      await loadInvestigations();
-      const fresh = (await (async () => {
+      // A transient fetch/parse failure must not abort the wait: the
+      // investigation keeps running in the background regardless, so an
+      // escaping error here would surface a false "Investigation failed".
+      try {
+        await loadInvestigations();
         const res = await fetch('/api/ai/investigations?limit=30', { credentials: 'include' });
         const json = await parseJsonSafe(res);
-        return json?.success ? (json.data as Investigation[]) : [];
-      })());
-      const created = fresh.find((i) => !before.has(i.id) && i.scope === scope);
-      if (created) {
-        await openInvestigationRef.current(created.id);
-        await loadModuleHealth();
-        return;
+        const fresh: Investigation[] = json?.success && Array.isArray(json.data) ? json.data : [];
+        const created = fresh.find((i) => !before.has(i.id) && i.scope === scope);
+        if (created) {
+          await openInvestigationRef.current(created.id);
+          await loadModuleHealth();
+          return;
+        }
+      } catch {
+        /* keep polling until the deadline */
       }
     }
     setError('The investigation is taking longer than expected. It is still running — check the History tab in a moment.');
@@ -353,7 +357,7 @@ export default function AiIntelligencePage() {
         // Background mode: the engine is creating the ai_investigations row
         // now. Poll History until it appears, then auto-open it.
         setInfo(`Investigation queued (${depth}/${dualMode}) — running in the background. This can take a few minutes; it will open automatically when ready.`);
-        await waitForNewInvestigation(scope, memberId);
+        await waitForNewInvestigation(scope);
         await loadHealth();
       } else if (json?.success && json.data?.investigation_id) {
         // Legacy synchronous success (older backend).
@@ -377,7 +381,7 @@ export default function AiIntelligencePage() {
       return;
     }
     setRunning(false);
-  }, [depth, dualMode, loadHealth, loadInvestigations, loadModuleHealth, waitForNewInvestigation]);
+  }, [depth, dualMode, loadHealth, loadInvestigations, waitForNewInvestigation]);
 
   const searchMembers = useCallback(async () => {
     if (!memberSearchQuery.trim()) {
