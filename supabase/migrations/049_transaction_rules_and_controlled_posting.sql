@@ -194,7 +194,7 @@ VALUES
   ('transactions.rules_enabled', 'true', 'transactions', 'Master switch for the Transaction Rules Engine. When ON, every posting must satisfy a valid (category, sub-type, ledger) combination; invalid combinations are rejected by the API even if the UI is bypassed.', 'boolean', false, 1, 'Turning this OFF restores legacy free-form posting — not recommended.'),
   ('transactions.duplicate_window_minutes', '10', 'transactions', 'Duplicate-detection window (in minutes). Submitting the same member + amount + payment method + reference within this window triggers a "possible duplicate" warning requiring explicit confirmation.', 'number', false, 2, 'Set to 0 to disable duplicate detection.'),
   ('transactions.auto_resolve_ledger', 'true', 'transactions', 'Automatically select and show the single valid ledger for a (category, sub-type) that maps to exactly one ledger.', 'boolean', false, 3, 'When ON, single-ledger sub-types render the ledger read-only and auto-selected.'),
-  ('transactions.transaction_id_prefix', 'TXN', 'transactions', 'Prefix for the internal permanent transaction identifier (format: PREFIX-YYYY-#####).', 'text', false, 4, 'Audit-critical; do not change after transactions exist.')
+  ('transactions.transaction_id_prefix', 'TXN', 'transactions', 'Prefix for the internal permanent transaction identifier (format: PREFIX-YYYY-#####).', 'string', false, 4, 'Audit-critical; do not change after transactions exist.')
 ON CONFLICT (key) DO UPDATE SET
   category = EXCLUDED.category,
   description = EXCLUDED.description,

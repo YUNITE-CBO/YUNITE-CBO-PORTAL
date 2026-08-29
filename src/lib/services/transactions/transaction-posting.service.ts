@@ -48,7 +48,8 @@ import type { TransactionType as RuleTransactionType } from './transaction-rules
 import type { AccountType, CalculatedBalances } from '@/lib/services/transaction.engine';
 
 export interface PostTransactionInput {
-  member_id: string;
+  member_id?: string;
+  is_org?: boolean;
   category: TransactionCategory | string;
   sub_type: TransactionSubType | string;
   ledger: LedgerCode | string;
@@ -88,6 +89,39 @@ export class TransactionPostingService {
       .eq('id', memberId)
       .maybeSingle();
     return data ?? null;
+  }
+
+  /**
+   * Resolve a member for an ORG-level transaction (donations / grants /
+   * expenses / org income). The authoritative `transactions` ledger requires
+   * member_id + account_id NOT NULL, so org transactions are anchored to the
+   * organization's designated member. The anchor is read from the setting
+   * `transactions.org_member_id`; if unset or invalid, fall back to the first
+   * active member. This keeps even genuine org-level postings (no individual
+   * member) from silently failing or forcing an arbitrary member in the
+   * workflow.
+   */
+  private async resolveOrgMember(): Promise<{ id: string; status?: string } | null> {
+    const supabase = await createServiceClient();
+
+    const configured = await settingsService.get('transactions.org_member_id');
+    if (configured) {
+      const { data } = await supabase
+        .from('members')
+        .select('id, status')
+        .eq('id', configured)
+        .maybeSingle();
+      if (data) return data;
+    }
+
+    const { data: fallback } = await supabase
+      .from('members')
+      .select('id, status')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    return fallback ?? null;
   }
 
   /**
@@ -186,10 +220,15 @@ export class TransactionPostingService {
     const supabase = await createServiceClient();
 
     // --- 1. member ---------------------------------------------------------
-    const member = await this.resolveMember(input.member_id);
+    // Org-level transactions (donations / grants / org expenses) are anchored
+    // to the organization's designated member via resolveOrgMember.
+    const member = input.member_id
+      ? await this.resolveMember(input.member_id)
+      : await this.resolveOrgMember();
     if (!member) {
       return { ok: false, error: 'Member not found.' };
     }
+    const memberId = member.id;
 
     // --- 2. transaction dimensions ------------------------------------------
     if (!isCategoryCode(String(input.category))) {
@@ -226,7 +265,7 @@ export class TransactionPostingService {
 
     // --- 6. duplicate detection ---------------------------------------------
     const dup = await this.detectDuplicate({
-      member_id: input.member_id,
+      member_id: memberId,
       amount: input.amount,
       payment_method: paymentMethod,
       reference_number: input.reference_number,
@@ -239,7 +278,7 @@ export class TransactionPostingService {
     }
 
     // --- 7. physical account + ledger movement ------------------------------
-    const physical = await this.resolvePhysicalAccount(input.member_id, input.ledger as LedgerCode);
+    const physical = await this.resolvePhysicalAccount(memberId, input.ledger as LedgerCode);
     if ('error' in physical) return { ok: false, error: physical.error };
 
     const rule = getRule(input.category as TransactionCategory, input.sub_type as TransactionSubType);
@@ -256,7 +295,7 @@ export class TransactionPostingService {
     try {
       const { transactionEngine } = await import('@/lib/services/transaction.engine');
       const result = await transactionEngine.execute({
-        member_id: input.member_id,
+        member_id: memberId,
         account_type: this.accountTypeForLedger(input.ledger as LedgerCode),
         transaction_type: legacyType,
         amount: input.amount,

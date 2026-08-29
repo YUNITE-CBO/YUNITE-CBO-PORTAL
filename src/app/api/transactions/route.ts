@@ -37,7 +37,10 @@ const LEGACY_TYPE_MAP: Record<string, string> = {
 };
 
 const transactionSchema = z.object({
-  member_id: z.string().uuid(),
+  // member_id is optional: org-level transactions (is_org: true) are anchored
+  // to the organization's designated member server-side.
+  member_id: z.string().uuid().optional(),
+  is_org: z.boolean().optional(),
   // New controlled-posting field names:
   category: z.string().optional(),
   sub_type: z.string().optional(),
@@ -128,6 +131,7 @@ export async function POST(request: NextRequest) {
     if (isControlled) {
       const result = await transactionPostingService.post({
         member_id: validated.member_id,
+        is_org: validated.is_org,
         category: validated.category!,
         sub_type: validated.sub_type!,
         ledger: validated.ledger!,
@@ -176,6 +180,14 @@ export async function POST(request: NextRequest) {
     if (!validated.account_type) {
       return NextResponse.json(
         { success: false, error: 'account_type is required for legacy posting' },
+        { status: 400 }
+      );
+    }
+    // Legacy free-form posting targets a specific member's account, so a
+    // member must always be supplied on this path.
+    if (!validated.member_id) {
+      return NextResponse.json(
+        { success: false, error: 'member_id is required for legacy posting' },
         { status: 400 }
       );
     }
